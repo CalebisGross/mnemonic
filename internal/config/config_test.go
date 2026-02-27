@@ -292,7 +292,7 @@ func TestProcessDurationParsing(t *testing.T) {
 	cfg := Default()
 
 	// Call process() to parse raw duration strings
-	if err := cfg.process(); err != nil {
+	if err := cfg.process(t.TempDir()); err != nil {
 		t.Fatalf("process() failed: %v", err)
 	}
 
@@ -394,7 +394,7 @@ func TestValidateSucceedsWithDefault(t *testing.T) {
 	cfg := Default()
 
 	// Process to populate parsed fields
-	if err := cfg.process(); err != nil {
+	if err := cfg.process(t.TempDir()); err != nil {
 		t.Fatalf("process() failed: %v", err)
 	}
 
