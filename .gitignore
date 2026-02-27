@@ -17,6 +17,7 @@ __pycache__/
 
 # Presentation
 Mnemonic_Pitch.pptx
+scripts/create_pitch.py
 
 # SDK local data
 sdk/agent/evolution/conversations/
