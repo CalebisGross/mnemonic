@@ -18,6 +18,15 @@ echo "  vet: running..."
 CGO_ENABLED=1 go vet -tags sqlite_fts5 ./... 2>&1
 echo "  vet: ok"
 
+# Lint (if golangci-lint is installed)
+if command -v golangci-lint &>/dev/null; then
+    echo "  lint: running..."
+    golangci-lint run --timeout 5m 2>&1
+    echo "  lint: ok"
+else
+    echo "  lint: skipped (golangci-lint not installed)"
+fi
+
 # Build check
 echo "  build: running..."
 CGO_ENABLED=1 go build -tags sqlite_fts5 -o /dev/null ./cmd/mnemonic 2>&1
