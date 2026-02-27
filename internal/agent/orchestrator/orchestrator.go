@@ -424,7 +424,7 @@ func (o *Orchestrator) GetHealthReport(ctx context.Context) HealthReport {
 	}
 
 	var report HealthReport
-	json.Unmarshal(data, &report)
+	_ = json.Unmarshal(data, &report)
 	return report
 }
 

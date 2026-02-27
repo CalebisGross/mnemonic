@@ -374,7 +374,7 @@ func phase4Associations() (int, int, float64, error) {
 	}
 
 	var stats statsResp
-	json.Unmarshal(body, &stats)
+	_ = json.Unmarshal(body, &stats)
 
 	memories := stats.Store.TotalMemories
 	assocs := stats.Store.TotalAssociations
