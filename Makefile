@@ -1,4 +1,4 @@
-.PHONY: build run clean test fmt vet start stop restart status watch install uninstall export backup insights dream-cycle mcp benchmark
+.PHONY: build run clean test fmt vet start stop restart status watch install uninstall export backup insights dream-cycle mcp benchmark setup-hooks lint
 
 BINARY=mnemonic
 BUILD_DIR=bin
@@ -87,7 +87,15 @@ benchmark:
 	CGO_ENABLED=1 go build $(TAGS) -o $(BUILD_DIR)/benchmark ./cmd/benchmark
 	@echo "Benchmark built. Run: ./$(BUILD_DIR)/benchmark (daemon must be running)"
 
+# --- Lint ---
+lint:
+	golangci-lint run
+
 # --- Setup ---
+setup-hooks:
+	git config core.hooksPath .githooks
+	@echo "Git hooks configured to use .githooks/"
+
 install: build
 	./$(BUILD_DIR)/$(BINARY) --config config.yaml install
 

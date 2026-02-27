@@ -1,8 +1,86 @@
-# Mnemonic - Claude Code Memory System
+# Mnemonic — Development Guide
 
-Mnemonic is your persistent memory on this computer. Use it to remember decisions, errors, insights, and context across sessions.
+Mnemonic is a local-first, air-gapped semantic memory system built in Go. It uses 8 cognitive agents, SQLite with FTS5 + vector search, and a local LLM (via LM Studio) for semantic understanding.
 
+## Build & Test
 
+All Go builds require CGO and the FTS5 build tag:
+
+```bash
+make build                    # CGO_ENABLED=1 go build -tags sqlite_fts5 ...
+make test                     # CGO_ENABLED=1 go test -tags sqlite_fts5 ./... -v
+make check                    # go fmt + go vet
+make run                      # Build and run in foreground (serve mode)
+golangci-lint run             # Lint (uses .golangci.yml config)
+```
+
+**Version** is injected via ldflags from `Makefile` (`VERSION=0.6.0`). The binary var is in `cmd/mnemonic/main.go`.
+
+## Project Layout
+
+```
+cmd/mnemonic/          CLI + daemon entry point
+cmd/benchmark/         End-to-end benchmark
+internal/
+  agent/               8 cognitive agents + orchestrator + reactor
+    perception/        Watch filesystem/terminal/clipboard, heuristic filter
+    encoding/          LLM compression, concept extraction, association linking
+    episoding/         Temporal episode clustering
+    consolidation/     Decay, merge, prune (sleep cycle)
+    retrieval/         Spread activation + LLM synthesis with tool-use
+    metacognition/     Self-reflection, feedback processing, audit
+    dreaming/          Memory replay, cross-pollination, insight generation
+    abstraction/       Patterns → principles → axioms
+    orchestrator/      Autonomous scheduler, health monitoring
+    reactor/           Event-driven rule engine
+  api/                 REST API server + routes
+  web/                 Embedded dashboard (single index.html, D3.js graph)
+  mcp/                 MCP server (10 tools for Claude Code)
+  store/               Store interface + SQLite implementation
+  llm/                 LLM provider interface + LM Studio client
+  watcher/             Filesystem (FSEvents/fsnotify), terminal, clipboard
+  daemon/              Service management (currently macOS LaunchAgent only)
+  events/              Event bus (in-memory pub/sub)
+  config/              Config loading (config.yaml)
+  logger/              Structured logging (slog)
+  backup/              Export/import
+sdk/                   Python agent SDK (self-evolving assistant)
+migrations/            SQLite schema migrations
+evolution/             Agent evolution data (principles, strategies)
+scripts/               Utility scripts
+```
+
+## Conventions
+
+- **Event bus architecture:** Agents communicate via events, never direct calls. To add behavior, subscribe to events in the bus.
+- **Store interface:** All data access goes through `store.Store` interface. The SQLite implementation is in `internal/store/sqlite/`.
+- **Error handling:** Wrap errors with context: `fmt.Errorf("encoding memory %s: %w", id, err)`
+- **Platform-specific code:** Use Go build tags (`//go:build darwin`, `//go:build !darwin`). See `internal/watcher/filesystem/` for examples.
+- **Config:** All tunables live in `config.yaml`. Add new fields to `internal/config/config.go` struct.
+
+## Adding Things
+
+- **New agent:** Implement `agent.Agent` interface, register in `cmd/mnemonic/main.go` serve pipeline.
+- **New CLI command:** Add case to the command switch in `cmd/mnemonic/main.go`.
+- **New API route:** Add handler in `internal/api/routes/`, register in `internal/api/server.go`.
+- **New MCP tool:** Add to `internal/mcp/server.go` tool registration.
+
+## Platform Support
+
+| Platform | Status |
+|----------|--------|
+| macOS ARM | Full support (primary dev platform) |
+| Linux x86_64 | Partial — `serve` works, `install`/`start` need systemd (#1, #2, #15) |
+| Windows | Not yet supported |
+
+## Known Issues
+
+See [GitHub Issues](https://github.com/CalebisGross/mnemonic/issues) for tracked bugs. Key areas:
+- Graph visualization needs major rework (#3, #6, #7, #8, #9, #10)
+- Dashboard error handling is poor (#5)
+- Daemon crashes on Linux (#1, #2)
+
+---
 
 ## MCP Tools Available
 
@@ -21,43 +99,31 @@ You have 10 tools via the `mnemonic` MCP server:
 | `get_insights` | View metacognition observations and abstractions |
 | `feedback` | Report recall quality (helps system learn) |
 
-## Usage Guidelines
-
 ### At Session Start
+
 - Use `recall_project` to load context for the current project
 - Use `recall` with relevant keywords to find prior decisions
 
 ### During Work
+
 - `remember` decisions with `type: "decision"` — e.g., "chose SQLite over Postgres for simplicity"
 - `remember` errors with `type: "error"` — e.g., "nil pointer in auth middleware, fixed with guard clause"
 - `remember` insights with `type: "insight"` — e.g., "spread activation works best with 3 hops max"
 - `remember` learnings with `type: "learning"` — e.g., "Go's sql.NullString needed for nullable columns"
 
 ### After Recalls
+
 - Use `feedback` to rate recall quality — this helps the system improve
 - `helpful` = memories were relevant and useful
 - `partial` = some relevant, some not
 - `irrelevant` = memories didn't help
 
-### For Context
-- Use `recall_timeline` to reconstruct what happened in a time period
-- Use `session_summary` to review what was accomplished
-- Use `get_patterns` to see recurring themes the system has discovered
-- Use `get_insights` for higher-level observations about work patterns
-
-## Memory Types
+### Memory Types
 
 When using `remember`, set the `type` field:
+
 - `decision` — architectural choices, tradeoffs, "we chose X because Y"
 - `error` — bugs found, error patterns, debugging insights
 - `insight` — realizations about code, architecture, or process
 - `learning` — new knowledge, API behaviors, framework quirks
 - `general` — everything else (default)
-
-## Project and Session
-
-Project and session are auto-detected:
-- **Project** = working directory name (override with `project` param)
-- **Session** = auto-generated per MCP server lifetime
-
-All memories are tagged with both, enabling project-scoped recall.

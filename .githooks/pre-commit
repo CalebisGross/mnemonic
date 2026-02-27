@@ -1,0 +1,26 @@
+#!/bin/bash
+set -e
+
+echo "=== Pre-commit checks ==="
+
+# Format check (fail if files would change)
+UNFORMATTED=$(gofmt -l . 2>/dev/null || true)
+if [ -n "$UNFORMATTED" ]; then
+    echo "FAIL: Unformatted Go files:"
+    echo "$UNFORMATTED"
+    echo "Run: go fmt ./..."
+    exit 1
+fi
+echo "  fmt: ok"
+
+# Vet
+echo "  vet: running..."
+CGO_ENABLED=1 go vet -tags sqlite_fts5 ./... 2>&1
+echo "  vet: ok"
+
+# Build check
+echo "  build: running..."
+CGO_ENABLED=1 go build -tags sqlite_fts5 -o /dev/null ./cmd/mnemonic 2>&1
+echo "  build: ok"
+
+echo "=== All checks passed ==="
