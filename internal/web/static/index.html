@@ -1798,7 +1798,7 @@
     }
 
     function renderAgentStats(evo, sess) {
-        var patchCount = (evo.patches || []).filter(function(p) { return p.content && p.content.trim(); }).length;
+        var patchCount = (evo.patches || []).filter(function(p) { var text = p.content || p.instruction || ''; return text.trim(); }).length;
         var avgCost = sess.stats.total_tasks > 0 ? sess.stats.total_cost_usd / sess.stats.total_tasks : 0;
         var lastEvo = '';
         if (state.agentData && state.agentData.changelog && state.agentData.changelog.entries && state.agentData.changelog.entries.length > 0) {
