@@ -288,7 +288,7 @@ agent_sdk:
   enabled: true
 
   # Path to the agent's evolution directory (principles, strategies, changelog)
-  evolution_dir: "/Users/appsprout/Projects/mem/sdk/agent/evolution"
+  evolution_dir: "./sdk/agent/evolution"
 
   # Port for the Python WebSocket chat server (default: 9998)
   web_port: 9998

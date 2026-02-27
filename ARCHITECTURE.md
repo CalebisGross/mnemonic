@@ -19,7 +19,7 @@ The cognitive model (spread activation, salience decay, associative linking) is 
 | Store | SQLite (WAL mode) | Sub-ms lookups, FTS5, ACID, single file, embedded |
 | LLM runtime | LM Studio | Local, OpenAI-compatible API, model-agnostic |
 | Embeddings | LM Studio (e.g. nomic-embed-text) | Same runtime, separate model, local semantic search |
-| Platform | macOS ARM (M4 Mac Mini) | Primary target, cross-compiles to Linux |
+| Platform | macOS ARM (primary), Linux x86_64 (next), Windows (planned) | Cross-platform via build tags |
 
 ---
 
@@ -90,7 +90,7 @@ type Agent interface {
     Health(ctx) error
 }
 ```
-- All 5 cognitive layers implement this
+- All 8 cognitive agents + orchestrator + reactor implement this
 - Loosely coupled through the event bus
 
 ### 5. `events.EventBus`
@@ -290,121 +290,78 @@ CREATE TABLE consolidation_history (
 
 ```
 mnemonic/
-├── cmd/mnemonic/main.go                    # Daemon entry point
+├── cmd/
+│   ├── mnemonic/
+│   │   ├── main.go                        # Daemon entry point + CLI
+│   │   └── ingest.go                      # Bulk ingest subcommand
+│   └── benchmark/main.go                  # End-to-end benchmark
 ├── internal/
 │   ├── llm/
-│   │   ├── provider.go                     # LLM interface
-│   │   ├── lmstudio.go                     # LM Studio implementation
-│   │   └── mock.go                         # Testing mock
-│   ├── embedding/
-│   │   ├── provider.go                     # Embedding interface
-│   │   ├── lmstudio.go                     # LM Studio embeddings
-│   │   └── cache.go                        # Embedding cache
+│   │   ├── provider.go                    # LLM interface
+│   │   └── lmstudio.go                    # LM Studio implementation
 │   ├── store/
-│   │   ├── store.go                        # Store interface + domain types
-│   │   ├── sqlite/
-│   │   │   ├── sqlite.go                   # SQLite implementation
-│   │   │   ├── schema.go                   # Table definitions, migrations
-│   │   │   ├── activation.go               # Spread activation queries
-│   │   │   └── tx.go                       # Transaction handling
-│   │   └── mock.go                         # Testing mock
+│   │   ├── store.go                       # Store interface + domain types
+│   │   └── sqlite/                        # SQLite implementation (FTS5, embeddings, episodes, patterns)
 │   ├── events/
-│   │   ├── bus.go                          # EventBus interface
-│   │   ├── inmemory.go                     # In-memory implementation
-│   │   └── types.go                        # Event type definitions
+│   │   ├── bus.go                         # EventBus interface
+│   │   ├── inmemory.go                    # In-memory implementation
+│   │   └── types.go                       # Event type definitions
 │   ├── watcher/
-│   │   ├── watcher.go                      # Watcher interface
-│   │   ├── filesystem/watcher.go
-│   │   ├── terminal/watcher.go + parser.go
-│   │   └── clipboard/watcher.go
+│   │   ├── watcher.go                     # Watcher interface
+│   │   ├── filesystem/                    # FSEvents (macOS) + fsnotify (Linux)
+│   │   ├── terminal/watcher.go            # Shell history polling
+│   │   └── clipboard/watcher.go           # Cross-platform clipboard
 │   ├── agent/
-│   │   ├── agent.go                        # Agent interface
-│   │   ├── perception/
-│   │   │   ├── agent.go
-│   │   │   ├── heuristic.go               # Pre-LLM filtering
-│   │   │   └── processor.go               # LLM gating
-│   │   ├── encoding/
-│   │   │   ├── agent.go
-│   │   │   ├── compress.go
-│   │   │   ├── concepts.go
-│   │   │   └── associate.go
-│   │   ├── consolidation/
-│   │   │   ├── agent.go
-│   │   │   ├── decay.go
-│   │   │   ├── merge.go
-│   │   │   └── prune.go
-│   │   ├── retrieval/
-│   │   │   ├── agent.go
-│   │   │   ├── activation.go              # Spread activation algorithm
-│   │   │   ├── rank.go
-│   │   │   └── synthesize.go
-│   │   └── metacognition/
-│   │       ├── agent.go
-│   │       ├── monitor.go
-│   │       └── metrics.go
+│   │   ├── agent.go                       # Agent interface
+│   │   ├── perception/                    # Layer 1: Watch + heuristic filter
+│   │   ├── encoding/                      # Layer 2: LLM compression + linking
+│   │   ├── episoding/                     # Layer 3: Temporal episode clustering
+│   │   ├── consolidation/                 # Layer 4: Decay, merge, prune
+│   │   ├── retrieval/                     # Layer 5: Spread activation + synthesis
+│   │   ├── metacognition/                 # Layer 6: Self-reflection + audit
+│   │   ├── dreaming/                      # Layer 7: Memory replay + cross-pollination
+│   │   ├── abstraction/                   # Layer 8: Patterns → principles → axioms
+│   │   ├── orchestrator/                  # Autonomous scheduler + health monitoring
+│   │   └── reactor/                       # Event-driven rule engine
 │   ├── api/
-│   │   ├── server.go                       # HTTP + WebSocket server
-│   │   ├── middleware.go
-│   │   └── routes/
-│   │       ├── memories.go
-│   │       ├── query.go
-│   │       ├── system.go
-│   │       └── ws.go
+│   │   ├── server.go                      # HTTP + WebSocket server
+│   │   └── routes/                        # REST endpoints (memories, query, graph, etc.)
 │   ├── web/
-│   │   ├── server.go                       # Static file serving (go:embed)
-│   │   └── static/                         # Dashboard HTML/CSS/JS
-│   ├── config/config.go
-│   └── logger/logger.go
-├── migrations/001_init_schema.sql
+│   │   ├── server.go                      # Static file serving (go:embed)
+│   │   └── static/index.html              # Dashboard (D3.js graph, live feed, query tester)
+│   ├── mcp/server.go                      # MCP server (10 tools for Claude Code)
+│   ├── backup/                            # Export/import logic
+│   ├── daemon/daemon.go                   # Service management (macOS LaunchAgent)
+│   ├── config/config.go                   # Configuration loading
+│   └── logger/logger.go                   # Structured logging
+├── sdk/                                   # Python agent SDK (self-evolving assistant)
+│   ├── agent/                             # Agent implementation
+│   ├── tests/                             # SDK tests
+│   └── pyproject.toml
+├── migrations/                            # SQLite schema migrations
+├── evolution/                             # Agent evolution data (principles, strategies)
+├── scripts/                               # Utility scripts (pitch deck generator)
+├── tests/                                 # User acceptance tests
 ├── config.yaml
 ├── Makefile
-├── go.mod
-└── ARCHITECTURE.md
+└── go.mod
 ```
 
 ---
 
-## Build Order
+## Build History
 
-### Phase 1: Foundations
-1. Project scaffold + config loading + structured logging
-2. LLM client (talk to LM Studio — chat + embeddings). **Everything depends on this.**
-3. SQLite store + schema + FTS5 + basic CRUD
+All original build phases are **complete**. Current focus is cross-platform support and graph visualization improvements.
 
-### Phase 2: Core Memory Loop
-4. Event bus (in-memory pub/sub)
-5. Encoding agent (raw memory → compress → embed → associate → store)
-6. Retrieval agent (query → FTS + embedding entry points → spread activation → rank → return)
+### Completed
 
-**Milestone: You can `remember` something and `recall` it. The core is alive.**
-
-### Phase 3: Perception
-7. Heuristic pre-filter pipeline
-8. Filesystem watcher
-9. Terminal history watcher
-10. Clipboard watcher
-11. Perception agent (wire watchers → heuristics → LLM gate → raw memories)
-
-**Milestone: The system watches your activity and remembers what matters.**
-
-### Phase 4: API + Dashboard
-12. HTTP REST API (memories, query, stats, health)
-13. WebSocket event stream
-14. Web dashboard (embedded, live event feed, graph visualization, query tester)
-
-**Milestone: Open localhost:9999 and watch your memory system think in real-time.**
-
-### Phase 5: Consolidation + Meta
-15. Consolidation agent (decay, state transitions, association pruning)
-16. Merge/gist creation (budget-constrained)
-17. Meta-cognition (basic monitoring, observations, retrieval feedback)
-
-**Milestone: Let it run overnight. Come back to a reorganized, pruned memory store.**
-
-### Phase 6: Polish
-18. CLI as thin client to API
-19. Daemon mode (background, signal handling, graceful shutdown)
-20. Integration testing + tuning
+- Phase 1: Foundations (config, logging, LLM client, SQLite store)
+- Phase 2: Core memory loop (event bus, encoding, retrieval)
+- Phase 3: Perception (filesystem, terminal, clipboard watchers + heuristics)
+- Phase 4: API + Dashboard (REST API, WebSocket, D3.js graph, query tester)
+- Phase 5: Consolidation + Meta (decay, merge, prune, metacognition)
+- Phase 6: Polish (CLI, daemon, signal handling)
+- Bonus: Episoding, dreaming, abstraction agents; orchestrator; reactor; MCP server; Python agent SDK
 
 ---
 
@@ -417,7 +374,7 @@ mnemonic/
 - **Database encryption** — air-gapped assumption covers v1
 - **Local model fine-tuning** — LM Studio handles v1
 - **Native macOS menu bar widget** — web dashboard covers v1, native UI later
-- **MCP server integration** — expose Mnemonic as an MCP tool for Claude Code (strong v2 candidate)
+- ~~**MCP server integration**~~ — **Done.** 10 MCP tools implemented (`internal/mcp/server.go`)
 
 ---
 

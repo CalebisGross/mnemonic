@@ -2,8 +2,8 @@
 
 BINARY=mnemonic
 BUILD_DIR=bin
-VERSION=0.5.0
-LDFLAGS=-ldflags "-s -w"
+VERSION=0.6.0
+LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION)"
 TAGS=-tags "sqlite_fts5"
 
 build:

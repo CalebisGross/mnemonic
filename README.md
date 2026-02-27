@@ -19,7 +19,7 @@ The "analog LLM" vision: the association graph IS the model. Memories build into
 
 **Setup:**
 ```bash
-git clone https://github.com/appsprout/mnemonic.git
+git clone https://github.com/CalebisGross/mnemonic.git
 cd mem
 # Edit config.yaml: set llm.endpoint, llm.chat_model, llm.embedding_model
 make build
@@ -168,4 +168,4 @@ All builds require `CGO_ENABLED=1` for SQLite and `-tags "sqlite_fts5"` for full
 
 ## License
 
-TBD — Hackathon project, licensing TBD post-hackathon.
+AGPL-3.0. See [LICENSE](LICENSE) for details.

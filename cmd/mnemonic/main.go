@@ -47,7 +47,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const Version = "1.0.0"
+var Version = "dev"
 
 const (
 	defaultConfigPath = "config.yaml"
