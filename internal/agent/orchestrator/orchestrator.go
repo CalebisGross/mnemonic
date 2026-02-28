@@ -17,28 +17,28 @@ import (
 
 // OrchestratorConfig configures the autonomous orchestrator.
 type OrchestratorConfig struct {
-	AdaptiveIntervals  bool
-	MaxDBSizeMB        int
-	SelfTestInterval   time.Duration
-	AutoRecovery       bool
-	HealthReportPath   string // e.g. "~/.mnemonic/health.json"
-	MonitorInterval    time.Duration
+	AdaptiveIntervals bool
+	MaxDBSizeMB       int
+	SelfTestInterval  time.Duration
+	AutoRecovery      bool
+	HealthReportPath  string // e.g. "~/.mnemonic/health.json"
+	MonitorInterval   time.Duration
 }
 
 // HealthReport is the machine-readable health status written periodically.
 type HealthReport struct {
-	Timestamp          time.Time              `json:"timestamp"`
-	Uptime             string                 `json:"uptime"`
-	LLMAvailable       bool                   `json:"llm_available"`
-	StoreHealthy       bool                   `json:"store_healthy"`
-	MemoryCount        int                    `json:"memory_count"`
-	PatternCount       int                    `json:"pattern_count"`
-	AbstractionCount   int                    `json:"abstraction_count"`
-	AgentStatus        map[string]string      `json:"agent_status"`
-	LastConsolidation  string                 `json:"last_consolidation"`
-	LastDreamCycle     string                 `json:"last_dream_cycle"`
-	AutonomousActions  int                    `json:"autonomous_actions_total"`
-	Warnings           []string               `json:"warnings,omitempty"`
+	Timestamp         time.Time         `json:"timestamp"`
+	Uptime            string            `json:"uptime"`
+	LLMAvailable      bool              `json:"llm_available"`
+	StoreHealthy      bool              `json:"store_healthy"`
+	MemoryCount       int               `json:"memory_count"`
+	PatternCount      int               `json:"pattern_count"`
+	AbstractionCount  int               `json:"abstraction_count"`
+	AgentStatus       map[string]string `json:"agent_status"`
+	LastConsolidation string            `json:"last_consolidation"`
+	LastDreamCycle    string            `json:"last_dream_cycle"`
+	AutonomousActions int               `json:"autonomous_actions_total"`
+	Warnings          []string          `json:"warnings,omitempty"`
 }
 
 // Orchestrator is the central autonomous scheduler and health monitor.
@@ -383,9 +383,9 @@ func (o *Orchestrator) writeHealthReport() {
 		AutonomousActions: o.autonomousCount,
 		Warnings:          append([]string{}, o.warnings...),
 		AgentStatus: map[string]string{
-			"orchestrator":  "running",
-			"total_active":  fmt.Sprintf("%d", stats.ActiveMemories),
-			"total_fading":  fmt.Sprintf("%d", stats.FadingMemories),
+			"orchestrator": "running",
+			"total_active": fmt.Sprintf("%d", stats.ActiveMemories),
+			"total_fading": fmt.Sprintf("%d", stats.FadingMemories),
 		},
 	}
 	o.mu.Unlock()

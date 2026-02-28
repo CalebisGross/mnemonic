@@ -17,21 +17,21 @@ func TestCreateAndGetEpisode(t *testing.T) {
 
 	ctx := context.Background()
 	ep := store.Episode{
-		ID:           "ep-001",
-		Title:        "Test Episode",
-		StartTime:    time.Now().Add(-30 * time.Minute),
-		EndTime:      time.Now(),
-		DurationSec:  1800,
-		RawMemoryIDs: []string{"raw-1", "raw-2"},
-		MemoryIDs:    []string{},
-		Summary:      "A test episode",
-		Narrative:    "This is a detailed narrative about the test episode.",
-		Salience:     0.7,
+		ID:            "ep-001",
+		Title:         "Test Episode",
+		StartTime:     time.Now().Add(-30 * time.Minute),
+		EndTime:       time.Now(),
+		DurationSec:   1800,
+		RawMemoryIDs:  []string{"raw-1", "raw-2"},
+		MemoryIDs:     []string{},
+		Summary:       "A test episode",
+		Narrative:     "This is a detailed narrative about the test episode.",
+		Salience:      0.7,
 		EmotionalTone: "satisfying",
-		Outcome:      "success",
-		State:        "open",
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		Outcome:       "success",
+		State:         "open",
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	err := s.CreateEpisode(ctx, ep)

@@ -31,8 +31,8 @@ type ClipboardWatcher struct {
 	running            bool
 	lastContentHash    string
 	lastNContentHashes []string // track last N contents to avoid duplicates
-	maxHistorySize     int       // number of previous clips to track
-	enabled            bool      // whether clipboard reading is supported on this platform
+	maxHistorySize     int      // number of previous clips to track
+	enabled            bool     // whether clipboard reading is supported on this platform
 }
 
 // NewClipboardWatcher creates a new clipboard watcher.

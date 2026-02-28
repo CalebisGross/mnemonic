@@ -29,8 +29,8 @@ type ServerDeps struct {
 	Bus               events.Bus
 	Retriever         *retrieval.RetrievalAgent
 	Consolidator      routes.ConsolidationRunner // can be nil if disabled
-	AgentEvolutionDir string // empty = agent dashboard disabled
-	AgentWebPort      int    // 0 = agent chat disabled
+	AgentEvolutionDir string                     // empty = agent dashboard disabled
+	AgentWebPort      int                        // 0 = agent chat disabled
 	Log               *slog.Logger
 }
 
@@ -122,11 +122,11 @@ func (s *Server) registerRoutes() {
 
 // allowedCORSOrigins is the set of origins allowed for CORS requests.
 var allowedCORSOrigins = map[string]bool{
-	"http://localhost:3000":  true,
-	"http://localhost:8080":  true,
+	"http://localhost:3000": true,
+	"http://localhost:8080": true,
 	"http://127.0.0.1:3000": true,
 	"http://127.0.0.1:8080": true,
-	"http://localhost:9999":  true,
+	"http://localhost:9999": true,
 	"http://127.0.0.1:9999": true,
 }
 

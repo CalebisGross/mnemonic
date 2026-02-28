@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/appsprout/mnemonic/internal/events"
+	"github.com/gorilla/websocket"
 )
 
 const maxWebSocketConns = 10
@@ -24,19 +24,19 @@ type WebSocketMessage struct {
 
 // wsConn wraps a WebSocket connection with subscription management.
 type wsConn struct {
-	conn             *websocket.Conn
-	subscriptionIDs  []string
-	eventChan        chan events.Event
-	log              *slog.Logger
+	conn            *websocket.Conn
+	subscriptionIDs []string
+	eventChan       chan events.Event
+	log             *slog.Logger
 }
 
 // allowedWSOrigins is the set of origins allowed to open WebSocket connections.
 var allowedWSOrigins = map[string]bool{
-	"http://localhost:3000":  true,
-	"http://localhost:8080":  true,
+	"http://localhost:3000": true,
+	"http://localhost:8080": true,
 	"http://127.0.0.1:3000": true,
 	"http://127.0.0.1:8080": true,
-	"http://localhost:9999":  true,
+	"http://localhost:9999": true,
 	"http://127.0.0.1:9999": true,
 }
 

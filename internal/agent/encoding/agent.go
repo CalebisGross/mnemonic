@@ -24,21 +24,21 @@ const maxRetries = 3
 // EncodingAgent transforms raw memories into encoded, searchable memory units.
 // It performs compression, concept extraction, embedding generation, and association creation.
 type EncodingAgent struct {
-	store              store.Store
-	llmProvider        llm.Provider
-	log                *slog.Logger
-	bus                events.Bus
-	config             EncodingConfig
-	name               string
-	ctx                context.Context
-	cancel             context.CancelFunc
-	wg                 sync.WaitGroup
-	subscriptionID     string
-	pollingStopChan    chan struct{}
-	stopOnce           sync.Once
-	processingMutex    sync.Mutex
-	processingMemories map[string]bool // Prevent duplicate processing
-	encodingSem        chan struct{}   // limits concurrent LLM encoding calls
+	store                store.Store
+	llmProvider          llm.Provider
+	log                  *slog.Logger
+	bus                  events.Bus
+	config               EncodingConfig
+	name                 string
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	wg                   sync.WaitGroup
+	subscriptionID       string
+	pollingStopChan      chan struct{}
+	stopOnce             sync.Once
+	processingMutex      sync.Mutex
+	processingMemories   map[string]bool // Prevent duplicate processing
+	encodingSem          chan struct{}   // limits concurrent LLM encoding calls
 	failureCounts        map[string]int  // tracks retry count per raw memory ID
 	backoffUntil         time.Time       // when non-zero, skip polling until this time
 	coachingInstructions string          // loaded from coaching.yaml at startup
@@ -80,7 +80,7 @@ type compressionResponse struct {
 	Content            string              `json:"content"`
 	Narrative          string              `json:"narrative"`
 	Concepts           []string            `json:"concepts"`
-	StructuredConcepts *structuredConcepts  `json:"structured_concepts"`
+	StructuredConcepts *structuredConcepts `json:"structured_concepts"`
 	Significance       string              `json:"significance"`
 	EmotionalTone      string              `json:"emotional_tone"`
 	Outcome            string              `json:"outcome"`
@@ -88,10 +88,10 @@ type compressionResponse struct {
 }
 
 type structuredConcepts struct {
-	Topics    []topicEntry    `json:"topics"`
-	Entities  []entityEntry   `json:"entities"`
-	Actions   []actionEntry   `json:"actions"`
-	Causality []causalEntry   `json:"causality"`
+	Topics    []topicEntry  `json:"topics"`
+	Entities  []entityEntry `json:"entities"`
+	Actions   []actionEntry `json:"actions"`
+	Causality []causalEntry `json:"causality"`
 }
 
 type topicEntry struct {
@@ -1095,12 +1095,12 @@ func looksLikeWord(s string) bool {
 
 // validRelationTypes lists all valid association relationship types.
 var validRelationTypes = map[string]bool{
-	"similar":    true,
-	"caused_by":  true,
-	"part_of":    true,
+	"similar":     true,
+	"caused_by":   true,
+	"part_of":     true,
 	"contradicts": true,
-	"temporal":   true,
-	"reinforces": true,
+	"temporal":    true,
+	"reinforces":  true,
 }
 
 // classifyRelationship determines the relationship type between a new memory and an existing one.

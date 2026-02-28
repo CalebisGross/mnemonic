@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/appsprout/mnemonic/internal/store"
+	"github.com/google/uuid"
 )
 
 const (
@@ -175,4 +175,3 @@ func SaveRetrievalFeedback(s store.Store, log *slog.Logger, queryID string, quer
 		log.Debug("saved retrieval feedback record", "query_id", queryID, "retrieved", len(retrievedIDs), "traversed", len(traversedAssocs))
 	}
 }
-

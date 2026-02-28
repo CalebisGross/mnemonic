@@ -8,10 +8,10 @@ import (
 
 // Message represents a single turn in a conversation.
 type Message struct {
-	Role       string     `json:"role"`                       // "system", "user", "assistant", "tool"
+	Role       string     `json:"role"` // "system", "user", "assistant", "tool"
 	Content    string     `json:"content,omitempty"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`       // populated when assistant requests tool use
-	ToolCallID string     `json:"tool_call_id,omitempty"`     // set when Role="tool" to match the request
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // populated when assistant requests tool use
+	ToolCallID string     `json:"tool_call_id,omitempty"` // set when Role="tool" to match the request
 }
 
 // ResponseFormat specifies the expected output format for the LLM response.

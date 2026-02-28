@@ -134,11 +134,11 @@ func TestUnsubscribe(t *testing.T) {
 	})
 
 	event := QueryExecuted{
-		QueryID:        "q1",
-		QueryText:      "test",
+		QueryID:         "q1",
+		QueryText:       "test",
 		ResultsReturned: 5,
-		TookMs:         10,
-		Ts:             time.Now(),
+		TookMs:          10,
+		Ts:              time.Now(),
 	}
 
 	// Publish with both subscribers active
@@ -328,12 +328,12 @@ func TestHandlerError(t *testing.T) {
 	})
 
 	event := DreamCycleCompleted{
-		MemoriesReplayed:        5,
+		MemoriesReplayed:         5,
 		AssociationsStrengthened: 3,
-		NewAssociationsCreated:  1,
-		NoisyMemoriesDemoted:    0,
-		DurationMs:              100,
-		Ts:                      time.Now(),
+		NewAssociationsCreated:   1,
+		NoisyMemoriesDemoted:     0,
+		DurationMs:               100,
+		Ts:                       time.Now(),
 	}
 
 	if err := bus.Publish(context.Background(), event); err != nil {

@@ -12,16 +12,16 @@ import (
 )
 
 type GraphNode struct {
-	ID              string   `json:"id"`
-	Summary         string   `json:"summary"`
-	Salience        float32  `json:"salience"`
-	State           string   `json:"state"`
-	Concepts        []string `json:"concepts"`
-	EmotionalTone   string   `json:"emotional_tone,omitempty"`
-	Significance    string   `json:"significance,omitempty"`
-	Timestamp       string   `json:"timestamp"`
-	FilesModified   []string `json:"files_modified,omitempty"`
-	EventCount      int      `json:"event_count,omitempty"`
+	ID            string   `json:"id"`
+	Summary       string   `json:"summary"`
+	Salience      float32  `json:"salience"`
+	State         string   `json:"state"`
+	Concepts      []string `json:"concepts"`
+	EmotionalTone string   `json:"emotional_tone,omitempty"`
+	Significance  string   `json:"significance,omitempty"`
+	Timestamp     string   `json:"timestamp"`
+	FilesModified []string `json:"files_modified,omitempty"`
+	EventCount    int      `json:"event_count,omitempty"`
 }
 
 type GraphEdge struct {

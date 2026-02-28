@@ -20,18 +20,18 @@ const (
 )
 
 type ExportMetadata struct {
-	Version      string    `json:"version"`
-	ExportTime   time.Time `json:"export_time"`
-	MemoryCount  int       `json:"memory_count"`
-	AssocCount   int       `json:"association_count"`
-	RawCount     int       `json:"raw_memory_count"`
+	Version     string    `json:"version"`
+	ExportTime  time.Time `json:"export_time"`
+	MemoryCount int       `json:"memory_count"`
+	AssocCount  int       `json:"association_count"`
+	RawCount    int       `json:"raw_memory_count"`
 }
 
 type ExportData struct {
-	Metadata     ExportMetadata        `json:"metadata"`
-	Memories     []store.Memory        `json:"memories"`
-	Associations []store.Association   `json:"associations"`
-	RawMemories  []store.RawMemory     `json:"raw_memories"`
+	Metadata     ExportMetadata      `json:"metadata"`
+	Memories     []store.Memory      `json:"memories"`
+	Associations []store.Association `json:"associations"`
+	RawMemories  []store.RawMemory   `json:"raw_memories"`
 }
 
 func ExportJSON(ctx context.Context, s store.Store, outputPath string) error {
@@ -52,11 +52,11 @@ func ExportJSON(ctx context.Context, s store.Store, outputPath string) error {
 
 	exportData := ExportData{
 		Metadata: ExportMetadata{
-			Version:      "0.3.0",
-			ExportTime:   time.Now(),
-			MemoryCount:  len(memories),
-			AssocCount:   len(associations),
-			RawCount:     len(rawMemories),
+			Version:     "0.3.0",
+			ExportTime:  time.Now(),
+			MemoryCount: len(memories),
+			AssocCount:  len(associations),
+			RawCount:    len(rawMemories),
 		},
 		Memories:     memories,
 		Associations: associations,

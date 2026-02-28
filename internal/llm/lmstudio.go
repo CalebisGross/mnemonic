@@ -112,7 +112,7 @@ func (p *LMStudioProvider) doWithRetry(req *http.Request) (*http.Response, error
 // openAIMessage wraps a Message for OpenAI API serialization.
 type openAIMessage struct {
 	Role       string           `json:"role"`
-	Content    *string          `json:"content"`                   // pointer: null for tool-call assistant messages
+	Content    *string          `json:"content"` // pointer: null for tool-call assistant messages
 	ToolCalls  []openAIToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string           `json:"tool_call_id,omitempty"`
 }
@@ -142,7 +142,7 @@ type openAIToolFunction struct {
 
 // openAIResponseFormat mirrors the OpenAI response_format parameter.
 type openAIResponseFormat struct {
-	Type       string          `json:"type"`                  // "text", "json_object", or "json_schema"
+	Type       string            `json:"type"`                  // "text", "json_object", or "json_schema"
 	JSONSchema *openAIJSONSchema `json:"json_schema,omitempty"` // for "json_schema" type
 }
 
@@ -162,7 +162,7 @@ type openAICompletionRequest struct {
 	TopP           float32               `json:"top_p,omitempty"`
 	Stop           []string              `json:"stop,omitempty"`
 	Tools          []openAITool          `json:"tools,omitempty"`
-	ResponseFormat *openAIResponseFormat  `json:"response_format,omitempty"`
+	ResponseFormat *openAIResponseFormat `json:"response_format,omitempty"`
 }
 
 // openAIChoice represents a single choice in a completion response.
@@ -190,8 +190,8 @@ type openAICompletionResponse struct {
 
 // openAIEmbeddingRequest is the request format for the OpenAI-compatible embeddings API.
 type openAIEmbeddingRequest struct {
-	Model string        `json:"model"`
-	Input []string      `json:"input"`
+	Model string   `json:"model"`
+	Input []string `json:"input"`
 }
 
 // openAIEmbeddingData represents a single embedding in the response.

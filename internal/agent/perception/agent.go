@@ -23,19 +23,19 @@ type PerceptionConfig struct {
 
 // PerceptionAgent orchestrates the perception pipeline: watchers → heuristic → LLM → memory.
 type PerceptionAgent struct {
-	name              string
-	watchers          []watcher.Watcher
-	store             store.Store
-	llmProvider       llm.Provider
-	cfg               PerceptionConfig
-	log               *slog.Logger
-	heuristicFilter   *HeuristicFilter
-	bus               events.Bus
-	mu                sync.RWMutex
-	running           bool
-	cancelFunc        context.CancelFunc
-	processingWg      sync.WaitGroup
-	watcherStopChans  []chan struct{} // one per watcher goroutine
+	name             string
+	watchers         []watcher.Watcher
+	store            store.Store
+	llmProvider      llm.Provider
+	cfg              PerceptionConfig
+	log              *slog.Logger
+	heuristicFilter  *HeuristicFilter
+	bus              events.Bus
+	mu               sync.RWMutex
+	running          bool
+	cancelFunc       context.CancelFunc
+	processingWg     sync.WaitGroup
+	watcherStopChans []chan struct{} // one per watcher goroutine
 }
 
 // NewPerceptionAgent creates a new perception agent with the given dependencies.
@@ -238,16 +238,16 @@ func (pa *PerceptionAgent) processEvent(ctx context.Context, event Event) {
 
 	// 3. Create a raw memory entry
 	rawMemory := store.RawMemory{
-		ID:                 uuid.New().String(),
-		Source:             event.Source,
-		Type:               event.Type,
-		Content:            pa.truncateContent(event.Content, 10000),
-		Timestamp:          event.Timestamp,
-		CreatedAt:          time.Now(),
-		Metadata:           pa.mergeMetadata(event.Metadata, event.Path, heuristicResult.Score),
-		HeuristicScore:     heuristicResult.Score,
-		InitialSalience:    salience,
-		Processed:          false,
+		ID:              uuid.New().String(),
+		Source:          event.Source,
+		Type:            event.Type,
+		Content:         pa.truncateContent(event.Content, 10000),
+		Timestamp:       event.Timestamp,
+		CreatedAt:       time.Now(),
+		Metadata:        pa.mergeMetadata(event.Metadata, event.Path, heuristicResult.Score),
+		HeuristicScore:  heuristicResult.Score,
+		InitialSalience: salience,
+		Processed:       false,
 	}
 
 	// 4. Write to store

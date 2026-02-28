@@ -79,8 +79,8 @@ func HandleHealth(s store.Store, llmProv llm.Provider, log *slog.Logger) http.Ha
 
 // StatsResponse is the JSON response for the stats endpoint.
 type StatsResponse struct {
-	Store      store.StoreStatistics `json:"store"`
-	Timestamp  string                `json:"timestamp"`
+	Store     store.StoreStatistics `json:"store"`
+	Timestamp string                `json:"timestamp"`
 }
 
 // HandleStats returns an HTTP handler that returns system statistics.

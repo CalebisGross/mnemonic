@@ -15,35 +15,35 @@ import (
 
 // Config is the root configuration structure.
 type Config struct {
-	LLM             LLMConfig             `yaml:"llm"`
-	Store           StoreConfig           `yaml:"store"`
-	Memory          MemoryConfig          `yaml:"memory"`
-	Perception      PerceptionConfig      `yaml:"perception"`
-	Encoding        EncodingConfig        `yaml:"encoding"`
-	Consolidation   ConsolidationConfig   `yaml:"consolidation"`
-	Retrieval       RetrievalConfig       `yaml:"retrieval"`
-	Metacognition   MetacognitionConfig   `yaml:"metacognition"`
-	Dreaming        DreamingConfig        `yaml:"dreaming"`
-	Episoding       EpisodingConfig       `yaml:"episoding"`
-	Abstraction     AbstractionConfig     `yaml:"abstraction"`
-	Orchestrator    OrchestratorConfig    `yaml:"orchestrator"`
-	MCP             MCPConfig             `yaml:"mcp"`
-	AgentSDK        AgentSDKConfig        `yaml:"agent_sdk"`
-	Coaching        CoachingConfig        `yaml:"coaching"`
-	API             APIConfig             `yaml:"api"`
-	Web             WebConfig             `yaml:"web"`
-	Logging         LoggingConfig         `yaml:"logging"`
+	LLM           LLMConfig           `yaml:"llm"`
+	Store         StoreConfig         `yaml:"store"`
+	Memory        MemoryConfig        `yaml:"memory"`
+	Perception    PerceptionConfig    `yaml:"perception"`
+	Encoding      EncodingConfig      `yaml:"encoding"`
+	Consolidation ConsolidationConfig `yaml:"consolidation"`
+	Retrieval     RetrievalConfig     `yaml:"retrieval"`
+	Metacognition MetacognitionConfig `yaml:"metacognition"`
+	Dreaming      DreamingConfig      `yaml:"dreaming"`
+	Episoding     EpisodingConfig     `yaml:"episoding"`
+	Abstraction   AbstractionConfig   `yaml:"abstraction"`
+	Orchestrator  OrchestratorConfig  `yaml:"orchestrator"`
+	MCP           MCPConfig           `yaml:"mcp"`
+	AgentSDK      AgentSDKConfig      `yaml:"agent_sdk"`
+	Coaching      CoachingConfig      `yaml:"coaching"`
+	API           APIConfig           `yaml:"api"`
+	Web           WebConfig           `yaml:"web"`
+	Logging       LoggingConfig       `yaml:"logging"`
 }
 
 // LLMConfig holds LLM provider settings.
 type LLMConfig struct {
-	Endpoint       string `yaml:"endpoint"`
-	ChatModel      string `yaml:"chat_model"`
-	EmbeddingModel string `yaml:"embedding_model"`
-	MaxTokens      int    `yaml:"max_tokens"`
+	Endpoint       string  `yaml:"endpoint"`
+	ChatModel      string  `yaml:"chat_model"`
+	EmbeddingModel string  `yaml:"embedding_model"`
+	MaxTokens      int     `yaml:"max_tokens"`
 	Temperature    float64 `yaml:"temperature"`
-	TimeoutSec     int    `yaml:"timeout_sec"`
-	MaxConcurrent  int    `yaml:"max_concurrent"` // max simultaneous LLM requests (0 = default 2)
+	TimeoutSec     int     `yaml:"timeout_sec"`
+	MaxConcurrent  int     `yaml:"max_concurrent"` // max simultaneous LLM requests (0 = default 2)
 }
 
 // StoreConfig holds storage settings.
@@ -59,8 +59,8 @@ type MemoryConfig struct {
 
 // PerceptionConfig holds perception settings.
 type PerceptionConfig struct {
-	Enabled          bool                      `yaml:"enabled"`
-	LLMGatingEnabled bool                      `yaml:"llm_gating_enabled"`
+	Enabled          bool                       `yaml:"enabled"`
+	LLMGatingEnabled bool                       `yaml:"llm_gating_enabled"`
 	Filesystem       FilesystemPerceptionConfig `yaml:"filesystem"`
 	Terminal         TerminalPerceptionConfig   `yaml:"terminal"`
 	Clipboard        ClipboardPerceptionConfig  `yaml:"clipboard"`
@@ -69,10 +69,10 @@ type PerceptionConfig struct {
 
 // FilesystemPerceptionConfig holds filesystem perception settings.
 type FilesystemPerceptionConfig struct {
-	Enabled           bool     `yaml:"enabled"`
-	WatchDirs         []string `yaml:"watch_dirs"`
-	ExcludePatterns   []string `yaml:"exclude_patterns"`
-	MaxContentBytes   int      `yaml:"max_content_bytes"`
+	Enabled         bool     `yaml:"enabled"`
+	WatchDirs       []string `yaml:"watch_dirs"`
+	ExcludePatterns []string `yaml:"exclude_patterns"`
+	MaxContentBytes int      `yaml:"max_content_bytes"`
 }
 
 // TerminalPerceptionConfig holds terminal perception settings.
@@ -85,47 +85,47 @@ type TerminalPerceptionConfig struct {
 
 // ClipboardPerceptionConfig holds clipboard perception settings.
 type ClipboardPerceptionConfig struct {
-	Enabled         bool   `yaml:"enabled"`
-	PollIntervalSec int    `yaml:"poll_interval_sec"`
-	MaxContentBytes int    `yaml:"max_content_bytes"`
+	Enabled         bool `yaml:"enabled"`
+	PollIntervalSec int  `yaml:"poll_interval_sec"`
+	MaxContentBytes int  `yaml:"max_content_bytes"`
 }
 
 // HeuristicsConfig holds heuristics settings.
 type HeuristicsConfig struct {
-	MinContentLength  int `yaml:"min_content_length"`
-	MaxContentLength  int `yaml:"max_content_length"`
+	MinContentLength   int `yaml:"min_content_length"`
+	MaxContentLength   int `yaml:"max_content_length"`
 	FrequencyThreshold int `yaml:"frequency_threshold"`
 	FrequencyWindowMin int `yaml:"frequency_window_min"`
 }
 
 // EncodingConfig holds encoding settings.
 type EncodingConfig struct {
-	Enabled                   bool `yaml:"enabled"`
-	UseLLM                    bool `yaml:"use_llm"`
-	MaxLLMQueueSize           int  `yaml:"max_llm_queue_size"`
-	MaxConcepts               int  `yaml:"max_concepts"`
-	FindSimilarLimit          int  `yaml:"find_similar_limit"`
-	EnableContextualEncoding  bool `yaml:"enable_contextual_encoding"`
-	ContextLookbackCount      int  `yaml:"context_lookback_count"`
-	ContextSemanticCount      int  `yaml:"context_semantic_count"`
-	MaxConcurrentEncodings    int  `yaml:"max_concurrent_encodings"`
-	EnableLLMClassification   bool `yaml:"enable_llm_classification"`
-	CompletionMaxTokens       int  `yaml:"completion_max_tokens"`
+	Enabled                  bool `yaml:"enabled"`
+	UseLLM                   bool `yaml:"use_llm"`
+	MaxLLMQueueSize          int  `yaml:"max_llm_queue_size"`
+	MaxConcepts              int  `yaml:"max_concepts"`
+	FindSimilarLimit         int  `yaml:"find_similar_limit"`
+	EnableContextualEncoding bool `yaml:"enable_contextual_encoding"`
+	ContextLookbackCount     int  `yaml:"context_lookback_count"`
+	ContextSemanticCount     int  `yaml:"context_semantic_count"`
+	MaxConcurrentEncodings   int  `yaml:"max_concurrent_encodings"`
+	EnableLLMClassification  bool `yaml:"enable_llm_classification"`
+	CompletionMaxTokens      int  `yaml:"completion_max_tokens"`
 }
 
 // ConsolidationConfig holds consolidation settings.
 type ConsolidationConfig struct {
-	Enabled             bool    `yaml:"enabled"`
-	IntervalRaw         string  `yaml:"interval"`
+	Enabled             bool          `yaml:"enabled"`
+	IntervalRaw         string        `yaml:"interval"`
 	Interval            time.Duration `yaml:"-"`
-	DecayRate           float64 `yaml:"decay_rate"`
-	FadeThreshold       float64 `yaml:"fade_threshold"`
-	ArchiveThreshold    float64 `yaml:"archive_threshold"`
-	RetentionWindowRaw  string  `yaml:"retention_window"`
+	DecayRate           float64       `yaml:"decay_rate"`
+	FadeThreshold       float64       `yaml:"fade_threshold"`
+	ArchiveThreshold    float64       `yaml:"archive_threshold"`
+	RetentionWindowRaw  string        `yaml:"retention_window"`
 	RetentionWindow     time.Duration `yaml:"-"`
-	MaxMemoriesPerCycle int     `yaml:"max_memories_per_cycle"`
-	MaxMergesPerCycle   int     `yaml:"max_merges_per_cycle"`
-	MinClusterSize      int     `yaml:"min_cluster_size"`
+	MaxMemoriesPerCycle int           `yaml:"max_memories_per_cycle"`
+	MaxMergesPerCycle   int           `yaml:"max_merges_per_cycle"`
+	MinClusterSize      int           `yaml:"min_cluster_size"`
 }
 
 // RetrievalConfig holds retrieval settings.
@@ -167,11 +167,11 @@ type EpisodingConfig struct {
 
 // AbstractionConfig configures the abstraction agent (hierarchical knowledge).
 type AbstractionConfig struct {
-	Enabled          bool          `yaml:"enabled"`
-	IntervalRaw      string        `yaml:"interval"`
-	Interval         time.Duration `yaml:"-"`
-	MinStrength      float32       `yaml:"min_strength"`       // minimum pattern strength to consider
-	MaxLLMCalls      int           `yaml:"max_llm_calls"`      // budget per cycle
+	Enabled     bool          `yaml:"enabled"`
+	IntervalRaw string        `yaml:"interval"`
+	Interval    time.Duration `yaml:"-"`
+	MinStrength float32       `yaml:"min_strength"`  // minimum pattern strength to consider
+	MaxLLMCalls int           `yaml:"max_llm_calls"` // budget per cycle
 }
 
 // OrchestratorConfig configures the autonomous orchestrator.
@@ -201,9 +201,9 @@ type AgentSDKConfig struct {
 
 // APIConfig holds API server settings.
 type APIConfig struct {
-	Host               string `yaml:"host"`
-	Port               int    `yaml:"port"`
-	RequestTimeoutSec  int    `yaml:"request_timeout_sec"`
+	Host              string `yaml:"host"`
+	Port              int    `yaml:"port"`
+	RequestTimeoutSec int    `yaml:"request_timeout_sec"`
 }
 
 // WebConfig holds web UI settings.
@@ -311,8 +311,8 @@ func Default() *Config {
 				MaxContentBytes: 102400,
 			},
 			Heuristics: HeuristicsConfig{
-				MinContentLength:  10,
-				MaxContentLength:  100000,
+				MinContentLength:   10,
+				MaxContentLength:   100000,
 				FrequencyThreshold: 5,
 				FrequencyWindowMin: 10,
 			},

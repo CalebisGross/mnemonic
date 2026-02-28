@@ -894,4 +894,3 @@ func (ra *RetrievalAgent) applyFilters(results []store.RetrievalResult, req Quer
 	}
 	return filtered
 }
-

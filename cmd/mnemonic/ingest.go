@@ -183,11 +183,11 @@ func ingestCommand(configPath string, args []string) {
 		}
 
 		raw := store.RawMemory{
-			ID:              uuid.New().String(),
-			Timestamp:       time.Now(),
-			Source:          "ingest",
-			Type:            "file",
-			Content:         fmt.Sprintf("File %s:\n%s", relPath, content),
+			ID:        uuid.New().String(),
+			Timestamp: time.Now(),
+			Source:    "ingest",
+			Type:      "file",
+			Content:   fmt.Sprintf("File %s:\n%s", relPath, content),
 			Metadata: map[string]interface{}{
 				"path":     path,
 				"rel_path": relPath,

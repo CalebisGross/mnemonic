@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
+	"github.com/google/uuid"
 )
 
 type MetacognitionConfig struct {
@@ -221,11 +221,11 @@ func (ma *MetacognitionAgent) auditMemoryQuality(ctx context.Context) *store.Met
 		ObservationType: "quality_audit",
 		Severity:        severity,
 		Details: map[string]interface{}{
-			"no_embedding":     noEmbedding,
-			"no_compression":   noCompression,
-			"short_summary":    shortSummary,
-			"long_summary":     longSummary,
-			"total_issues":     totalIssues,
+			"no_embedding":   noEmbedding,
+			"no_compression": noCompression,
+			"short_summary":  shortSummary,
+			"long_summary":   longSummary,
+			"total_issues":   totalIssues,
 		},
 	}
 }
@@ -263,9 +263,9 @@ func (ma *MetacognitionAgent) analyzeSourceDistribution(ctx context.Context) *st
 		ObservationType: "source_balance",
 		Severity:        "warning",
 		Details: map[string]interface{}{
-			"source_counts":    distribution,
-			"dominant_source":  dominantSource,
-			"dominant_ratio":   dominantRatio,
+			"source_counts":   distribution,
+			"dominant_source": dominantSource,
+			"dominant_ratio":  dominantRatio,
 		},
 	}
 }
@@ -500,8 +500,8 @@ func (ma *MetacognitionAgent) actOnQualityIssues(ctx context.Context, obs store.
 			ObservationType: "autonomous_action",
 			Severity:        "info",
 			Details: map[string]interface{}{
-				"action":     "re_embedded_memories",
-				"count":      reembedded,
+				"action": "re_embedded_memories",
+				"count":  reembedded,
 			},
 			CreatedAt: time.Now(),
 		}

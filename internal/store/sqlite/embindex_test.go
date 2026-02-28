@@ -207,7 +207,7 @@ func TestEmbeddingIndexSearchDimensionMismatch(t *testing.T) {
 	idx := newEmbeddingIndex()
 
 	idx.Add("mem-1", []float32{1.0, 0.0, 0.0}) // 3D
-	idx.Add("mem-2", []float32{1.0, 0.0})       // 2D
+	idx.Add("mem-2", []float32{1.0, 0.0})      // 2D
 
 	results := idx.Search([]float32{1.0, 0.0, 0.0}, 10) // 3D query
 	if len(results) != 1 {
@@ -223,9 +223,9 @@ func TestEmbeddingIndexSearchSorted(t *testing.T) {
 
 	// Add vectors at varying angles to the query
 	idx.Add("far", []float32{0.0, 1.0, 0.0})       // orthogonal
-	idx.Add("close", []float32{0.9, 0.1, 0.0})      // close
-	idx.Add("identical", []float32{1.0, 0.0, 0.0})   // identical
-	idx.Add("moderate", []float32{0.5, 0.5, 0.0})    // moderate
+	idx.Add("close", []float32{0.9, 0.1, 0.0})     // close
+	idx.Add("identical", []float32{1.0, 0.0, 0.0}) // identical
+	idx.Add("moderate", []float32{0.5, 0.5, 0.0})  // moderate
 
 	results := idx.Search([]float32{1.0, 0.0, 0.0}, 4)
 	if len(results) != 4 {

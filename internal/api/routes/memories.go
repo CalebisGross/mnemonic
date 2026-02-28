@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/store"
+	"github.com/google/uuid"
 )
 
 // HandleGetRawMemory returns a single raw memory by ID.
@@ -102,12 +102,12 @@ func HandleCreateMemory(s store.Store, bus events.Bus, log *slog.Logger) http.Ha
 		}
 
 		rawMem := store.RawMemory{
-			ID:              uuid.New().String(),
-			Timestamp:       now,
-			Source:          req.Source,
-			Type:            req.Type,
-			Content:         req.Content,
-			Project:         req.Project,
+			ID:        uuid.New().String(),
+			Timestamp: now,
+			Source:    req.Source,
+			Type:      req.Type,
+			Content:   req.Content,
+			Project:   req.Project,
 			Metadata: map[string]interface{}{
 				"memory_type": req.Type,
 				"project":     req.Project,

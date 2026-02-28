@@ -8,8 +8,8 @@ import (
 // Event represents a raw observation from a watcher.
 type Event struct {
 	ID        string                 `json:"id"`
-	Source    string                 `json:"source"`    // "filesystem", "terminal", "clipboard"
-	Type      string                 `json:"type"`      // "file_created", "file_modified", "command_executed", "clipboard_changed"
+	Source    string                 `json:"source"` // "filesystem", "terminal", "clipboard"
+	Type      string                 `json:"type"`   // "file_created", "file_modified", "command_executed", "clipboard_changed"
 	Timestamp time.Time              `json:"timestamp"`
 	Path      string                 `json:"path,omitempty"` // for filesystem events
 	Content   string                 `json:"content"`

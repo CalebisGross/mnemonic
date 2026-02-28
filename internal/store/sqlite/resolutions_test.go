@@ -82,11 +82,11 @@ func TestWriteAndGetConceptSet(t *testing.T) {
 	}
 
 	cs := store.ConceptSet{
-		MemoryID: "mem-cs-1",
-		Topics:   []store.Topic{{Label: "Go", Path: "programming/go"}},
-		Entities: []store.Entity{{Name: "main.go", Type: "file", Context: "modified"}},
-		Actions:  []store.Action{{Verb: "debugged", Object: "auth system", Details: "fixed token cache"}},
-		Causality: []store.CausalLink{{Relation: "caused_by", Description: "token TTL was wrong"}},
+		MemoryID:     "mem-cs-1",
+		Topics:       []store.Topic{{Label: "Go", Path: "programming/go"}},
+		Entities:     []store.Entity{{Name: "main.go", Type: "file", Context: "modified"}},
+		Actions:      []store.Action{{Verb: "debugged", Object: "auth system", Details: "fixed token cache"}},
+		Causality:    []store.CausalLink{{Relation: "caused_by", Description: "token TTL was wrong"}},
 		Significance: "important",
 		CreatedAt:    time.Now(),
 	}

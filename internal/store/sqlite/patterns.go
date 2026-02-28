@@ -271,4 +271,3 @@ func scanPatternRows(rows *sql.Rows) ([]store.Pattern, error) {
 }
 
 // cosineSimilarity and sqrt32 are defined in embindex.go
-
