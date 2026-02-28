@@ -144,7 +144,7 @@ internal/
   web/              Embedded dashboard
   config/           Configuration loading
   logger/           Structured logging
-  daemon/           Daemon management (start/stop, PID file)
+  daemon/           Daemon management (macOS launchd + Linux systemd)
   mcp/              MCP server implementation
   backup/           Backup/restore logic
 cmd/mnemonic/       Main entry point
@@ -177,24 +177,8 @@ make setup-hooks    # Configure git pre-commit hooks
 |----------|--------|-------|
 | macOS ARM (M-series) | **Full** | Primary development platform |
 | macOS x86 | Untested | Should work via CGO cross-compile |
-| Linux x86_64 | **Partial** | Core pipeline works; daemon service management needs systemd |
+| Linux x86_64 | **Full** | All features including systemd daemon management |
 | Windows | Not supported | Clipboard watcher has Windows code; daemon does not |
-
-### What works on Linux today
-
-- All 8 cognitive agents (perception, encoding, episoding, consolidation, retrieval, metacognition, dreaming, abstraction)
-- REST API and web dashboard (`mnemonic serve`)
-- MCP server
-- Filesystem watcher (via fsnotify)
-- Terminal history watcher
-- Clipboard watcher (requires `xclip` or `xsel`)
-- All CLI commands except `install`/`uninstall`
-
-### Linux blockers
-
-- `mnemonic start` calls macOS `launchctl` — use `mnemonic serve` (foreground) as workaround
-- `mnemonic install`/`uninstall` generate macOS LaunchAgent plists — needs systemd unit file support
-- See issues [#1](https://github.com/CalebisGross/mnemonic/issues/1), [#2](https://github.com/CalebisGross/mnemonic/issues/2), [#15](https://github.com/CalebisGross/mnemonic/issues/15) for tracking
 
 ## License
 

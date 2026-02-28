@@ -39,7 +39,7 @@ internal/
   store/               Store interface + SQLite implementation
   llm/                 LLM provider interface + LM Studio client
   watcher/             Filesystem (FSEvents/fsnotify), terminal, clipboard
-  daemon/              Service management (currently macOS LaunchAgent only)
+  daemon/              Service management (macOS LaunchAgent + Linux systemd)
   events/              Event bus (in-memory pub/sub)
   config/              Config loading (config.yaml)
   logger/              Structured logging (slog)
@@ -70,7 +70,7 @@ scripts/               Utility scripts
 | Platform | Status |
 |----------|--------|
 | macOS ARM | Full support (primary dev platform) |
-| Linux x86_64 | Partial — `serve` works, `install`/`start` need systemd (#1, #2, #15) |
+| Linux x86_64 | Supported — `serve`, `install`, `start`, `stop`, `uninstall` all work via systemd |
 | Windows | Not yet supported |
 
 ## Known Issues
@@ -78,7 +78,6 @@ scripts/               Utility scripts
 See [GitHub Issues](https://github.com/CalebisGross/mnemonic/issues) for tracked bugs. Key areas:
 - Graph visualization needs major rework (#3, #6, #7, #8, #9, #10)
 - Dashboard error handling is poor (#5)
-- Daemon crashes on Linux (#1, #2)
 
 ---
 
