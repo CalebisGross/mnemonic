@@ -4,6 +4,29 @@ All self-modifications are logged here with date, what changed, and rationale.
 
 ## 2026-02-27
 
+### Merged evolution directories and added p11-p13, prompt_audit, code_review, pp6
+- Discovered two evolution dirs: `evolution/` (stale, root) and `sdk/agent/evolution/` (canonical, used by daemon + SDK)
+- Agent chat wrote changes to wrong dir (`evolution/`), overwrote prompt_patches.yaml destructively
+- Merged unique data from root into canonical SDK dir:
+  - p11 (DB-first system audit), p12 (verify subagent claims), p13 (symbol-targeted grep)
+  - `prompt_audit` and `code_review` strategies
+  - pp6 (skip recall for non-technical questions) — renumbered from agent's "pp2"
+- Fixed pp4/pp5 ordering in prompt_patches.yaml
+- Removed stale `evolution/` dir to prevent future confusion
+- Updated CLAUDE.md project layout to reference `sdk/agent/evolution/`
+
+### Implemented 6 SDK improvements (49/49 tests pass)
+- **Fix model switch no-op** (`web.py`): Per-connection `session_model` + `dataclasses.replace()` for isolated config. Client lifecycle loop recreates `ClaudeSDKClient` on model change.
+- **ConversationStore tests** (`tests/test_conversation_store.py`): 27 new tests covering CRUD, auto-titling, cost accumulation, continuation summaries, preferences, rotation, error recovery.
+- **Pre-task recall skip logic** (`prompts.py`): `PRE_TASK_PROMPT` now lets Claude decide whether recall is useful; skips for non-technical inputs.
+- **Deduplicate stream handlers** (`session.py` + `web.py`): Extracted `stream_events()` async generator consumed by both CLI and WebSocket.
+- **Move orchestration prompts** (`session.py` → `prompts.py`): `PRE_TASK_PROMPT`, `POST_TASK_PROMPT`, `EVOLVE_PROMPT` now live alongside `BASE_PROMPT`.
+- **Configurable subagent models**: Added `Config.subagent_model`, `make_subagents()` factory, `--subagent-model` CLI arg.
+
+### Added code_review strategy
+- Source: Full SDK code review found 13 issues across 8 Python files
+- Key steps: read ALL files first, run tests for baseline, identify cross-cutting concerns, prioritize by severity × effort
+
 ### Added tip to encoding_audit strategy: post-coaching verification via timestamps
 **Rationale:** When verifying coaching effectiveness, raw counts without `state='active'` include archived memories and can appear to show regression. The definitive check is: filter by `state='active'` AND compare memory timestamps against coaching application date. Confirmed in this session — 15 total template echo memories looked like regression from 9, but all 6 active ones were pre-coaching (2026-02-25/26). Zero post-coaching. Count discrepancy = state filter mismatch, not a real regression.
 

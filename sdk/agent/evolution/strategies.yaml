@@ -163,3 +163,35 @@ strategies:
       - "A missing MEMORY.md is always the highest-leverage fix — it affects every future session"
       - "After making changes, verify MEMORY.md reflects the updated state (stale counts/lists cause confusion)"
     learned_from: "Free-form self-improvement session — surveyed all evolution files, identified MEMORY.md as critical missing piece, added 3 principles, 2 strategies, and 1 prompt patch in systematic order"
+
+  prompt_audit:
+    steps:
+      - "Read the LLM provider implementation first (e.g., lmstudio.go) — understand API mechanics, supported fields, retry logic before inspecting prompts"
+      - "grep -rn 'llmProvider.Complete\\|llmProvider.Embed' across all agent files (excluding _test.go) — get the complete call site inventory in one shot"
+      - "grep -rn 'Role.*system' to check system-role usage — absence is a significant finding for local model reliability"
+      - "For each call site: grep for the prompt-building function name, then Read with offset/limit to that function"
+      - "Note: temperature, MaxTokens, and whether tools are passed — these reveal the designer's intent"
+      - "Identify what dynamic context is injected vs. what is static/templated"
+      - "Check for escape hatches (has_principle: false, is_pattern: false) — good prompts let the model say no"
+      - "Check for parallel prompt pipelines that bypass shared dedup/validation logic"
+    tips:
+      - "Large agent files (>30KB) will get truncated — always grep for function line numbers first, then use offset/limit reads"
+      - "Inline persona ('You are a curious mind...') is a system-prompt substitute — fine for Claude, unreliable for small local models"
+      - "extractJSON helpers are a smell — they exist because the model ignores format instructions; system roles reduce this"
+      - "Low MaxTokens (e.g., 30 for relationship classification) is a feature — forces concise structured output"
+      - "Tool-use loop prompts are the highest-risk for local models — always flag these separately"
+    learned_from: "Full Mnemonic prompt audit 2026-02-25: found 10 call sites, no system roles, 2 prompt variants in episoding/encoding agents, tool-use loop in retrieval"
+
+  code_review:
+    steps:
+      - "Read ALL source files in the target package before noting any issues — full context first"
+      - "Run existing tests to establish baseline (pass/fail count, coverage gaps)"
+      - "Identify cross-cutting concerns: duplicated logic, shared mutable state, missing test coverage"
+      - "Check for runtime vs build-time assumptions (e.g., paths that work in dev but break when installed)"
+      - "Categorize findings by severity × effort, present as priority table"
+    tips:
+      - "Don't read files outside the review scope (e.g., a 2000-line HTML file when reviewing Python SDK)"
+      - "Shared mutable state (Config objects, module-level dicts) is the #1 source of subtle multi-client bugs"
+      - "Near-duplicate functions across modules are high-signal — they indicate a missing abstraction"
+      - "Test coverage gaps are the easiest wins to recommend — concrete, unambiguous, low-risk"
+    learned_from: "SDK code review 2026-02-27: read all 8 .py files, found 13 issues, prioritized into severity/effort table"

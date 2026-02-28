@@ -45,8 +45,8 @@ internal/
   logger/              Structured logging (slog)
   backup/              Export/import
 sdk/                   Python agent SDK (self-evolving assistant)
+  agent/evolution/     Canonical evolution data (principles, strategies, patches, changelog)
 migrations/            SQLite schema migrations
-evolution/             Agent evolution data (principles, strategies)
 scripts/               Utility scripts
 ```
 

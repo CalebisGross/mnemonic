@@ -22,12 +22,17 @@ patches:
     reason: "Pre-task recall was delegated to a subagent; the query_id was never returned to the main session, making mcp__mnemonic__feedback impossible to call — silently violating pp1 every time."
     created: "2026-02-25"
 
+  - id: pp4
+    instruction: "When the user's task is temporal or reflective ('what did we work on', 'what have you learned', 'what happened today/this morning'), use mcp__mnemonic__recall_timeline as the PRIMARY pre-task tool (hours_back=8 or similar). Do NOT use the user's natural-language question verbatim as a semantic recall query — temporal questions produce poor semantic matches. Semantic recall is still useful as a secondary call with a specific concept query."
+    reason: "Pre-task recall used the user's temporal question verbatim as a semantic query and returned partial/irrelevant results. recall_timeline gave the correct chronological answer immediately. The memory_analysis strategy tip already captures this but the pre-task recall instructions didn't."
+    created: "2026-02-26"
+
   - id: pp5
     instruction: "For meta/assessment questions ('do you see areas for improvement?', 'what should we work on next?', 'how is the system doing?'), use mcp__mnemonic__status + mcp__mnemonic__get_insights + mcp__mnemonic__recall_project as primary tools — NOT semantic recall. These questions require synthesizing health signals across the system, not retrieving specific memories. Semantic recall for assessment questions consistently returns low-signal filesystem events."
     reason: "Semantic recall for 'areas for improvement' returned filesystem file-modification memories every time. The real answer came from status (health observations), get_insights (abstraction quality), and evolution files (known gaps). Added system_review strategy to strategies.yaml to codify this pattern."
     created: "2026-02-26"
 
-  - id: pp4
-    instruction: "When the user's task is temporal or reflective ('what did we work on', 'what have you learned', 'what happened today/this morning'), use mcp__mnemonic__recall_timeline as the PRIMARY pre-task tool (hours_back=8 or similar). Do NOT use the user's natural-language question verbatim as a semantic recall query — temporal questions produce poor semantic matches. Semantic recall is still useful as a secondary call with a specific concept query."
-    reason: "Pre-task recall used the user's temporal question verbatim as a semantic query and returned partial/irrelevant results. recall_timeline gave the correct chronological answer immediately. The memory_analysis strategy tip already captures this but the pre-task recall instructions didn't."
-    created: "2026-02-26"
+  - id: pp6
+    instruction: "Skip the pre-task recall protocol for non-technical conversational questions (e.g., policy questions, jokes, greetings, product usage questions). The protocol is for tasks that benefit from project memory — not every user message qualifies."
+    reason: "User asked about Anthropic account/OAuth policies. All 3 recall calls returned irrelevant project memories, wasting latency for zero value. Not every message is a 'task'."
+    created: "2026-02-27"

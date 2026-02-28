@@ -67,3 +67,21 @@ principles:
     source: "Pre-task recall used user's verbatim question 'we've done a lot of work this morning. what have you learned?' as a semantic query — returned generic/partial results. recall_timeline gave the accurate chronological picture in one call."
     confidence: 0.8
     created: "2026-02-26"
+
+  - id: p11
+    text: "For data-driven systems (daemons, memory systems), query the actual runtime database before reading code — DB shows what IS happening; code shows what SHOULD happen"
+    source: "System audit: project-local mnemonic.db was empty; real data was at ~/.mnemonic/memory.db. DB queries confirmed/refuted every hypothesis faster than code analysis alone"
+    confidence: 0.8
+    created: "2026-02-25"
+
+  - id: p12
+    text: "Verify subagent line-number and code-location claims with targeted Read calls before treating them as confirmed — subagents can plausibly hallucinate specific line numbers while getting the conceptual finding right"
+    source: "Explore subagent gave detailed file:line bug reports; most concepts were correct but some line numbers needed verification against actual reads"
+    confidence: 0.7
+    created: "2026-02-25"
+
+  - id: p13
+    text: "For symbol-targeted code audits (e.g., 'find all LLM calls'), grep for the exact symbol first to get a complete inventory, then use targeted offset/limit reads — never read large files sequentially hoping to find call sites"
+    source: "Prompt audit: grep for llmProvider.Complete found all 10 call sites in one shot; sequential file reads would have missed some and wasted turns on irrelevant code"
+    confidence: 0.7
+    created: "2026-02-25"

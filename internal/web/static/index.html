@@ -1841,8 +1841,14 @@
         var countEl = document.getElementById('agentPrinciplesCount');
         if (countEl) countEl.textContent = (principles || []).length;
         if (!principles || principles.length === 0) { el.innerHTML = '<div class="agent-empty">No principles learned yet. Run the agent to start building knowledge.</div>'; return; }
-        // Sort by confidence descending
-        var sorted = principles.slice().sort(function(a, b) { return (b.confidence || 0) - (a.confidence || 0); });
+        // Sort by confidence descending, then by numeric ID ascending as tiebreaker
+        var sorted = principles.slice().sort(function(a, b) {
+            var diff = (b.confidence || 0) - (a.confidence || 0);
+            if (diff !== 0) return diff;
+            var aNum = parseInt((a.id || '').replace(/\D/g, ''), 10) || 0;
+            var bNum = parseInt((b.id || '').replace(/\D/g, ''), 10) || 0;
+            return aNum - bNum;
+        });
         el.innerHTML = sorted.map(function(p) {
             var confPct = Math.round((p.confidence || 0) * 100);
             return '<div class="principle-card">' +
@@ -1951,6 +1957,12 @@
         if (countEl) countEl.textContent = valid.length;
         if (valid.length === 0) { container.style.display = 'none'; return; }
         container.style.display = 'block';
+        // Sort by numeric ID ascending (pp1 before pp2, etc.)
+        valid.sort(function(a, b) {
+            var aNum = parseInt((a.id || '').replace(/\D/g, ''), 10) || 0;
+            var bNum = parseInt((b.id || '').replace(/\D/g, ''), 10) || 0;
+            return aNum - bNum;
+        });
         el.innerHTML = valid.map(function(p) {
             var label = p.action || p.id;
             var body = p.content || p.instruction || '';
