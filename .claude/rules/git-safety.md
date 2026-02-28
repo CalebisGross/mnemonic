@@ -4,8 +4,11 @@
 
 - Remote: `origin` (https://github.com/CalebisGross/mnemonic.git)
 - Primary branch: `main`
-- Feature branches for non-trivial changes: `feat/<description>`, `fix/<description>`
-- Direct commits to `main` are OK for small fixes during solo development
+- **All new work starts on a feature branch** — never commit directly to `main`
+- Branch naming: `feat/<description>`, `fix/<description>`
+- Before branching: `git stash` (if dirty), `git pull origin main`, then `git checkout -b <branch>`
+- **All changes go through a PR** — push the branch, open a PR with `gh pr create`, get it reviewed
+- No blind commits to main, no YOLO pushes
 
 ## Forbidden Operations
 
