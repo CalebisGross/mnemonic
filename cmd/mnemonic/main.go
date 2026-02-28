@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"text/template"
 	"time"
 
 	"github.com/appsprout/mnemonic/internal/config"
@@ -26,22 +25,22 @@ import (
 
 	"github.com/appsprout/mnemonic/internal/agent/abstraction"
 	"github.com/appsprout/mnemonic/internal/agent/consolidation"
-	"github.com/appsprout/mnemonic/internal/agent/orchestrator"
-	"github.com/appsprout/mnemonic/internal/agent/reactor"
 	"github.com/appsprout/mnemonic/internal/agent/dreaming"
 	"github.com/appsprout/mnemonic/internal/agent/encoding"
 	"github.com/appsprout/mnemonic/internal/agent/episoding"
 	"github.com/appsprout/mnemonic/internal/agent/metacognition"
+	"github.com/appsprout/mnemonic/internal/agent/orchestrator"
 	"github.com/appsprout/mnemonic/internal/agent/perception"
+	"github.com/appsprout/mnemonic/internal/agent/reactor"
 	"github.com/appsprout/mnemonic/internal/agent/retrieval"
 	"github.com/appsprout/mnemonic/internal/api"
 	"github.com/appsprout/mnemonic/internal/backup"
 	"github.com/appsprout/mnemonic/internal/mcp"
 	"github.com/appsprout/mnemonic/internal/store"
 
+	clipwatcher "github.com/appsprout/mnemonic/internal/watcher/clipboard"
 	fswatcher "github.com/appsprout/mnemonic/internal/watcher/filesystem"
 	termwatcher "github.com/appsprout/mnemonic/internal/watcher/terminal"
-	clipwatcher "github.com/appsprout/mnemonic/internal/watcher/clipboard"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -160,22 +159,24 @@ func main() {
 
 // startCommand launches the mnemonic daemon in the background.
 func startCommand(configPath string) {
-	// If launchd service is installed, use it
-	if daemon.IsServiceInstalled() {
-		if running, pid := daemon.IsServiceRunning(); running {
-			fmt.Printf("Mnemonic is already running (launchd, PID %d)\n", pid)
+	svc := daemon.NewServiceManager()
+
+	// If platform service is installed, use it
+	if svc.IsInstalled() {
+		if running, pid := svc.IsRunning(); running {
+			fmt.Printf("Mnemonic is already running (%s, PID %d)\n", svc.ServiceName(), pid)
 			os.Exit(1)
 		}
 		fmt.Printf("Starting mnemonic service...\n")
-		if err := daemon.StartService(); err != nil {
+		if err := svc.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error starting service: %v\n", err)
 			os.Exit(1)
 		}
 		// Wait and check if it started
 		time.Sleep(2 * time.Second)
-		if running, pid := daemon.IsServiceRunning(); running {
+		if running, pid := svc.IsRunning(); running {
 			cfg, _ := config.Load(configPath)
-			fmt.Printf("%sMnemonic started%s (launchd, PID %d)\n", colorGreen, colorReset, pid)
+			fmt.Printf("%sMnemonic started%s (%s, PID %d)\n", colorGreen, colorReset, svc.ServiceName(), pid)
 			if cfg != nil {
 				fmt.Printf("  Dashboard: http://%s:%d\n", cfg.API.Host, cfg.API.Port)
 			}
@@ -251,11 +252,13 @@ func startCommand(configPath string) {
 
 // stopCommand stops the running mnemonic daemon.
 func stopCommand() {
-	// Check launchd service first
-	if daemon.IsServiceInstalled() {
-		if running, pid := daemon.IsServiceRunning(); running {
+	svc := daemon.NewServiceManager()
+
+	// Check platform service first
+	if svc.IsInstalled() {
+		if running, pid := svc.IsRunning(); running {
 			fmt.Printf("Stopping mnemonic service (PID %d)...\n", pid)
-			if err := daemon.StopService(); err != nil {
+			if err := svc.Stop(); err != nil {
 				fmt.Fprintf(os.Stderr, "Error stopping service: %v\n", err)
 				os.Exit(1)
 			}
@@ -285,11 +288,13 @@ func stopCommand() {
 
 // restartCommand stops and starts the mnemonic daemon.
 func restartCommand(configPath string) {
-	// Check launchd first
-	if daemon.IsServiceInstalled() {
-		if running, pid := daemon.IsServiceRunning(); running {
+	svc := daemon.NewServiceManager()
+
+	// Check platform service first
+	if svc.IsInstalled() {
+		if running, pid := svc.IsRunning(); running {
 			fmt.Printf("Stopping mnemonic service (PID %d)...\n", pid)
-			if err := daemon.StopService(); err != nil {
+			if err := svc.Stop(); err != nil {
 				fmt.Fprintf(os.Stderr, "Error stopping service: %v\n", err)
 				os.Exit(1)
 			}
@@ -447,12 +452,14 @@ func truncID(id string) string {
 
 // statusCommand displays comprehensive system status.
 func statusCommand(configPath string) {
+	svc := daemon.NewServiceManager()
+
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		// Even without config, show daemon state
 		fmt.Printf("%sMnemonic v%s Status%s\n\n", colorBold, Version, colorReset)
-		if svcRunning, svcPid := daemon.IsServiceRunning(); svcRunning {
-			fmt.Printf("  Daemon:  %srunning%s (launchd, PID %d)\n", colorGreen, colorReset, svcPid)
+		if svcRunning, svcPid := svc.IsRunning(); svcRunning {
+			fmt.Printf("  Daemon:  %srunning%s (%s, PID %d)\n", colorGreen, colorReset, svc.ServiceName(), svcPid)
 		} else if running, pid := daemon.IsRunning(); running {
 			fmt.Printf("  Daemon:  %srunning%s (PID %d)\n", colorGreen, colorReset, pid)
 		} else {
@@ -464,12 +471,12 @@ func statusCommand(configPath string) {
 
 	fmt.Printf("%sMnemonic v%s Status%s\n\n", colorBold, Version, colorReset)
 
-	// Daemon state — check launchd first, then PID file
+	// Daemon state — check platform service first, then PID file
 	running := false
 	pid := 0
 	mode := ""
-	if svcRunning, svcPid := daemon.IsServiceRunning(); svcRunning {
-		running, pid, mode = true, svcPid, " (launchd)"
+	if svcRunning, svcPid := svc.IsRunning(); svcRunning {
+		running, pid, mode = true, svcPid, fmt.Sprintf(" (%s)", svc.ServiceName())
 	} else if pidRunning, pidPid := daemon.IsRunning(); pidRunning {
 		running, pid = true, pidPid
 	}
@@ -658,46 +665,13 @@ func formatDuration(d time.Duration) string {
 }
 
 // ============================================================================
-// Install / Uninstall (macOS LaunchAgent)
+// Install / Uninstall (platform service)
 // ============================================================================
 
-const launchAgentPlist = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>Label</key>
-	<string>com.appsprout.mnemonic</string>
-	<key>ProgramArguments</key>
-	<array>
-		<string>{{.ExecPath}}</string>
-		<string>--config</string>
-		<string>{{.ConfigPath}}</string>
-		<string>serve</string>
-	</array>
-	<key>RunAtLoad</key>
-	<true/>
-	<key>KeepAlive</key>
-	<dict>
-		<key>SuccessfulExit</key>
-		<false/>
-	</dict>
-	<key>StandardOutPath</key>
-	<string>{{.LogPath}}</string>
-	<key>StandardErrorPath</key>
-	<string>{{.LogPath}}</string>
-	<key>WorkingDirectory</key>
-	<string>{{.HomeDir}}</string>
-	<key>EnvironmentVariables</key>
-	<dict>
-		<key>PATH</key>
-		<string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
-	</dict>
-</dict>
-</plist>
-`
-
-// installCommand generates and installs a macOS LaunchAgent plist.
+// installCommand registers mnemonic as a platform service (launchd on macOS, systemd on Linux).
 func installCommand(configPath string) {
+	svc := daemon.NewServiceManager()
+
 	// Validate config
 	_, err := config.Load(configPath)
 	if err != nil {
@@ -717,92 +691,34 @@ func installCommand(configPath string) {
 		fmt.Fprintf(os.Stderr, "Error finding executable: %v\n", err)
 		os.Exit(1)
 	}
-	// Resolve symlinks
-	execPath, err = filepath.EvalSymlinks(execPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error resolving executable path: %v\n", err)
+
+	if err := svc.Install(execPath, absConfigPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Error installing service: %v\n", err)
 		os.Exit(1)
 	}
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting home directory: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Generate plist content
-	tmpl, err := template.New("plist").Parse(launchAgentPlist)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing template: %v\n", err)
-		os.Exit(1)
-	}
-
-	data := struct {
-		ExecPath   string
-		ConfigPath string
-		LogPath    string
-		HomeDir    string
-	}{
-		ExecPath:   execPath,
-		ConfigPath: absConfigPath,
-		LogPath:    daemon.LogPath(),
-		HomeDir:    homeDir,
-	}
-
-	var plistContent strings.Builder
-	if err := tmpl.Execute(&plistContent, data); err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating plist: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Write plist file
-	launchAgentsDir := filepath.Join(homeDir, "Library", "LaunchAgents")
-	if err := os.MkdirAll(launchAgentsDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating LaunchAgents directory: %v\n", err)
-		os.Exit(1)
-	}
-
-	plistPath := filepath.Join(launchAgentsDir, "com.appsprout.mnemonic.plist")
-	if err := os.WriteFile(plistPath, []byte(plistContent.String()), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing plist: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("%sLaunchAgent installed.%s\n\n", colorGreen, colorReset)
-	fmt.Printf("  Plist:   %s\n", plistPath)
+	fmt.Printf("%sService installed (%s).%s\n\n", colorGreen, svc.ServiceName(), colorReset)
 	fmt.Printf("  Binary:  %s\n", execPath)
 	fmt.Printf("  Config:  %s\n", absConfigPath)
 	fmt.Printf("\nMnemonic will now start automatically on login.\n")
-	fmt.Printf("To load immediately without rebooting:\n")
-	fmt.Printf("  launchctl load %s\n\n", plistPath)
+	fmt.Printf("To start immediately:\n")
+	fmt.Printf("  mnemonic start\n\n")
 	fmt.Printf("To check status:\n")
-	fmt.Printf("  launchctl list | grep mnemonic\n\n")
+	fmt.Printf("  mnemonic status\n\n")
 	fmt.Printf("To uninstall:\n")
 	fmt.Printf("  mnemonic uninstall\n")
 }
 
-// uninstallCommand removes the macOS LaunchAgent.
+// uninstallCommand removes the platform service registration.
 func uninstallCommand() {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting home directory: %v\n", err)
+	svc := daemon.NewServiceManager()
+
+	if err := svc.Uninstall(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error uninstalling service: %v\n", err)
 		os.Exit(1)
 	}
 
-	plistPath := filepath.Join(homeDir, "Library", "LaunchAgents", "com.appsprout.mnemonic.plist")
-
-	// Try to unload first (may fail if not loaded, that's fine)
-	if _, err := os.Stat(plistPath); err == nil {
-		unload := exec.Command("launchctl", "unload", plistPath)
-		_ = unload.Run()
-	}
-
-	if err := os.Remove(plistPath); err != nil && !os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "Error removing plist: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("%sLaunchAgent uninstalled.%s\n", colorGreen, colorReset)
+	fmt.Printf("%sService uninstalled (%s).%s\n", colorGreen, svc.ServiceName(), colorReset)
 	fmt.Printf("Mnemonic will no longer start automatically on login.\n")
 }
 
@@ -1996,8 +1912,8 @@ MONITORING COMMANDS:
   watch           Live stream of daemon events
 
 SETUP COMMANDS:
-  install         Install macOS LaunchAgent (auto-start on login)
-  uninstall       Remove macOS LaunchAgent
+  install         Install as system service (auto-start on login)
+  uninstall       Remove system service
   version         Show version
 
 EXAMPLES:

@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -141,55 +140,6 @@ func Start(execPath string, configPath string) (int, error) {
 	}
 
 	return pid, nil
-}
-
-// ============================================================================
-// Launchd service management
-// ============================================================================
-
-const serviceLabel = "com.appsprout.mnemonic"
-
-// IsServiceInstalled checks if the launchd service is registered.
-func IsServiceInstalled() bool {
-	cmd := exec.Command("launchctl", "list", serviceLabel)
-	return cmd.Run() == nil
-}
-
-// IsServiceRunning checks if the launchd service is running and returns its PID.
-// The output of `launchctl list <label>` is a JSON-like block; we parse PID from it.
-// Returns (isRunning, pid).
-func IsServiceRunning() (bool, int) {
-	out, err := exec.Command("launchctl", "list", serviceLabel).Output()
-	if err != nil {
-		return false, 0
-	}
-	// Look for "PID" = <number> in the output
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "\"PID\"") {
-			// Format: "PID" = 12345;
-			parts := strings.Split(line, "=")
-			if len(parts) == 2 {
-				numStr := strings.TrimSpace(parts[1])
-				numStr = strings.TrimSuffix(numStr, ";")
-				numStr = strings.TrimSpace(numStr)
-				if pid, err := strconv.Atoi(numStr); err == nil && pid > 0 {
-					return true, pid
-				}
-			}
-		}
-	}
-	return false, 0
-}
-
-// StopService stops the launchd service.
-func StopService() error {
-	return exec.Command("launchctl", "stop", serviceLabel).Run()
-}
-
-// StartService starts the launchd service.
-func StartService() error {
-	return exec.Command("launchctl", "start", serviceLabel).Run()
 }
 
 // ============================================================================
