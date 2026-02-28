@@ -121,6 +121,10 @@ func (m *launchdManager) Install(execPath, configPath string) error {
 	if err := os.MkdirAll(launchAgentsDir, 0755); err != nil {
 		return fmt.Errorf("creating LaunchAgents directory: %w", err)
 	}
+	logDir := filepath.Dir(LogPath())
+	if err := os.MkdirAll(logDir, 0700); err != nil {
+		return fmt.Errorf("creating log directory: %w", err)
+	}
 
 	plistPath := filepath.Join(launchAgentsDir, serviceLabel+".plist")
 	if err := os.WriteFile(plistPath, []byte(plistContent.String()), 0644); err != nil {

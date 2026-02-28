@@ -111,10 +111,14 @@ func (m *systemdManager) Install(execPath, configPath string) error {
 		return fmt.Errorf("generating unit file: %w", err)
 	}
 
-	// Ensure directory exists
+	// Ensure directories exist
 	unitDir := filepath.Dir(unitPath)
 	if err := os.MkdirAll(unitDir, 0755); err != nil {
 		return fmt.Errorf("creating systemd user directory: %w", err)
+	}
+	logDir := filepath.Dir(LogPath())
+	if err := os.MkdirAll(logDir, 0700); err != nil {
+		return fmt.Errorf("creating log directory: %w", err)
 	}
 
 	if err := os.WriteFile(unitPath, []byte(unitContent.String()), 0644); err != nil {
