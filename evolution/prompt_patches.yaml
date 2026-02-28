@@ -1,7 +1,0 @@
-patches: []
-# Add patches when a behavioral gap is identified that isn't covered by principles or strategies.
-# Format:
-# - id: pp1
-#   instruction: "The instruction to add to behavior"
-#   reason: "Why this is needed"
-#   created: "YYYY-MM-DD"

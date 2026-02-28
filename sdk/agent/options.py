@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions, HookMatcher
+from claude_agent_sdk import ClaudeAgentOptions, HookMatcher
 
 from agent.config import Config
 from agent.hooks import post_tool_use_hook
 from agent.prompts import assemble_system_prompt
-from agent.subagents import code_reviewer, memory_archivist, test_runner
+from agent.subagents import make_subagents
 
 BUILTIN_TOOLS = [
     "Read",
@@ -60,11 +60,7 @@ def build_options(cfg: Config) -> ClaudeAgentOptions:
                 HookMatcher(matcher=None, hooks=[post_tool_use_hook]),
             ],
         },
-        "agents": {
-            "code-reviewer": code_reviewer,
-            "test-runner": test_runner,
-            "memory-archivist": memory_archivist,
-        },
+        "agents": make_subagents(cfg.subagent_model),
     }
 
     if cfg.max_turns is not None:

@@ -68,6 +68,11 @@ def cli() -> None:
         action="store_true",
         help="Skip pre/post task reflection and evolution (faster, no memory overhead)",
     )
+    parser.add_argument(
+        "--subagent-model",
+        default="sonnet",
+        help="Model for subagents: code-reviewer, test-runner, memory-archivist (default: sonnet)",
+    )
 
     args = parser.parse_args()
 
@@ -84,6 +89,7 @@ def cli() -> None:
         max_turns=args.max_turns,
         verbose=args.verbose,
         no_reflect=args.no_reflect,
+        subagent_model=args.subagent_model,
     )
 
     # Override binary/config paths only if explicitly provided

@@ -73,6 +73,41 @@ If you notice a gap in your own behavior, add an instruction:
 - Be conservative — only add principles with real evidence, not speculation.
 """
 
+PRE_TASK_PROMPT = """\
+Before working on the task below, decide if memory recall would be useful.
+Skip recall for greetings, simple questions, non-technical chat, or policy questions.
+If the task involves coding, debugging, architecture, or builds on prior work, recall context:
+1. Call mcp__mnemonic__recall with a query summarizing the upcoming task: "{task}"
+2. Call mcp__mnemonic__get_patterns to check for relevant patterns.
+3. Call mcp__mnemonic__get_insights for metacognition observations.
+Briefly summarize what you found, then say "Ready." and stop.
+If skipping recall, just say "Ready." and stop.
+"""
+
+POST_TASK_PROMPT = """\
+Reflect on the task you just completed:
+1. What worked well? What didn't?
+2. Store key learnings via mcp__mnemonic__remember (type=insight or learning).
+3. If you discovered a new reliable principle, add it to evolution/principles.yaml.
+4. If you developed a better strategy for this task type, update evolution/strategies.yaml.
+5. If you realized your prompt is missing something, add to evolution/prompt_patches.yaml.
+6. Log any evolution/ changes in evolution/changelog.md with today's date and rationale.
+Be concise. Focus on what's genuinely worth preserving.
+"""
+
+EVOLVE_PROMPT = """\
+Time for a self-improvement cycle. Reflect deeply on recent experience:
+1. Call mcp__mnemonic__get_insights to review metacognition observations.
+2. Call mcp__mnemonic__get_patterns to review recurring patterns.
+3. Read evolution/principles.yaml — remove stale principles, increase confidence on validated ones.
+4. Read evolution/strategies.yaml — refine strategies based on recent experience.
+5. Consider adding new prompt_patches if you notice behavioral gaps.
+6. Call mcp__mnemonic__audit_encodings (limit=5) — review recent encoding quality.
+   If you see systematic quality gaps, call mcp__mnemonic__coach_local_llm to improve them.
+7. Log ALL changes in evolution/changelog.md with today's date, what changed, and why.
+Only change things you have evidence for. Don't speculate.
+"""
+
 
 def assemble_system_prompt(evolution_dir: str) -> str:
     """Dynamically build the system prompt from base + evolution files."""

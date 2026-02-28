@@ -4,9 +4,11 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,40 +26,7 @@ from claude_agent_sdk import (
 
 from agent.config import Config
 from agent.options import build_options
-
-# --- Orchestration prompts ---
-
-PRE_TASK_PROMPT = """\
-Before working on the task below, recall relevant context:
-1. Call mcp__mnemonic__recall with a query summarizing the upcoming task: "{task}"
-2. Call mcp__mnemonic__get_patterns to check for relevant patterns.
-3. Call mcp__mnemonic__get_insights for metacognition observations.
-Briefly summarize what you found, then say "Ready." and stop.
-"""
-
-POST_TASK_PROMPT = """\
-Reflect on the task you just completed:
-1. What worked well? What didn't?
-2. Store key learnings via mcp__mnemonic__remember (type=insight or learning).
-3. If you discovered a new reliable principle, add it to evolution/principles.yaml.
-4. If you developed a better strategy for this task type, update evolution/strategies.yaml.
-5. If you realized your prompt is missing something, add to evolution/prompt_patches.yaml.
-6. Log any evolution/ changes in evolution/changelog.md with today's date and rationale.
-Be concise. Focus on what's genuinely worth preserving.
-"""
-
-EVOLVE_PROMPT = """\
-Time for a self-improvement cycle. Reflect deeply on recent experience:
-1. Call mcp__mnemonic__get_insights to review metacognition observations.
-2. Call mcp__mnemonic__get_patterns to review recurring patterns.
-3. Read evolution/principles.yaml — remove stale principles, increase confidence on validated ones.
-4. Read evolution/strategies.yaml — refine strategies based on recent experience.
-5. Consider adding new prompt_patches if you notice behavioral gaps.
-6. Call mcp__mnemonic__audit_encodings (limit=5) — review recent encoding quality.
-   If you see systematic quality gaps, call mcp__mnemonic__coach_local_llm to improve them.
-7. Log ALL changes in evolution/changelog.md with today's date, what changed, and why.
-Only change things you have evidence for. Don't speculate.
-"""
+from agent.prompts import EVOLVE_PROMPT, POST_TASK_PROMPT, PRE_TASK_PROMPT
 
 
 # --- Telemetry ---
@@ -68,26 +37,57 @@ class TaskMetrics:
     turns: int = 0
 
 
+# --- Shared streaming ---
+
+async def stream_events(
+    client: ClaudeSDKClient,
+) -> AsyncGenerator[tuple[str, Any], None]:
+    """Yield (event_type, data) tuples from SDK client messages.
+
+    Event types:
+      ("text", str) — assistant text content
+      ("thinking", str) — thinking summary (truncated to 300 chars)
+      ("tool_use", (name, input_str)) — tool invocation
+      ("system", (subtype, data_str)) — system message
+      ("done", (cost_usd, turns)) — final result metrics
+    """
+    async for msg in client.receive_messages():
+        if isinstance(msg, AssistantMessage):
+            for block in msg.content:
+                if isinstance(block, TextBlock):
+                    yield ("text", block.text)
+                elif isinstance(block, ThinkingBlock):
+                    yield ("thinking", (block.thinking or "")[:300])
+                elif isinstance(block, ToolUseBlock):
+                    yield ("tool_use", (block.name, str(block.input)))
+        elif isinstance(msg, SystemMessage):
+            yield ("system", (msg.subtype, str(msg.data)))
+        elif isinstance(msg, ResultMessage):
+            cost = getattr(msg, "total_cost_usd", 0.0) or 0.0
+            turns = getattr(msg, "num_turns", 0) or 0
+            yield ("done", (cost, turns))
+            return
+
+
 async def _stream_responses(
     client: ClaudeSDKClient,
     verbose: bool = False,
 ) -> TaskMetrics:
     """Stream and print messages from the client. Returns metrics from ResultMessage."""
     metrics = TaskMetrics()
-    async for msg in client.receive_messages():
-        if isinstance(msg, AssistantMessage):
-            for block in msg.content:
-                if isinstance(block, TextBlock):
-                    print(block.text, flush=True)
-                elif isinstance(block, ThinkingBlock) and verbose:
-                    logger.debug("[thinking] %s...", block.thinking[:200])
-                elif isinstance(block, ToolUseBlock) and verbose:
-                    logger.debug("[tool] %s(%s)", block.name, _truncate(str(block.input), 120))
-        elif isinstance(msg, SystemMessage) and verbose:
-            logger.debug("[system] %s: %s", msg.subtype, _truncate(str(msg.data), 200))
-        elif isinstance(msg, ResultMessage):
-            metrics.cost_usd = getattr(msg, "total_cost_usd", 0.0) or 0.0
-            metrics.turns = getattr(msg, "num_turns", 0) or 0
+    async for event_type, data in stream_events(client):
+        if event_type == "text":
+            print(data, flush=True)
+        elif event_type == "thinking" and verbose:
+            logger.debug("[thinking] %s...", data[:200])
+        elif event_type == "tool_use" and verbose:
+            name, inp = data
+            logger.debug("[tool] %s(%s)", name, _truncate(inp, 120))
+        elif event_type == "system" and verbose:
+            subtype, d = data
+            logger.debug("[system] %s: %s", subtype, _truncate(d, 200))
+        elif event_type == "done":
+            metrics.cost_usd, metrics.turns = data
             if verbose:
                 parts = []
                 if metrics.turns:
@@ -96,7 +96,6 @@ async def _stream_responses(
                     parts.append(f"cost=${metrics.cost_usd:.4f}")
                 if parts:
                     logger.debug("[done] %s", ", ".join(parts))
-            break
     return metrics
 
 

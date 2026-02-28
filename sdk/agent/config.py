@@ -30,6 +30,7 @@ class Config:
     max_turns: int | None = None
     verbose: bool = False
     no_reflect: bool = False
+    subagent_model: str = "sonnet"
 
     @property
     def project_root(self) -> str:
