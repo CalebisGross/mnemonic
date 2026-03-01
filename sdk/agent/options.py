@@ -6,31 +6,7 @@ from agent.config import Config
 from agent.hooks import post_tool_use_hook
 from agent.prompts import assemble_system_prompt
 from agent.subagents import make_subagents
-
-BUILTIN_TOOLS = [
-    "Read",
-    "Edit",
-    "Write",
-    "Bash",
-    "Glob",
-    "Grep",
-    "Task",
-]
-
-ALL_MNEMONIC_TOOLS = [
-    "mcp__mnemonic__remember",
-    "mcp__mnemonic__recall",
-    "mcp__mnemonic__forget",
-    "mcp__mnemonic__status",
-    "mcp__mnemonic__recall_project",
-    "mcp__mnemonic__recall_timeline",
-    "mcp__mnemonic__session_summary",
-    "mcp__mnemonic__get_patterns",
-    "mcp__mnemonic__get_insights",
-    "mcp__mnemonic__feedback",
-    "mcp__mnemonic__audit_encodings",
-    "mcp__mnemonic__coach_local_llm",
-]
+from agent.tools import ALL_MNEMONIC_TOOLS, BUILTIN_TOOLS
 
 
 def build_options(cfg: Config) -> ClaudeAgentOptions:

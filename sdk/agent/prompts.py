@@ -109,18 +109,32 @@ Only change things you have evidence for. Don't speculate.
 """
 
 
+_PRINCIPLES_MIN_CONFIDENCE = 0.6
+_PRINCIPLES_MAX = 15
+_STRATEGIES_INCLUDE_TIPS = False
+_PATCHES_MAX = 20
+_PROMPT_BUDGET = 20_000
+
+
 def assemble_system_prompt(evolution_dir: str) -> str:
     """Dynamically build the system prompt from base + evolution files."""
     parts = [BASE_PROMPT]
 
     evo = Path(evolution_dir)
 
-    # Inject learned principles
+    # Inject learned principles (filtered by confidence, capped)
     principles_file = evo / "principles.yaml"
     if principles_file.exists():
         try:
             data = yaml.safe_load(principles_file.read_text()) or {}
             principles = data.get("principles", [])
+            # Filter low-confidence, sort by confidence desc, cap
+            principles = [
+                p for p in principles
+                if p.get("confidence", 0.0) >= _PRINCIPLES_MIN_CONFIDENCE
+            ]
+            principles.sort(key=lambda p: p.get("confidence", 0.0), reverse=True)
+            principles = principles[:_PRINCIPLES_MAX]
             if principles:
                 lines = ["## Learned Principles", "Follow these rules you've discovered:\n"]
                 for p in principles:
@@ -130,7 +144,7 @@ def assemble_system_prompt(evolution_dir: str) -> str:
         except (yaml.YAMLError, OSError) as e:
             logger.warning("Failed to load principles.yaml: %s", e)
 
-    # Inject task strategies
+    # Inject task strategies (steps only — tips omitted to save budget)
     strategies_file = evo / "strategies.yaml"
     if strategies_file.exists():
         try:
@@ -142,19 +156,20 @@ def assemble_system_prompt(evolution_dir: str) -> str:
                     lines.append(f"### {task_type}")
                     for i, step in enumerate(strategy.get("steps", []), 1):
                         lines.append(f"  {i}. {step}")
-                    for tip in strategy.get("tips", []):
-                        lines.append(f"  - Tip: {tip}")
+                    if _STRATEGIES_INCLUDE_TIPS:
+                        for tip in strategy.get("tips", []):
+                            lines.append(f"  - Tip: {tip}")
                     lines.append("")
                 parts.append("\n".join(lines))
         except (yaml.YAMLError, OSError) as e:
             logger.warning("Failed to load strategies.yaml: %s", e)
 
-    # Inject prompt patches
+    # Inject prompt patches (capped)
     patches_file = evo / "prompt_patches.yaml"
     if patches_file.exists():
         try:
             data = yaml.safe_load(patches_file.read_text()) or {}
-            patches = data.get("patches", [])
+            patches = data.get("patches", [])[:_PATCHES_MAX]
             if patches:
                 lines = ["## Additional Instructions"]
                 for patch in patches:
@@ -194,4 +209,10 @@ You can review and improve its encoding quality.
 - Coaching instructions are appended verbatim to local LLM prompts — be precise and concise.
 - Each coach_local_llm call overwrites the previous file — keep instructions cumulative.""")
 
-    return "\n\n".join(parts)
+    prompt = "\n\n".join(parts)
+    if len(prompt) > _PROMPT_BUDGET:
+        logger.warning(
+            "System prompt exceeds budget: %d chars (limit %d)",
+            len(prompt), _PROMPT_BUDGET,
+        )
+    return prompt

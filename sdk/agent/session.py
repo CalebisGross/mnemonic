@@ -4,7 +4,7 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -199,44 +199,59 @@ async def run_session(cfg: Config, initial_prompt: str | None = None) -> None:
                 await _run_evolution(client, cfg)
 
 
-async def _run_task(
+async def _orchestrate_task(
     client: ClaudeSDKClient,
     cfg: Config,
     task: str,
     session_id: str,
     task_count: int,
-) -> None:
-    """Execute a single task with pre-task recall and post-task reflection."""
+    main_stream_fn: Callable,
+    side_stream_fn: Callable | None = None,
+    on_phase: Callable | None = None,
+) -> TaskMetrics:
+    """Shared task orchestration: pre-task recall → main → post-task reflect → telemetry.
+
+    Args:
+        main_stream_fn: async (client) -> TaskMetrics — streams the main task output.
+        side_stream_fn: async (client) -> TaskMetrics — streams pre/post phases.
+            Defaults to main_stream_fn if not provided.
+        on_phase: optional async (phase_name: str) -> None — called before each phase
+            with "recalling", "working", or "reflecting".
+
+    Returns accumulated TaskMetrics for the full orchestration.
+    """
+    if side_stream_fn is None:
+        side_stream_fn = main_stream_fn
+
     task_start = time.monotonic()
     started_iso = datetime.now(timezone.utc).isoformat()
-    total_cost = 0.0
-    total_turns = 0
+    total = TaskMetrics()
 
     # === PRE-TASK: automatic context recall ===
     if not cfg.no_reflect:
-        if cfg.verbose:
-            logger.debug("\n[pre-task] Recalling context...")
-        await client.query(PRE_TASK_PROMPT.format(task=task))
-        m = await _stream_responses(client, verbose=cfg.verbose)
-        total_cost += m.cost_usd
-        total_turns += m.turns
+        if on_phase:
+            await on_phase("recalling")
+        await client.query(PRE_TASK_PROMPT.replace("{task}", task))
+        m = await side_stream_fn(client)
+        total.cost_usd += m.cost_usd
+        total.turns += m.turns
 
     # === MAIN TASK ===
-    if cfg.verbose:
-        logger.debug("\n[task] %s", task)
+    if on_phase:
+        await on_phase("working")
     await client.query(task)
-    m = await _stream_responses(client, verbose=cfg.verbose)
-    total_cost += m.cost_usd
-    total_turns += m.turns
+    m = await main_stream_fn(client)
+    total.cost_usd += m.cost_usd
+    total.turns += m.turns
 
     # === POST-TASK: automatic reflection ===
     if not cfg.no_reflect:
-        if cfg.verbose:
-            logger.debug("\n[post-task] Reflecting...")
+        if on_phase:
+            await on_phase("reflecting")
         await client.query(POST_TASK_PROMPT)
-        m = await _stream_responses(client, verbose=cfg.verbose)
-        total_cost += m.cost_usd
-        total_turns += m.turns
+        m = await side_stream_fn(client)
+        total.cost_usd += m.cost_usd
+        total.turns += m.turns
 
     # === Record telemetry ===
     evolved = (task_count + 1) % cfg.evolve_interval == 0
@@ -248,9 +263,33 @@ async def _run_task(
         description=task,
         started=started_iso,
         duration_ms=duration_ms,
-        cost_usd=total_cost,
-        turns=total_turns,
+        cost_usd=total.cost_usd,
+        turns=total.turns,
         evolved=evolved,
+    )
+    return total
+
+
+async def _run_task(
+    client: ClaudeSDKClient,
+    cfg: Config,
+    task: str,
+    session_id: str,
+    task_count: int,
+) -> None:
+    """CLI task execution — streams to stdout."""
+
+    async def _cli_stream(c: ClaudeSDKClient) -> TaskMetrics:
+        return await _stream_responses(c, verbose=cfg.verbose)
+
+    async def _on_phase(phase: str) -> None:
+        if cfg.verbose:
+            logger.debug("\n[%s]%s", phase, f" {task}" if phase == "working" else "")
+
+    await _orchestrate_task(
+        client, cfg, task, session_id, task_count,
+        main_stream_fn=_cli_stream,
+        on_phase=_on_phase,
     )
 
 

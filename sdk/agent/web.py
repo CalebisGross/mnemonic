@@ -9,10 +9,10 @@ switching (with client recreation), and context injection for continuation.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
 import os
-import time
 import uuid
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -24,13 +24,14 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from claude_agent_sdk import ClaudeSDKClient
 
-from agent.config import Config
+from agent.config import DEFAULT_EVOLVE_INTERVAL, DEFAULT_PERMISSION_MODE, Config
 from agent.conversation_store import ConversationStore
 from agent.options import build_options
-from agent.prompts import POST_TASK_PROMPT, PRE_TASK_PROMPT
-from agent.session import _record_task, stream_events
+from agent.session import TaskMetrics, _orchestrate_task, _run_evolution, stream_events
 
 logger = logging.getLogger(__name__)
+
+WS_IDLE_TIMEOUT = 300  # seconds
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -105,58 +106,265 @@ async def _handle_task(
     conv_id: str | None = None,
 ) -> None:
     """Run pre-task recall -> main query -> post-task reflection, streaming to WS."""
-    task_start = time.monotonic()
-    started_iso = datetime.now(timezone.utc).isoformat()
-    total_cost = 0.0
-    total_turns = 0
 
-    # Pre-task recall
-    if not cfg.no_reflect:
-        await _send(ws, {"type": "status", "status": "recalling"})
-        await client.query(PRE_TASK_PROMPT.format(task=task))
-        cost, turns = await _stream_to_ws(client, ws)  # don't persist recall phase
-        total_cost += cost
-        total_turns += turns
+    async def _ws_main_stream(c: ClaudeSDKClient) -> TaskMetrics:
+        cost, turns = await _stream_to_ws(c, ws, store, conv_id)
+        return TaskMetrics(cost_usd=cost, turns=turns)
 
-    # Main task
-    await _send(ws, {"type": "status", "status": "working"})
-    await client.query(task)
-    cost, turns = await _stream_to_ws(client, ws, store, conv_id)
-    total_cost += cost
-    total_turns += turns
+    async def _ws_side_stream(c: ClaudeSDKClient) -> TaskMetrics:
+        cost, turns = await _stream_to_ws(c, ws)  # don't persist recall/reflect
+        return TaskMetrics(cost_usd=cost, turns=turns)
 
-    # Post-task reflection
-    if not cfg.no_reflect:
-        await _send(ws, {"type": "status", "status": "reflecting"})
-        await client.query(POST_TASK_PROMPT)
-        cost, turns = await _stream_to_ws(client, ws)  # don't persist reflection
-        total_cost += cost
-        total_turns += turns
+    async def _on_phase(phase: str) -> None:
+        await _send(ws, {"type": "status", "status": phase})
 
-    # Record telemetry
-    evolved = (task_count + 1) % cfg.evolve_interval == 0
-    duration_ms = int((time.monotonic() - task_start) * 1000)
-    _record_task(
-        evolution_dir=cfg.evolution_dir,
-        session_id=session_id,
-        model=cfg.model,
-        description=task,
-        started=started_iso,
-        duration_ms=duration_ms,
-        cost_usd=total_cost,
-        turns=total_turns,
-        evolved=evolved,
+    total = await _orchestrate_task(
+        client, cfg, task, session_id, task_count,
+        main_stream_fn=_ws_main_stream,
+        side_stream_fn=_ws_side_stream,
+        on_phase=_on_phase,
     )
 
     # Update conversation cost
     if store and conv_id:
-        store.update_cost(conv_id, total_cost)
+        store.update_cost(conv_id, total.cost_usd)
 
     await _send(ws, {
         "type": "done",
-        "cost_usd": round(total_cost, 6),
-        "turns": total_turns,
+        "cost_usd": round(total.cost_usd, 6),
+        "turns": total.turns,
     })
+
+
+# ── WebSocket session ────────────────────────────────────────────────
+
+class WebSocketSession:
+    """Manages a single WebSocket connection's lifecycle and state."""
+
+    def __init__(self, ws: WebSocket, cfg: Config, store: ConversationStore) -> None:
+        self._ws = ws
+        self._cfg = cfg
+        self._store = store
+        self._session_id = f"web-{uuid.uuid4().hex[:8]}"
+        self._task_count = 0
+        self._continuation_context: str | None = None
+        self._current_conv_id: str | None = None
+        self._session_model = store.get_preferred_model() or cfg.model
+
+    async def run(self) -> None:
+        """Outer lifecycle — handles client recreation on model switch."""
+        logger.info("WebSocket connected, starting agent session %s", self._session_id)
+        try:
+            while True:
+                reconnect = await self._run_client_lifecycle()
+                if not reconnect:
+                    break
+        except WebSocketDisconnect:
+            logger.info("WebSocket disconnected: session %s", self._session_id)
+        except Exception:
+            logger.exception("Fatal error in WebSocket handler: %s", self._session_id)
+            try:
+                await _send(self._ws, {
+                    "type": "error",
+                    "message": "Internal server error — session terminated.",
+                })
+                await self._ws.close()
+            except Exception:
+                pass
+
+    async def _run_client_lifecycle(self) -> bool:
+        """Create a ClaudeSDKClient and run the message loop.
+
+        Returns True if the client should be recreated (model switch).
+        """
+        session_cfg = replace(self._cfg, model=self._session_model)
+        options = build_options(session_cfg)
+        async with ClaudeSDKClient(options=options) as client:
+            await _send(self._ws, {"type": "status", "status": "ready"})
+            await _send(self._ws, {
+                "type": "conversation_started",
+                "id": self._current_conv_id,
+                "model": self._session_model,
+            })
+            return await self._run_message_loop(client, session_cfg)
+
+    async def _run_message_loop(
+        self, client: ClaudeSDKClient, session_cfg: Config,
+    ) -> bool:
+        """Receive and dispatch messages. Returns True to trigger reconnect."""
+        while True:
+            try:
+                raw = await asyncio.wait_for(
+                    self._ws.receive_text(), timeout=WS_IDLE_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                await _send(self._ws, {
+                    "type": "error",
+                    "message": "Connection timed out due to inactivity.",
+                })
+                await self._ws.close()
+                return False
+            except WebSocketDisconnect:
+                return False
+
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                await _send(self._ws, {"type": "error", "message": "Invalid JSON"})
+                continue
+
+            reconnect = await self._handle_message(msg, client, session_cfg)
+            if reconnect:
+                return True
+
+        return False  # unreachable, but satisfies type checkers
+
+    async def _handle_message(
+        self,
+        msg: dict,
+        client: ClaudeSDKClient,
+        session_cfg: Config,
+    ) -> bool:
+        """Dispatch a single message. Returns True to trigger reconnect."""
+        msg_type = msg.get("type")
+
+        if msg_type == "list_conversations":
+            await self._handle_list_conversations()
+        elif msg_type == "load_conversation":
+            await self._handle_load_conversation(msg)
+        elif msg_type == "delete_conversation":
+            await self._handle_delete_conversation(msg)
+        elif msg_type == "new_conversation":
+            await self._handle_new_conversation()
+        elif msg_type == "set_model":
+            return await self._handle_set_model(msg)
+        elif msg_type == "message":
+            await self._handle_chat_message(msg, client, session_cfg)
+
+        return False
+
+    # ── Conversation management ──
+
+    async def _handle_list_conversations(self) -> None:
+        convs = self._store.list_conversations()
+        await _send(self._ws, {
+            "type": "conversations_list",
+            "conversations": convs,
+        })
+
+    async def _handle_load_conversation(self, msg: dict) -> None:
+        cid = msg.get("id", "")
+        loaded = self._store.get_conversation(cid)
+        if loaded:
+            self._current_conv_id = cid
+            self._continuation_context = self._store.build_continuation_summary(cid)
+            await _send(self._ws, {
+                "type": "conversation_loaded",
+                "conversation": loaded,
+            })
+        else:
+            await _send(self._ws, {
+                "type": "error",
+                "message": "Conversation not found",
+            })
+
+    async def _handle_delete_conversation(self, msg: dict) -> None:
+        cid = msg.get("id", "")
+        self._store.delete_conversation(cid)
+        if cid == self._current_conv_id:
+            self._current_conv_id = None
+            self._continuation_context = None
+            await _send(self._ws, {
+                "type": "conversation_started",
+                "id": None,
+                "model": self._session_model,
+            })
+        await _send(self._ws, {
+            "type": "conversation_deleted",
+            "id": cid,
+        })
+
+    async def _handle_new_conversation(self) -> None:
+        self._current_conv_id = None
+        self._continuation_context = None
+        await _send(self._ws, {
+            "type": "conversation_started",
+            "id": None,
+            "model": self._session_model,
+        })
+
+    # ── Model switching ──
+
+    async def _handle_set_model(self, msg: dict) -> bool:
+        """Returns True to trigger client reconnect."""
+        new_model = msg.get("model", "").strip()
+        if not new_model:
+            return False
+        self._session_model = new_model
+        self._store.set_preferred_model(new_model)
+        logger.info("Model changed to %s", new_model)
+        if self._current_conv_id:
+            self._continuation_context = self._store.build_continuation_summary(
+                self._current_conv_id
+            )
+        await _send(self._ws, {"type": "model_set", "model": new_model})
+        return True
+
+    # ── Chat ──
+
+    async def _handle_chat_message(
+        self, msg: dict, client: ClaudeSDKClient, session_cfg: Config,
+    ) -> None:
+        content = (msg.get("content") or "").strip()
+        if not content:
+            return
+
+        # Lazy conversation creation — create on first message
+        if self._current_conv_id is None:
+            conv = self._store.new_conversation(self._session_model)
+            self._current_conv_id = conv["id"]
+            await _send(self._ws, {
+                "type": "conversation_started",
+                "id": conv["id"],
+                "model": self._session_model,
+            })
+
+        # Persist user message
+        now = datetime.now(timezone.utc).isoformat()
+        self._store.append_message(self._current_conv_id, {
+            "role": "user",
+            "content": content,
+            "timestamp": now,
+        })
+
+        # On first message after loading a prior conversation,
+        # inject the continuation context summary.
+        effective_task = content
+        if self._continuation_context:
+            effective_task = (
+                self._continuation_context
+                + "\n\n## Current Message\n"
+                + content
+            )
+            self._continuation_context = None  # only inject once
+
+        try:
+            await _handle_task(
+                client, session_cfg, effective_task,
+                self._session_id, self._task_count, self._ws,
+                self._store, self._current_conv_id,
+            )
+            self._task_count += 1
+            # Periodic evolution cycle
+            if self._task_count % session_cfg.evolve_interval == 0:
+                await _send(self._ws, {"type": "status", "status": "evolving"})
+                await _run_evolution(client, session_cfg)
+        except Exception as exc:
+            logger.exception("Error handling task: %s", exc)
+            await _send(self._ws, {
+                "type": "error",
+                "message": "Task failed — check server logs for details.",
+            })
 
 
 # ── App factory ──────────────────────────────────────────────────────
@@ -167,172 +375,7 @@ def make_app(cfg: Config) -> Starlette:
 
     async def ws_endpoint(ws: WebSocket) -> None:
         await ws.accept()
-        session_id = f"web-{uuid.uuid4().hex[:8]}"
-        task_count = 0
-        continuation_context: str | None = None
-        current_conv_id: str | None = None
-        # Per-connection model — read saved preference, fall back to cfg default
-        session_model = store.get_preferred_model() or cfg.model
-
-        logger.info("WebSocket connected, starting agent session %s", session_id)
-
-        try:
-            while True:  # Client lifecycle loop — restarts when model changes
-                session_cfg = replace(cfg, model=session_model)
-                options = build_options(session_cfg)
-                async with ClaudeSDKClient(options=options) as client:
-                    await _send(ws, {"type": "status", "status": "ready"})
-                    await _send(ws, {
-                        "type": "conversation_started",
-                        "id": current_conv_id,
-                        "model": session_model,
-                    })
-
-                    reconnect = False
-                    while True:  # Message loop
-                        try:
-                            raw = await ws.receive_text()
-                        except WebSocketDisconnect:
-                            logger.info("WebSocket disconnected: session %s", session_id)
-                            return
-
-                        try:
-                            msg = json.loads(raw)
-                        except json.JSONDecodeError:
-                            await _send(ws, {"type": "error", "message": "Invalid JSON"})
-                            continue
-
-                        msg_type = msg.get("type")
-
-                        # ── Conversation management ──
-
-                        if msg_type == "list_conversations":
-                            convs = store.list_conversations()
-                            await _send(ws, {
-                                "type": "conversations_list",
-                                "conversations": convs,
-                            })
-
-                        elif msg_type == "load_conversation":
-                            cid = msg.get("id", "")
-                            loaded = store.get_conversation(cid)
-                            if loaded:
-                                current_conv_id = cid
-                                continuation_context = store.build_continuation_summary(cid)
-                                await _send(ws, {
-                                    "type": "conversation_loaded",
-                                    "conversation": loaded,
-                                })
-                            else:
-                                await _send(ws, {
-                                    "type": "error",
-                                    "message": "Conversation not found",
-                                })
-
-                        elif msg_type == "delete_conversation":
-                            cid = msg.get("id", "")
-                            store.delete_conversation(cid)
-                            if cid == current_conv_id:
-                                current_conv_id = None
-                                continuation_context = None
-                                await _send(ws, {
-                                    "type": "conversation_started",
-                                    "id": None,
-                                    "model": session_model,
-                                })
-                            await _send(ws, {
-                                "type": "conversation_deleted",
-                                "id": cid,
-                            })
-
-                        elif msg_type == "new_conversation":
-                            current_conv_id = None
-                            continuation_context = None
-                            await _send(ws, {
-                                "type": "conversation_started",
-                                "id": None,
-                                "model": session_model,
-                            })
-
-                        # ── Model switching ──
-
-                        elif msg_type == "set_model":
-                            new_model = msg.get("model", "").strip()
-                            if new_model:
-                                session_model = new_model
-                                store.set_preferred_model(new_model)
-                                logger.info("Model changed to %s", new_model)
-                                # Preserve conversation context across model switch
-                                if current_conv_id:
-                                    continuation_context = store.build_continuation_summary(
-                                        current_conv_id
-                                    )
-                                await _send(ws, {
-                                    "type": "model_set",
-                                    "model": new_model,
-                                })
-                                reconnect = True
-                                break  # Exit message loop to recreate client
-
-                        # ── Chat message ──
-
-                        elif msg_type == "message":
-                            content = (msg.get("content") or "").strip()
-                            if not content:
-                                continue
-
-                            # Lazy conversation creation — create on first message
-                            if current_conv_id is None:
-                                conv = store.new_conversation(session_model)
-                                current_conv_id = conv["id"]
-                                await _send(ws, {
-                                    "type": "conversation_started",
-                                    "id": conv["id"],
-                                    "model": session_model,
-                                })
-
-                            # Persist user message
-                            now = datetime.now(timezone.utc).isoformat()
-                            store.append_message(current_conv_id, {
-                                "role": "user",
-                                "content": content,
-                                "timestamp": now,
-                            })
-
-                            # On first message after loading a prior conversation,
-                            # inject the continuation context summary.
-                            effective_task = content
-                            if continuation_context:
-                                effective_task = (
-                                    continuation_context
-                                    + "\n\n## Current Message\n"
-                                    + content
-                                )
-                                continuation_context = None  # only inject once
-
-                            try:
-                                await _handle_task(
-                                    client, session_cfg, effective_task,
-                                    session_id, task_count, ws,
-                                    store, current_conv_id,
-                                )
-                                task_count += 1
-                            except Exception as exc:
-                                logger.exception("Error handling task: %s", exc)
-                                await _send(ws, {"type": "error", "message": str(exc)})
-
-                    if not reconnect:
-                        break  # Clean exit from client lifecycle loop
-
-        except WebSocketDisconnect:
-            logger.info("WebSocket disconnected before session init: %s", session_id)
-        except Exception as exc:
-            logger.exception("Fatal error in WebSocket handler: %s", exc)
-            try:
-                await _send(ws, {"type": "error", "message": f"Server error: {exc}"})
-                await ws.close()
-            except Exception:
-                pass
+        await WebSocketSession(ws, cfg, store).run()
 
     return Starlette(routes=[WebSocketRoute("/ws", ws_endpoint)])
 
@@ -354,10 +397,12 @@ def main() -> None:
     parser.add_argument("--mnemonic-binary", default=None)
     parser.add_argument("--mnemonic-config", default=None)
     parser.add_argument("--cwd", default=None)
-    parser.add_argument("--permission-mode", default="acceptEdits")
-    parser.add_argument("--evolve-interval", type=int, default=5)
+    parser.add_argument("--permission-mode", default=DEFAULT_PERMISSION_MODE)
+    parser.add_argument("--evolve-interval", type=int, default=DEFAULT_EVOLVE_INTERVAL)
     parser.add_argument("--no-reflect", action="store_true")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--evolution-dir", default=None,
+                        help="Path to evolution directory (default: sdk/evolution or $MNEMONIC_EVOLUTION_DIR)")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -379,6 +424,8 @@ def main() -> None:
         cfg.mnemonic_config = args.mnemonic_config
     if args.cwd:
         cfg.project_cwd = args.cwd
+    if args.evolution_dir:
+        cfg.evolution_dir_override = args.evolution_dir
 
     app = make_app(cfg)
     logger.info("Starting agent WebSocket server on %s:%d", args.host, args.port)

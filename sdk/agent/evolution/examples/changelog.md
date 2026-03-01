@@ -2,6 +2,13 @@
 
 All self-modifications are logged here with date, what changed, and rationale.
 
+## 2026-02-27 (critical review)
+
+### Post-review evolution updates
+- **p12 confidence 0.7→0.8**: Validated again — Explore subagent missed duplicate `ALL_MNEMONIC_TOOLS` definitions across `options.py` and `subagents.py`; targeted Grep found it instantly.
+- **code_review strategy**: Added 2 tips — grep for duplicate symbol definitions across modules; distinguish "what has tests" from "what matters and lacks tests" (49 passing tests masked zero orchestration coverage).
+- **Stored 3 memories**: duplicate ALL_MNEMONIC_TOOLS bug (insight), PRE_TASK_PROMPT format string vulnerability (error), subagent-vs-grep review finding (learning).
+
 ## 2026-02-27
 
 ### Merged evolution directories and added p11-p13, prompt_audit, code_review, pp6

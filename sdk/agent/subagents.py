@@ -2,24 +2,11 @@ from __future__ import annotations
 
 from claude_agent_sdk import AgentDefinition
 
-MNEMONIC_RECALL_TOOLS = [
-    "mcp__mnemonic__recall",
-    "mcp__mnemonic__recall_project",
-    "mcp__mnemonic__remember",
-    "mcp__mnemonic__get_patterns",
-    "mcp__mnemonic__get_insights",
-    "mcp__mnemonic__feedback",
-]
-
-ALL_MNEMONIC_TOOLS = MNEMONIC_RECALL_TOOLS + [
-    "mcp__mnemonic__forget",
-    "mcp__mnemonic__status",
-    "mcp__mnemonic__recall_timeline",
-    "mcp__mnemonic__session_summary",
-]
+from agent.config import DEFAULT_SUBAGENT_MODEL
+from agent.tools import ALL_MNEMONIC_TOOLS, MNEMONIC_RECALL_TOOLS
 
 
-def make_subagents(subagent_model: str = "sonnet") -> dict[str, AgentDefinition]:
+def make_subagents(subagent_model: str = DEFAULT_SUBAGENT_MODEL) -> dict[str, AgentDefinition]:
     """Build subagent definitions with the specified model."""
     return {
         "code-reviewer": AgentDefinition(

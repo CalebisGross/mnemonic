@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,7 @@ class ConversationStore:
         self._dir.mkdir(parents=True, exist_ok=True)
         self._index_path = self._dir / "_index.json"
         self._prefs_path = self._dir / "_preferences.json"
+        self._index_lock = threading.Lock()
 
     # ── CRUD ──────────────────────────────────────────────────────────
 
@@ -101,11 +103,12 @@ class ConversationStore:
         path = self._dir / f"{conv_id}.json"
         if path.exists():
             path.unlink()
-        index = self._load_index()
-        index["conversations"] = [
-            c for c in index.get("conversations", []) if c["id"] != conv_id
-        ]
-        self._save_index(index)
+        with self._index_lock:
+            index = self._load_index()
+            index["conversations"] = [
+                c for c in index.get("conversations", []) if c["id"] != conv_id
+            ]
+            self._save_index(index)
         return True
 
     # ── Continuation ─────────────────────────────────────────────────
@@ -233,27 +236,28 @@ class ConversationStore:
             logger.warning("Failed to save conversation index: %s", e)
 
     def _update_index(self, conv: dict[str, Any]) -> None:
-        index = self._load_index()
-        entry: dict[str, Any] = {
-            "id": conv["id"],
-            "title": conv.get("title", "Untitled"),
-            "created_at": conv.get("created_at", ""),
-            "updated_at": conv.get("updated_at", ""),
-            "message_count": conv.get("message_count", 0),
-            "total_cost_usd": conv.get("total_cost_usd", 0.0),
-            "preview": "",
-        }
-        for m in conv.get("messages", []):
-            if m.get("role") == "user":
-                entry["preview"] = m["content"][:100]
-                break
-        # Upsert
-        found = False
-        for i, c in enumerate(index.get("conversations", [])):
-            if c["id"] == conv["id"]:
-                index["conversations"][i] = entry
-                found = True
-                break
-        if not found:
-            index.setdefault("conversations", []).append(entry)
-        self._save_index(index)
+        with self._index_lock:
+            index = self._load_index()
+            entry: dict[str, Any] = {
+                "id": conv["id"],
+                "title": conv.get("title", "Untitled"),
+                "created_at": conv.get("created_at", ""),
+                "updated_at": conv.get("updated_at", ""),
+                "message_count": conv.get("message_count", 0),
+                "total_cost_usd": conv.get("total_cost_usd", 0.0),
+                "preview": "",
+            }
+            for m in conv.get("messages", []):
+                if m.get("role") == "user":
+                    entry["preview"] = m["content"][:100]
+                    break
+            # Upsert
+            found = False
+            for i, c in enumerate(index.get("conversations", [])):
+                if c["id"] == conv["id"]:
+                    index["conversations"][i] = entry
+                    found = True
+                    break
+            if not found:
+                index.setdefault("conversations", []).append(entry)
+            self._save_index(index)

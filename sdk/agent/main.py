@@ -6,7 +6,13 @@ import logging
 import os
 import sys
 
-from agent.config import Config
+from agent.config import (
+    DEFAULT_EVOLVE_INTERVAL,
+    DEFAULT_MODEL,
+    DEFAULT_PERMISSION_MODE,
+    DEFAULT_SUBAGENT_MODEL,
+    Config,
+)
 from agent.session import run_session
 
 
@@ -27,8 +33,8 @@ def cli() -> None:
     )
     parser.add_argument(
         "--model",
-        default=os.environ.get("MNEMONIC_AGENT_MODEL", "claude-sonnet-4-6"),
-        help="Claude model to use (default: claude-sonnet-4-6)",
+        default=os.environ.get("MNEMONIC_AGENT_MODEL", DEFAULT_MODEL),
+        help=f"Claude model to use (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--mnemonic-binary",
@@ -43,14 +49,14 @@ def cli() -> None:
     parser.add_argument(
         "--permission-mode",
         choices=["default", "acceptEdits", "bypassPermissions"],
-        default="acceptEdits",
-        help="Tool permission mode (default: acceptEdits)",
+        default=DEFAULT_PERMISSION_MODE,
+        help=f"Tool permission mode (default: {DEFAULT_PERMISSION_MODE})",
     )
     parser.add_argument(
         "--evolve-interval",
         type=int,
-        default=5,
-        help="Tasks between evolution cycles (default: 5)",
+        default=DEFAULT_EVOLVE_INTERVAL,
+        help=f"Tasks between evolution cycles (default: {DEFAULT_EVOLVE_INTERVAL})",
     )
     parser.add_argument(
         "--max-turns",
@@ -70,8 +76,13 @@ def cli() -> None:
     )
     parser.add_argument(
         "--subagent-model",
-        default="sonnet",
-        help="Model for subagents: code-reviewer, test-runner, memory-archivist (default: sonnet)",
+        default=DEFAULT_SUBAGENT_MODEL,
+        help=f"Model for subagents: code-reviewer, test-runner, memory-archivist (default: {DEFAULT_SUBAGENT_MODEL})",
+    )
+    parser.add_argument(
+        "--evolution-dir",
+        default=None,
+        help="Path to evolution directory (default: sdk/evolution or $MNEMONIC_EVOLUTION_DIR)",
     )
 
     args = parser.parse_args()
@@ -97,6 +108,8 @@ def cli() -> None:
         cfg.mnemonic_binary = args.mnemonic_binary
     if args.mnemonic_config:
         cfg.mnemonic_config = args.mnemonic_config
+    if args.evolution_dir:
+        cfg.evolution_dir_override = args.evolution_dir
 
     asyncio.run(run_session(cfg, initial_prompt=args.task))
 

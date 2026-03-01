@@ -194,4 +194,6 @@ strategies:
       - "Shared mutable state (Config objects, module-level dicts) is the #1 source of subtle multi-client bugs"
       - "Near-duplicate functions across modules are high-signal — they indicate a missing abstraction"
       - "Test coverage gaps are the easiest wins to recommend — concrete, unambiguous, low-risk"
-    learned_from: "SDK code review 2026-02-27: read all 8 .py files, found 13 issues, prioritized into severity/effort table"
+      - "Grep for key symbol names across all modules to find duplicate definitions — subagents consistently miss cross-module duplication"
+      - "High test count with high pass rate can mask the real issue: what ISN'T tested. Distinguish 'what has tests' from 'what matters and lacks tests'"
+    learned_from: "SDK code reviews 2026-02-27: duplicate ALL_MNEMONIC_TOOLS across options.py and subagents.py found via Grep, missed by Explore subagent. 49/49 tests passing masked that orchestration layer (run_session, _run_task, build_options, web endpoint) had zero coverage."
