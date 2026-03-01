@@ -33,3 +33,10 @@ type Watcher interface {
 	// Health checks if the watcher is functioning.
 	Health(ctx context.Context) error
 }
+
+// ExcludableWatcher is an optional interface for watchers that support
+// adding exclusion patterns at runtime (e.g., learned from repeated rejections).
+type ExcludableWatcher interface {
+	Watcher
+	AddExclusion(pattern string)
+}

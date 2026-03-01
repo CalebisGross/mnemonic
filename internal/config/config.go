@@ -59,12 +59,13 @@ type MemoryConfig struct {
 
 // PerceptionConfig holds perception settings.
 type PerceptionConfig struct {
-	Enabled          bool                       `yaml:"enabled"`
-	LLMGatingEnabled bool                       `yaml:"llm_gating_enabled"`
-	Filesystem       FilesystemPerceptionConfig `yaml:"filesystem"`
-	Terminal         TerminalPerceptionConfig   `yaml:"terminal"`
-	Clipboard        ClipboardPerceptionConfig  `yaml:"clipboard"`
-	Heuristics       HeuristicsConfig           `yaml:"heuristics"`
+	Enabled               bool                       `yaml:"enabled"`
+	LLMGatingEnabled      bool                       `yaml:"llm_gating_enabled"`
+	LearnedExclusionsPath string                     `yaml:"learned_exclusions_path"`
+	Filesystem            FilesystemPerceptionConfig `yaml:"filesystem"`
+	Terminal              TerminalPerceptionConfig   `yaml:"terminal"`
+	Clipboard             ClipboardPerceptionConfig  `yaml:"clipboard"`
+	Heuristics            HeuristicsConfig           `yaml:"heuristics"`
 }
 
 // FilesystemPerceptionConfig holds filesystem perception settings.
@@ -280,8 +281,9 @@ func Default() *Config {
 			MaxWorkingMemory: 7,
 		},
 		Perception: PerceptionConfig{
-			Enabled:          true,
-			LLMGatingEnabled: false,
+			Enabled:               true,
+			LLMGatingEnabled:      false,
+			LearnedExclusionsPath: "~/.mnemonic/learned-exclusions.txt",
 			Filesystem: FilesystemPerceptionConfig{
 				Enabled: true,
 				WatchDirs: []string{
@@ -434,6 +436,14 @@ func (c *Config) process(configDir string) error {
 			return fmt.Errorf("expanding perception.filesystem.watch_dirs[%d]: %w", i, err)
 		}
 		c.Perception.Filesystem.WatchDirs[i] = expanded
+	}
+
+	// Expand Perception learned exclusions path
+	if c.Perception.LearnedExclusionsPath != "" {
+		c.Perception.LearnedExclusionsPath, err = resolvePath(c.Perception.LearnedExclusionsPath, configDir)
+		if err != nil {
+			return fmt.Errorf("expanding perception.learned_exclusions_path: %w", err)
+		}
 	}
 
 	// Expand Logging file path

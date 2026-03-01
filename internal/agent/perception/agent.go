@@ -17,8 +17,9 @@ import (
 
 // PerceptionConfig configures the perception agent.
 type PerceptionConfig struct {
-	HeuristicConfig  HeuristicConfig
-	LLMGatingEnabled bool // if false, skip LLM and use heuristic score as salience
+	HeuristicConfig       HeuristicConfig
+	LLMGatingEnabled      bool   // if false, skip LLM and use heuristic score as salience
+	LearnedExclusionsPath string // file path for persisting learned watcher exclusions
 }
 
 // PerceptionAgent orchestrates the perception pipeline: watchers → heuristic → LLM → memory.
@@ -30,6 +31,7 @@ type PerceptionAgent struct {
 	cfg              PerceptionConfig
 	log              *slog.Logger
 	heuristicFilter  *HeuristicFilter
+	rejectionTracker *rejectionTracker
 	bus              events.Bus
 	mu               sync.RWMutex
 	running          bool
@@ -75,6 +77,13 @@ func (pa *PerceptionAgent) Start(ctx context.Context, bus events.Bus) error {
 	pa.bus = bus
 	pa.running = true
 	pa.heuristicFilter = NewHeuristicFilter(pa.cfg.HeuristicConfig, pa.log)
+	pa.rejectionTracker = newRejectionTracker(
+		rejectionTrackerConfig{
+			PersistPath: pa.cfg.LearnedExclusionsPath,
+		},
+		pa.log,
+		pa.promoteExclusion,
+	)
 	pa.watcherStopChans = make([]chan struct{}, len(pa.watchers))
 	pa.mu.Unlock()
 
@@ -85,6 +94,13 @@ func (pa *PerceptionAgent) Start(ctx context.Context, bus events.Bus) error {
 		if err := w.Start(ctx); err != nil {
 			pa.log.Error("failed to start watcher", "index", i, "error", err)
 			return fmt.Errorf("watcher %d failed to start: %w", i, err)
+		}
+	}
+
+	// Apply any previously learned exclusions to watchers
+	if pa.rejectionTracker != nil {
+		for _, pattern := range pa.rejectionTracker.learnedExclusions() {
+			pa.promoteExclusion(pattern)
 		}
 	}
 
@@ -207,6 +223,10 @@ func (pa *PerceptionAgent) processEvent(ctx context.Context, event Event) {
 			"path", event.Path,
 			"rationale", heuristicResult.Rationale,
 		)
+		// Track filesystem rejections for adaptive exclusion learning
+		if event.Source == "filesystem" && event.Path != "" && pa.rejectionTracker != nil {
+			pa.rejectionTracker.recordRejection(event.Path)
+		}
 		return
 	}
 
@@ -367,6 +387,20 @@ type llmGateResult struct {
 	WorthRemembering bool    `json:"worth_remembering"`
 	Salience         float32 `json:"salience"`
 	Reason           string  `json:"reason"`
+}
+
+// promoteExclusion pushes a learned exclusion pattern to all watchers that
+// support runtime exclusion updates.
+func (pa *PerceptionAgent) promoteExclusion(pattern string) {
+	for _, w := range pa.watchers {
+		if ew, ok := w.(watcher.ExcludableWatcher); ok {
+			ew.AddExclusion(pattern)
+			pa.log.Info("promoted learned exclusion to watcher",
+				"pattern", pattern,
+				"watcher", w.Name(),
+			)
+		}
+	}
 }
 
 // truncateContent truncates content to a maximum length.
