@@ -94,6 +94,18 @@ perception:
       - "evolution/conversations/"
       - "evolution/sessions.json"
 
+      # --- Linux desktop/app internal state ---
+      - ".config/Code/"
+      - ".config/google-chrome/"
+      - ".config/chromium/"
+      - ".config/BraveSoftware/"
+      - ".local/share/gnome-shell/"
+      - ".local/share/Trash/"
+      - "/dconf/"
+      - "/gconf/"
+      - "/pulse/"
+      - "/pipewire/"
+
     # Maximum file content size to process (in bytes)
     max_content_bytes: 102400
 
