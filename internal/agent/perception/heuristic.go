@@ -245,7 +245,7 @@ func (h *HeuristicFilter) evaluateSource(source, eventType, path, content string
 // evaluateFilesystem scores filesystem events.
 func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, string) {
 	// Skip if path contains ignored patterns
-	ignoredPatterns := []string{".git/", "node_modules/", "__pycache__/", ".DS_Store", "~", ".swp", ".tmp"}
+	ignoredPatterns := []string{".git/", "node_modules/", "__pycache__/", ".DS_Store", "~", ".swp", ".tmp", ".xbel"}
 	for _, pattern := range ignoredPatterns {
 		if strings.Contains(path, pattern) {
 			return 0.0, fmt.Sprintf("filesystem: ignored path pattern '%s'", pattern)
@@ -262,6 +262,8 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 		"/Cache/", "/GPUCache/", "/ShaderCache/", "/Code Cache/",
 		"/dconf/", "/gconf/",
 		"/pulse/", "/pipewire/",
+		"/gvfs-metadata/", "/tracker3/",
+		"session_migration-",
 	}
 	lowerPathCheck := strings.ToLower(path)
 	for _, dir := range appInternalDirs {
