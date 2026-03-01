@@ -1412,6 +1412,13 @@ func (s *SQLiteStore) GetStatistics(ctx context.Context) (store.StoreStatistics,
 		return stats, fmt.Errorf("failed to count memories: %w", err)
 	}
 
+	// Count episodes
+	episodeQuery := `SELECT COUNT(*) FROM episodes`
+	err = s.db.QueryRowContext(ctx, episodeQuery).Scan(&stats.TotalEpisodes)
+	if err != nil {
+		return stats, fmt.Errorf("failed to count episodes: %w", err)
+	}
+
 	// Count associations
 	assocQuery := `SELECT COUNT(*) FROM associations`
 	err = s.db.QueryRowContext(ctx, assocQuery).Scan(&stats.TotalAssociations)

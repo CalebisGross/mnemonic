@@ -75,6 +75,7 @@ type StoreStatistics struct {
 	FadingMemories        int       `json:"fading_memories"`
 	ArchivedMemories      int       `json:"archived_memories"`
 	MergedMemories        int       `json:"merged_memories"`
+	TotalEpisodes         int       `json:"total_episodes"`
 	TotalAssociations     int       `json:"total_associations"`
 	AvgAssociationsPerMem float32   `json:"avg_associations_per_memory"`
 	StorageSizeBytes      int64     `json:"storage_size_bytes"`

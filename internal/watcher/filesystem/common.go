@@ -21,9 +21,12 @@ type Config struct {
 }
 
 // MatchesExcludePattern checks if a path matches any exclude pattern.
+// Also checks with a trailing slash so that patterns like ".git/" match
+// both the .git directory itself and files inside it.
 func MatchesExcludePattern(path string, patterns []string) bool {
+	pathWithSlash := path + "/"
 	for _, pattern := range patterns {
-		if strings.Contains(path, pattern) {
+		if strings.Contains(path, pattern) || strings.Contains(pathWithSlash, pattern) {
 			return true
 		}
 	}
