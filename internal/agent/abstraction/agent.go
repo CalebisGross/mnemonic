@@ -191,21 +191,15 @@ func (aa *AbstractionAgent) synthesizePrinciples(ctx context.Context, report *Cy
 		llmBudget = 1
 	}
 
+	// Load existing principles once for dedup checks
+	existingPrinciples, _ := aa.store.ListAbstractions(ctx, 2, 200)
+
 	for _, cluster := range clusters {
 		if llmBudget <= 0 {
 			break
 		}
 		if len(cluster) < 2 {
 			continue
-		}
-
-		// Check if a similar abstraction already exists
-		avg := averagePatternEmbedding(cluster)
-		if avg != nil {
-			existing, _ := aa.store.ListAbstractions(ctx, 2, 200)
-			if hasSimilarAbstraction(existing, avg, 0.70) {
-				continue
-			}
 		}
 
 		principle, err := aa.synthesizePrinciple(ctx, cluster)
@@ -219,10 +213,32 @@ func (aa *AbstractionAgent) synthesizePrinciples(ctx context.Context, report *Cy
 			continue
 		}
 
+		// Dedup: compare the synthesized principle's own embedding against existing ones.
+		// Using 0.85 threshold since both are text-derived embeddings in the same space.
+		if len(principle.Embedding) > 0 {
+			if match := findSimilarAbstraction(existingPrinciples, principle.Embedding, 0.85); match != nil {
+				// Strengthen the existing principle instead of creating a duplicate
+				match.Confidence = min32(match.Confidence+0.05, 1.0)
+				match.AccessCount++
+				match.UpdatedAt = time.Now()
+				if err := aa.store.UpdateAbstraction(ctx, *match); err != nil {
+					aa.log.Warn("failed to strengthen existing principle", "id", match.ID, "error", err)
+				} else {
+					aa.log.Info("strengthened existing principle (dedup)",
+						"id", match.ID, "title", match.Title, "confidence", match.Confidence)
+				}
+				llmBudget--
+				continue
+			}
+		}
+
 		if err := aa.store.WriteAbstraction(ctx, *principle); err != nil {
 			aa.log.Warn("failed to store principle", "error", err)
 			continue
 		}
+
+		// Track newly created principle for dedup within this cycle
+		existingPrinciples = append(existingPrinciples, *principle)
 
 		report.PrinciplesCreated++
 		llmBudget--
@@ -268,21 +284,15 @@ func (aa *AbstractionAgent) synthesizeAxioms(ctx context.Context, report *CycleR
 		llmBudget = 1
 	}
 
+	// Load existing axioms once for dedup checks
+	existingAxioms, _ := aa.store.ListAbstractions(ctx, 3, 200)
+
 	for _, cluster := range clusters {
 		if llmBudget <= 0 {
 			break
 		}
 		if len(cluster) < 2 {
 			continue
-		}
-
-		// Check if a similar axiom already exists
-		avg := averageAbstractionEmbedding(cluster)
-		if avg != nil {
-			existingAxioms, _ := aa.store.ListAbstractions(ctx, 3, 200)
-			if hasSimilarAbstraction(existingAxioms, avg, 0.70) {
-				continue
-			}
 		}
 
 		axiom, err := aa.synthesizeAxiom(ctx, cluster)
@@ -296,10 +306,29 @@ func (aa *AbstractionAgent) synthesizeAxioms(ctx context.Context, report *CycleR
 			continue
 		}
 
+		// Dedup: compare the synthesized axiom's own embedding against existing ones
+		if len(axiom.Embedding) > 0 {
+			if match := findSimilarAbstraction(existingAxioms, axiom.Embedding, 0.85); match != nil {
+				match.Confidence = min32(match.Confidence+0.05, 1.0)
+				match.AccessCount++
+				match.UpdatedAt = time.Now()
+				if err := aa.store.UpdateAbstraction(ctx, *match); err != nil {
+					aa.log.Warn("failed to strengthen existing axiom", "id", match.ID, "error", err)
+				} else {
+					aa.log.Info("strengthened existing axiom (dedup)",
+						"id", match.ID, "title", match.Title, "confidence", match.Confidence)
+				}
+				llmBudget--
+				continue
+			}
+		}
+
 		if err := aa.store.WriteAbstraction(ctx, *axiom); err != nil {
 			aa.log.Warn("failed to store axiom", "error", err)
 			continue
 		}
+
+		existingAxioms = append(existingAxioms, *axiom)
 
 		report.AxiomsCreated++
 		llmBudget--
@@ -672,14 +701,21 @@ func clusterAbstractions(abstractions []store.Abstraction, threshold float32) []
 	return clusters
 }
 
-// hasSimilarAbstraction checks if any existing abstraction has high embedding similarity to the target.
-func hasSimilarAbstraction(existing []store.Abstraction, embedding []float32, threshold float32) bool {
-	for _, abs := range existing {
-		if len(abs.Embedding) > 0 && cosineSimilarity(abs.Embedding, embedding) >= threshold {
-			return true
+// findSimilarAbstraction returns the first existing abstraction with embedding similarity >= threshold, or nil.
+func findSimilarAbstraction(existing []store.Abstraction, embedding []float32, threshold float32) *store.Abstraction {
+	for i, abs := range existing {
+		if len(abs.Embedding) > 0 && abs.State == "active" && cosineSimilarity(abs.Embedding, embedding) >= threshold {
+			return &existing[i]
 		}
 	}
-	return false
+	return nil
+}
+
+func min32(a, b float32) float32 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // cosineSimilarity computes cosine similarity between two vectors.
