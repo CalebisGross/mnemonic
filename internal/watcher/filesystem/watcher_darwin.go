@@ -116,6 +116,13 @@ func (fw *FilesystemWatcher) Events() <-chan watcher.Event {
 	return fw.events
 }
 
+// AddExclusion adds an exclusion pattern at runtime. Thread-safe.
+func (fw *FilesystemWatcher) AddExclusion(pattern string) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.cfg.ExcludePatterns = append(fw.cfg.ExcludePatterns, pattern)
+}
+
 func (fw *FilesystemWatcher) Health(ctx context.Context) error {
 	fw.mu.RLock()
 	defer fw.mu.RUnlock()
@@ -149,7 +156,10 @@ func (fw *FilesystemWatcher) processEvent(event fsevents.Event) {
 	path := "/" + event.Path // FSEvents strips leading slash
 
 	// Skip excluded paths
-	if MatchesExcludePattern(path, fw.cfg.ExcludePatterns) {
+	fw.mu.RLock()
+	excluded := MatchesExcludePattern(path, fw.cfg.ExcludePatterns)
+	fw.mu.RUnlock()
+	if excluded {
 		return
 	}
 

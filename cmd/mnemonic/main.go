@@ -973,7 +973,8 @@ func serveCommand(configPath string) {
 						FrequencyThreshold: cfg.Perception.Heuristics.FrequencyThreshold,
 						FrequencyWindowMin: cfg.Perception.Heuristics.FrequencyWindowMin,
 					},
-					LLMGatingEnabled: cfg.Perception.LLMGatingEnabled,
+					LLMGatingEnabled:      cfg.Perception.LLMGatingEnabled,
+					LearnedExclusionsPath: cfg.Perception.LearnedExclusionsPath,
 				},
 				log,
 			)
