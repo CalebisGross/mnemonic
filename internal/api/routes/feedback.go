@@ -158,8 +158,8 @@ func HandleFeedback(s store.Store, log *slog.Logger) http.HandlerFunc {
 }
 
 // SaveRetrievalFeedback saves traversal data for a query so feedback can adjust strengths later.
-func SaveRetrievalFeedback(s store.Store, log *slog.Logger, queryID string, queryText string, retrievedIDs []string, traversedAssocs []store.TraversedAssoc) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func SaveRetrievalFeedback(ctx context.Context, s store.Store, log *slog.Logger, queryID string, queryText string, retrievedIDs []string, traversedAssocs []store.TraversedAssoc) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	fb := store.RetrievalFeedback{

@@ -1030,7 +1030,7 @@ func serveCommand(configPath string) {
 			MaxMemoriesPerCycle: cfg.Consolidation.MaxMemoriesPerCycle,
 			MaxMergesPerCycle:   cfg.Consolidation.MaxMergesPerCycle,
 			MinClusterSize:      cfg.Consolidation.MinClusterSize,
-			AssocPruneThreshold: 0.05,
+			AssocPruneThreshold: consolidation.DefaultConfig().AssocPruneThreshold,
 		}, log)
 
 		if err := consolidator.Start(rootCtx, bus); err != nil {
@@ -1446,7 +1446,7 @@ func consolidateCommand(configPath string) {
 		MaxMemoriesPerCycle: cfg.Consolidation.MaxMemoriesPerCycle,
 		MaxMergesPerCycle:   cfg.Consolidation.MaxMergesPerCycle,
 		MinClusterSize:      cfg.Consolidation.MinClusterSize,
-		AssocPruneThreshold: 0.05,
+		AssocPruneThreshold: consolidation.DefaultConfig().AssocPruneThreshold,
 	}, log)
 
 	fmt.Println("Running consolidation cycle...")
@@ -1885,7 +1885,7 @@ func mcpCommand(configPath string) {
 		DualHitBonus:        float32(cfg.Retrieval.DualHitBonus),
 	}, log)
 
-	server := mcp.NewMCPServer(db, retriever, bus, log, cfg.Coaching.CoachingFile, cfg.Perception.Filesystem.ExcludePatterns, cfg.Perception.Filesystem.MaxContentBytes)
+	server := mcp.NewMCPServer(db, retriever, bus, log, Version, cfg.Coaching.CoachingFile, cfg.Perception.Filesystem.ExcludePatterns, cfg.Perception.Filesystem.MaxContentBytes)
 
 	// Handle signal for graceful shutdown
 	sigChan := make(chan os.Signal, 1)

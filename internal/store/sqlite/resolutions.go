@@ -38,7 +38,7 @@ func (s *SQLiteStore) GetMemoryResolution(ctx context.Context, memoryID string) 
 	).Scan(&res.MemoryID, &gist, &narrative, &detailIDsStr, &createdStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return res, fmt.Errorf("memory resolution not found for %s", memoryID)
+			return res, fmt.Errorf("memory resolution for %s: %w", memoryID, store.ErrNotFound)
 		}
 		return res, fmt.Errorf("failed to get memory resolution: %w", err)
 	}
@@ -87,7 +87,7 @@ func (s *SQLiteStore) GetConceptSet(ctx context.Context, memoryID string) (store
 	).Scan(&cs.MemoryID, &topicsStr, &entitiesStr, &actionsStr, &causalityStr, &significance, &createdStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return cs, fmt.Errorf("concept set not found for %s", memoryID)
+			return cs, fmt.Errorf("concept set for %s: %w", memoryID, store.ErrNotFound)
 		}
 		return cs, fmt.Errorf("failed to get concept set: %w", err)
 	}
@@ -202,7 +202,7 @@ func (s *SQLiteStore) GetMemoryAttributes(ctx context.Context, memoryID string) 
 	).Scan(&attrs.MemoryID, &significance, &emotionalTone, &outcome, &causalityNotes, &createdStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return attrs, fmt.Errorf("memory attributes not found for %s", memoryID)
+			return attrs, fmt.Errorf("memory attributes for %s: %w", memoryID, store.ErrNotFound)
 		}
 		return attrs, fmt.Errorf("failed to get memory attributes: %w", err)
 	}

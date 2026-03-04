@@ -156,11 +156,13 @@ func NewEncodingAgent(s store.Store, llmProv llm.Provider, log *slog.Logger) *En
 
 // NewEncodingAgentWithConfig creates a new encoding agent with custom configuration.
 func NewEncodingAgentWithConfig(s store.Store, llmProv llm.Provider, log *slog.Logger, cfg EncodingConfig) *EncodingAgent {
-	ctx, cancel := context.WithCancel(context.Background())
 	semSize := cfg.MaxConcurrentEncodings
 	if semSize <= 0 {
 		semSize = 1
 	}
+	// Default context allows direct method calls in tests; Start() replaces it
+	// with a context chained from the parent.
+	ctx, cancel := context.WithCancel(context.Background())
 	ea := &EncodingAgent{
 		store:              s,
 		llmProvider:        llmProv,
@@ -197,6 +199,7 @@ func (ea *EncodingAgent) Name() string {
 // Start begins the encoding agent's work.
 // It subscribes to RawMemoryCreated events and starts a polling fallback loop.
 func (ea *EncodingAgent) Start(ctx context.Context, bus events.Bus) error {
+	ea.ctx, ea.cancel = context.WithCancel(ctx)
 	ea.bus = bus
 
 	// Subscribe to RawMemoryCreated events

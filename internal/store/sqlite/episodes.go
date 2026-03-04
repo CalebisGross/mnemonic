@@ -160,7 +160,7 @@ func scanEpisode(row *sql.Row) (store.Episode, error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return ep, fmt.Errorf("episode not found")
+			return ep, fmt.Errorf("episode: %w", store.ErrNotFound)
 		}
 		return ep, fmt.Errorf("failed to scan episode: %w", err)
 	}

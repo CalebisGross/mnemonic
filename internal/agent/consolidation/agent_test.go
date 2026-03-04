@@ -409,11 +409,11 @@ func TestNewConsolidationAgent(t *testing.T) {
 	if agent.config.ArchiveThreshold != cfg.ArchiveThreshold {
 		t.Errorf("expected ArchiveThreshold %f, got %f", cfg.ArchiveThreshold, agent.config.ArchiveThreshold)
 	}
-	if agent.ctx == nil {
-		t.Error("expected non-nil context")
+	if agent.ctx != nil {
+		t.Error("expected nil context before Start()")
 	}
-	if agent.cancel == nil {
-		t.Error("expected non-nil cancel func")
+	if agent.cancel != nil {
+		t.Error("expected nil cancel func before Start()")
 	}
 }
 

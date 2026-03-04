@@ -48,14 +48,11 @@ type DreamReport struct {
 }
 
 func NewDreamingAgent(s store.Store, llmProv llm.Provider, cfg DreamingConfig, log *slog.Logger) *DreamingAgent {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &DreamingAgent{
 		store:       s,
 		llmProvider: llmProv,
 		config:      cfg,
 		log:         log,
-		ctx:         ctx,
-		cancel:      cancel,
 		triggerCh:   make(chan struct{}, 1),
 	}
 }
@@ -65,6 +62,7 @@ func (da *DreamingAgent) Name() string {
 }
 
 func (da *DreamingAgent) Start(ctx context.Context, bus events.Bus) error {
+	da.ctx, da.cancel = context.WithCancel(ctx)
 	da.bus = bus
 	da.wg.Add(1)
 	go da.loop()

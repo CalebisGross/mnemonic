@@ -62,14 +62,11 @@ type ConsolidationAgent struct {
 
 // NewConsolidationAgent creates a new consolidation agent.
 func NewConsolidationAgent(s store.Store, llmProv llm.Provider, cfg ConsolidationConfig, log *slog.Logger) *ConsolidationAgent {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &ConsolidationAgent{
 		store:       s,
 		llmProvider: llmProv,
 		config:      cfg,
 		log:         log,
-		ctx:         ctx,
-		cancel:      cancel,
 		triggerCh:   make(chan struct{}, 1),
 	}
 }
@@ -81,6 +78,7 @@ func (ca *ConsolidationAgent) Name() string {
 
 // Start begins the consolidation timer loop and subscribes to on-demand triggers.
 func (ca *ConsolidationAgent) Start(ctx context.Context, bus events.Bus) error {
+	ca.ctx, ca.cancel = context.WithCancel(ctx)
 	ca.bus = bus
 
 	// On-demand triggers (via triggerCh) are now managed by the reactor engine,
@@ -268,12 +266,12 @@ func (ca *ConsolidationAgent) runCycle(ctx context.Context) (*CycleReport, error
 // Memories accessed recently get less decay (recency protection).
 func (ca *ConsolidationAgent) decaySalience(ctx context.Context) (decayed, processed int, err error) {
 	// Fetch all active and fading memories
-	activeMemories, err := ca.store.ListMemories(ctx, "active", ca.config.MaxMemoriesPerCycle, 0)
+	activeMemories, err := ca.store.ListMemories(ctx, store.MemoryStateActive, ca.config.MaxMemoriesPerCycle, 0)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to list active memories: %w", err)
 	}
 
-	fadingMemories, err := ca.store.ListMemories(ctx, "fading", ca.config.MaxMemoriesPerCycle, 0)
+	fadingMemories, err := ca.store.ListMemories(ctx, store.MemoryStateFading, ca.config.MaxMemoriesPerCycle, 0)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to list fading memories: %w", err)
 	}
@@ -352,7 +350,7 @@ func (ca *ConsolidationAgent) decaySalience(ctx context.Context) (decayed, proce
 // transitionStates moves memories between states based on salience thresholds.
 func (ca *ConsolidationAgent) transitionStates(ctx context.Context) (toFading, toArchived int, err error) {
 	// Check active memories that should become fading
-	activeMemories, err := ca.store.ListMemories(ctx, "active", ca.config.MaxMemoriesPerCycle, 0)
+	activeMemories, err := ca.store.ListMemories(ctx, store.MemoryStateActive, ca.config.MaxMemoriesPerCycle, 0)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -360,13 +358,13 @@ func (ca *ConsolidationAgent) transitionStates(ctx context.Context) (toFading, t
 	for _, mem := range activeMemories {
 		if float64(mem.Salience) < ca.config.ArchiveThreshold {
 			// Skip fading, go straight to archived
-			if err := ca.store.UpdateState(ctx, mem.ID, "archived"); err != nil {
+			if err := ca.store.UpdateState(ctx, mem.ID, store.MemoryStateArchived); err != nil {
 				ca.log.Warn("failed to archive memory", "memory_id", mem.ID, "error", err)
 				continue
 			}
 			toArchived++
 		} else if float64(mem.Salience) < ca.config.FadeThreshold {
-			if err := ca.store.UpdateState(ctx, mem.ID, "fading"); err != nil {
+			if err := ca.store.UpdateState(ctx, mem.ID, store.MemoryStateFading); err != nil {
 				ca.log.Warn("failed to transition memory to fading", "memory_id", mem.ID, "error", err)
 				continue
 			}
@@ -375,14 +373,14 @@ func (ca *ConsolidationAgent) transitionStates(ctx context.Context) (toFading, t
 	}
 
 	// Check fading memories that should become archived
-	fadingMemories, err := ca.store.ListMemories(ctx, "fading", ca.config.MaxMemoriesPerCycle, 0)
+	fadingMemories, err := ca.store.ListMemories(ctx, store.MemoryStateFading, ca.config.MaxMemoriesPerCycle, 0)
 	if err != nil {
 		return toFading, toArchived, err
 	}
 
 	for _, mem := range fadingMemories {
 		if float64(mem.Salience) < ca.config.ArchiveThreshold {
-			if err := ca.store.UpdateState(ctx, mem.ID, "archived"); err != nil {
+			if err := ca.store.UpdateState(ctx, mem.ID, store.MemoryStateArchived); err != nil {
 				ca.log.Warn("failed to archive fading memory", "memory_id", mem.ID, "error", err)
 				continue
 			}
@@ -409,7 +407,7 @@ func (ca *ConsolidationAgent) pruneAssociations(ctx context.Context) (int, error
 // Uses embedding similarity to find clusters, then asks the LLM to create a unified summary.
 func (ca *ConsolidationAgent) mergeClusters(ctx context.Context) (int, error) {
 	// Get all active memories with embeddings
-	memories, err := ca.store.ListMemories(ctx, "active", ca.config.MaxMemoriesPerCycle, 0)
+	memories, err := ca.store.ListMemories(ctx, store.MemoryStateActive, ca.config.MaxMemoriesPerCycle, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -604,7 +602,7 @@ Respond with ONLY a JSON object:
 		Salience:     maxSalience, // inherit highest salience
 		AccessCount:  0,
 		LastAccessed: time.Time{},
-		State:        "active",
+		State:        store.MemoryStateActive,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}, nil
@@ -620,7 +618,7 @@ const maxPatternExtractionsPerCycle = 10
 // Groups memories by project, clusters by concept overlap (lower threshold than merge),
 // and asks the LLM if a recurring pattern exists in qualifying clusters.
 func (ca *ConsolidationAgent) extractPatterns(ctx context.Context) (int, error) {
-	memories, err := ca.store.ListMemories(ctx, "active", ca.config.MaxMemoriesPerCycle, 0)
+	memories, err := ca.store.ListMemories(ctx, store.MemoryStateActive, ca.config.MaxMemoriesPerCycle, 0)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list memories for pattern extraction: %w", err)
 	}
@@ -1055,7 +1053,7 @@ If these memories are just coincidentally similar but don't reveal a real patter
 		Embedding:    embedding,
 		AccessCount:  0,
 		LastAccessed: time.Now(),
-		State:        "active",
+		State:        store.MemoryStateActive,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}

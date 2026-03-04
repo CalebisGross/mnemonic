@@ -42,14 +42,11 @@ type CycleReport struct {
 }
 
 func NewAbstractionAgent(s store.Store, llmProv llm.Provider, cfg AbstractionConfig, log *slog.Logger) *AbstractionAgent {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &AbstractionAgent{
 		store:       s,
 		llmProvider: llmProv,
 		config:      cfg,
 		log:         log,
-		ctx:         ctx,
-		cancel:      cancel,
 		triggerCh:   make(chan struct{}, 1),
 	}
 }
@@ -59,6 +56,7 @@ func (aa *AbstractionAgent) Name() string {
 }
 
 func (aa *AbstractionAgent) Start(ctx context.Context, bus events.Bus) error {
+	aa.ctx, aa.cancel = context.WithCancel(ctx)
 	aa.bus = bus
 
 	// On-demand triggers (via triggerCh) are now managed by the reactor engine,

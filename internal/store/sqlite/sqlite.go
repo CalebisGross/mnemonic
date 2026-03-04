@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -28,6 +29,9 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
+
+	// SQLite only supports one writer — limit Go's pool to avoid lock contention
+	db.SetMaxOpenConns(1)
 
 	// Test the connection
 	if err := db.Ping(); err != nil {
@@ -208,14 +212,6 @@ func scanRawMemory(row *sql.Row) (store.RawMemory, error) {
 		raw.Metadata = make(map[string]interface{})
 	}
 
-	// Parse timestamps
-	if raw.Timestamp.IsZero() {
-		raw.Timestamp, _ = time.Parse(time.RFC3339, raw.Timestamp.Format(time.RFC3339))
-	}
-	if raw.CreatedAt.IsZero() {
-		raw.CreatedAt, _ = time.Parse(time.RFC3339, raw.CreatedAt.Format(time.RFC3339))
-	}
-
 	return raw, nil
 }
 
@@ -360,17 +356,6 @@ func scanMemory(row *sql.Row) (store.Memory, error) {
 		if err == nil {
 			mem.LastAccessed = lastAccessed
 		}
-	}
-
-	// Parse timestamps
-	if !mem.Timestamp.IsZero() {
-		mem.Timestamp, _ = time.Parse(time.RFC3339, mem.Timestamp.Format(time.RFC3339))
-	}
-	if !mem.CreatedAt.IsZero() {
-		mem.CreatedAt, _ = time.Parse(time.RFC3339, mem.CreatedAt.Format(time.RFC3339))
-	}
-	if !mem.UpdatedAt.IsZero() {
-		mem.UpdatedAt, _ = time.Parse(time.RFC3339, mem.UpdatedAt.Format(time.RFC3339))
 	}
 
 	return mem, nil
@@ -615,7 +600,7 @@ func (s *SQLiteStore) MarkRawProcessed(ctx context.Context, id string) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("raw memory with id %s not found", id)
+		return fmt.Errorf("raw memory with id %s: %w", id, store.ErrNotFound)
 	}
 
 	return nil
@@ -677,7 +662,7 @@ func (s *SQLiteStore) WriteMemory(ctx context.Context, mem store.Memory) error {
 	}
 
 	// Update in-memory embedding index
-	if (mem.State == "active" || mem.State == "fading") && len(mem.Embedding) > 0 {
+	if (mem.State == store.MemoryStateActive || mem.State == store.MemoryStateFading) && len(mem.Embedding) > 0 {
 		s.embIndex.Add(mem.ID, mem.Embedding)
 	}
 
@@ -754,11 +739,11 @@ func (s *SQLiteStore) UpdateMemory(ctx context.Context, mem store.Memory) error 
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("memory with id %s not found", mem.ID)
+		return fmt.Errorf("memory with id %s: %w", mem.ID, store.ErrNotFound)
 	}
 
 	// Update in-memory embedding index
-	if (mem.State == "active" || mem.State == "fading") && len(mem.Embedding) > 0 {
+	if (mem.State == store.MemoryStateActive || mem.State == store.MemoryStateFading) && len(mem.Embedding) > 0 {
 		s.embIndex.Add(mem.ID, mem.Embedding)
 	} else {
 		// State changed away from searchable, or embedding removed
@@ -784,7 +769,7 @@ func (s *SQLiteStore) UpdateSalience(ctx context.Context, id string, salience fl
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("memory with id %s not found", id)
+		return fmt.Errorf("memory with id %s: %w", id, store.ErrNotFound)
 	}
 
 	return nil
@@ -805,11 +790,11 @@ func (s *SQLiteStore) UpdateState(ctx context.Context, id string, state string) 
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("memory with id %s not found", id)
+		return fmt.Errorf("memory with id %s: %w", id, store.ErrNotFound)
 	}
 
 	// Remove from embedding index if state moved away from searchable
-	if state != "active" && state != "fading" {
+	if state != store.MemoryStateActive && state != store.MemoryStateFading {
 		s.embIndex.Remove(id)
 	}
 
@@ -831,7 +816,7 @@ func (s *SQLiteStore) IncrementAccess(ctx context.Context, id string) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("memory with id %s not found", id)
+		return fmt.Errorf("memory with id %s: %w", id, store.ErrNotFound)
 	}
 
 	return nil
@@ -954,19 +939,41 @@ func (s *SQLiteStore) SearchByEmbedding(ctx context.Context, embedding []float32
 		return []store.RetrievalResult{}, nil
 	}
 
-	// Fetch only the matched memories from DB by ID
-	results := make([]store.RetrievalResult, 0, len(matches))
-	for _, m := range matches {
-		mem, err := s.GetMemory(ctx, m.id)
-		if err != nil {
-			continue // Memory may have been deleted between index search and fetch
-		}
-		results = append(results, store.RetrievalResult{
-			Memory:      mem,
-			Score:       m.score,
-			Explanation: "Embedding similarity",
-		})
+	// Batch-fetch all matched memories in a single query
+	placeholders := make([]string, len(matches))
+	args := make([]interface{}, len(matches))
+	scoreByID := make(map[string]float32, len(matches))
+	orderByID := make(map[string]int, len(matches))
+	for i, m := range matches {
+		placeholders[i] = "?"
+		args[i] = m.id
+		scoreByID[m.id] = m.score
+		orderByID[m.id] = i
 	}
+
+	query := `SELECT ` + memoryColumns + ` FROM memories WHERE id IN (` + strings.Join(placeholders, ",") + `)`
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("batch fetch memories: %w", err)
+	}
+
+	memories, err := scanMemoryRows(rows)
+	if err != nil {
+		return nil, fmt.Errorf("scan batch memories: %w", err)
+	}
+
+	// Build results preserving embedding-similarity order
+	results := make([]store.RetrievalResult, len(memories))
+	for i, mem := range memories {
+		results[i] = store.RetrievalResult{
+			Memory:      mem,
+			Score:       scoreByID[mem.ID],
+			Explanation: "Embedding similarity",
+		}
+	}
+	sort.Slice(results, func(i, j int) bool {
+		return orderByID[results[i].Memory.ID] < orderByID[results[j].Memory.ID]
+	})
 
 	return results, nil
 }
@@ -1105,7 +1112,7 @@ func (s *SQLiteStore) UpdateAssociationStrength(ctx context.Context, sourceID, t
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("association from %s to %s not found", sourceID, targetID)
+		return fmt.Errorf("association from %s to %s: %w", sourceID, targetID, store.ErrNotFound)
 	}
 
 	return nil
@@ -1126,7 +1133,7 @@ func (s *SQLiteStore) UpdateAssociationType(ctx context.Context, sourceID, targe
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("association from %s to %s not found", sourceID, targetID)
+		return fmt.Errorf("association from %s to %s: %w", sourceID, targetID, store.ErrNotFound)
 	}
 
 	return nil
@@ -1147,7 +1154,7 @@ func (s *SQLiteStore) ActivateAssociation(ctx context.Context, sourceID, targetI
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("association from %s to %s not found", sourceID, targetID)
+		return fmt.Errorf("association from %s to %s: %w", sourceID, targetID, store.ErrNotFound)
 	}
 
 	return nil
@@ -1262,7 +1269,7 @@ func (s *SQLiteStore) BatchMergeMemories(ctx context.Context, sourceIDs []string
 	now := time.Now().Format(time.RFC3339)
 
 	for _, sourceID := range sourceIDs {
-		_, err := tx.ExecContext(ctx, updateStateQuery, "merged", now, sourceID)
+		_, err := tx.ExecContext(ctx, updateStateQuery, store.MemoryStateMerged, now, sourceID)
 		if err != nil {
 			return fmt.Errorf("failed to update state for source id %s: %w", sourceID, err)
 		}
@@ -1357,7 +1364,7 @@ func (s *SQLiteStore) BatchMergeMemories(ctx context.Context, sourceIDs []string
 	for _, sourceID := range sourceIDs {
 		s.embIndex.Remove(sourceID)
 	}
-	if (gist.State == "active" || gist.State == "fading") && len(gist.Embedding) > 0 {
+	if (gist.State == store.MemoryStateActive || gist.State == store.MemoryStateFading) && len(gist.Embedding) > 0 {
 		s.embIndex.Add(gist.ID, gist.Embedding)
 	}
 

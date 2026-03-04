@@ -44,6 +44,7 @@ type MCPServer struct {
 	retriever       *retrieval.RetrievalAgent
 	bus             events.Bus
 	log             *slog.Logger
+	version         string // binary version, injected from main
 	sessionID       string // auto-generated per MCP server lifetime
 	project         string // auto-detected from working directory
 	coachingFile    string // path for coach_local_llm writes
@@ -52,7 +53,7 @@ type MCPServer struct {
 }
 
 // NewMCPServer creates a new MCP server with the given dependencies.
-func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, log *slog.Logger, coachingFile string, excludePatterns []string, maxContentBytes int) *MCPServer {
+func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, log *slog.Logger, version string, coachingFile string, excludePatterns []string, maxContentBytes int) *MCPServer {
 	// Auto-detect project from working directory
 	project := detectProject()
 
@@ -66,6 +67,7 @@ func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, lo
 		retriever:       r,
 		bus:             bus,
 		log:             log,
+		version:         version,
 		sessionID:       sessionID,
 		project:         project,
 		coachingFile:    coachingFile,
@@ -150,7 +152,7 @@ func (srv *MCPServer) handleInitialize(req *jsonRPCRequest) *jsonRPCResponse {
 		},
 		"serverInfo": map[string]interface{}{
 			"name":    "mnemonic",
-			"version": "1.0.0",
+			"version": srv.version,
 		},
 	}
 	return successResponse(req.ID, result)

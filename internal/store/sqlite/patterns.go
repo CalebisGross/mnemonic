@@ -88,7 +88,7 @@ func (s *SQLiteStore) UpdatePattern(ctx context.Context, p store.Pattern) error 
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		return fmt.Errorf("pattern with id %s not found", p.ID)
+		return fmt.Errorf("pattern with id %s: %w", p.ID, store.ErrNotFound)
 	}
 	return nil
 }
@@ -201,7 +201,7 @@ func scanPattern(row *sql.Row) (store.Pattern, error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return p, fmt.Errorf("pattern not found")
+			return p, fmt.Errorf("pattern: %w", store.ErrNotFound)
 		}
 		return p, fmt.Errorf("failed to scan pattern: %w", err)
 	}

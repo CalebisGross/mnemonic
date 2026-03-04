@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -73,7 +74,7 @@ func HandleGetEpisode(s store.Store, log *slog.Logger) http.HandlerFunc {
 		episode, err := s.GetEpisode(ctx, id)
 		if err != nil {
 			// Check if it's a not-found error
-			if err.Error() == "not found" || err.Error() == "sql: no rows in result set" {
+			if errors.Is(err, store.ErrNotFound) {
 				log.Debug("episode not found", "episode_id", id)
 				writeError(w, http.StatusNotFound, "episode not found", "NOT_FOUND")
 				return
@@ -120,7 +121,7 @@ func HandleMemoryContext(s store.Store, log *slog.Logger) http.HandlerFunc {
 		mem, err := s.GetMemory(ctx, id)
 		if err != nil {
 			// Check if it's a not-found error
-			if err.Error() == "not found" || err.Error() == "sql: no rows in result set" {
+			if errors.Is(err, store.ErrNotFound) {
 				log.Debug("memory not found", "memory_id", id)
 				writeError(w, http.StatusNotFound, "memory not found", "NOT_FOUND")
 				return

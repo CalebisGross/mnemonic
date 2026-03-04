@@ -3,6 +3,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -29,7 +30,7 @@ func HandleGetRawMemory(s store.Store, log *slog.Logger) http.HandlerFunc {
 
 		raw, err := s.GetRaw(ctx, id)
 		if err != nil {
-			if err.Error() == "not found" || err.Error() == "sql: no rows in result set" {
+			if errors.Is(err, store.ErrNotFound) {
 				writeError(w, http.StatusNotFound, "raw memory not found", "NOT_FOUND")
 				return
 			}
@@ -263,7 +264,7 @@ func HandleGetMemory(s store.Store, log *slog.Logger) http.HandlerFunc {
 		memory, err := s.GetMemory(ctx, id)
 		if err != nil {
 			// Check if it's a not-found error
-			if err.Error() == "not found" || err.Error() == "sql: no rows in result set" {
+			if errors.Is(err, store.ErrNotFound) {
 				log.Debug("memory not found", "memory_id", id)
 				writeError(w, http.StatusNotFound, "memory not found", "NOT_FOUND")
 				return

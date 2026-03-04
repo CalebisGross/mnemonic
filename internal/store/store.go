@@ -2,7 +2,25 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+// ErrNotFound is returned when a requested entity does not exist.
+var ErrNotFound = errors.New("not found")
+
+// Memory state constants.
+const (
+	MemoryStateActive   = "active"
+	MemoryStateFading   = "fading"
+	MemoryStateArchived = "archived"
+	MemoryStateMerged   = "merged"
+)
+
+// Episode state constants.
+const (
+	EpisodeStateOpen   = "open"
+	EpisodeStateClosed = "closed"
 )
 
 // RawMemory is a raw observation before encoding.
