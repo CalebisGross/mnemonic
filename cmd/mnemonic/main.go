@@ -1146,11 +1146,13 @@ func serveCommand(configPath string) {
 	// --- Start API server ---
 	if cfg.API.Port > 0 {
 		apiDeps := api.ServerDeps{
-			Store:     memStore,
-			LLM:       llmProvider,
-			Bus:       bus,
-			Retriever: retriever,
-			Log:       log,
+			Store:                 memStore,
+			LLM:                   llmProvider,
+			Bus:                   bus,
+			Retriever:             retriever,
+			IngestExcludePatterns: cfg.Perception.Filesystem.ExcludePatterns,
+			IngestMaxContentBytes: cfg.Perception.Filesystem.MaxContentBytes,
+			Log:                   log,
 		}
 		// Only set Consolidator if it's non-nil (avoids Go nil-interface trap)
 		if consolidator != nil {
@@ -1883,7 +1885,7 @@ func mcpCommand(configPath string) {
 		DualHitBonus:        float32(cfg.Retrieval.DualHitBonus),
 	}, log)
 
-	server := mcp.NewMCPServer(db, retriever, bus, log, cfg.Coaching.CoachingFile)
+	server := mcp.NewMCPServer(db, retriever, bus, log, cfg.Coaching.CoachingFile, cfg.Perception.Filesystem.ExcludePatterns, cfg.Perception.Filesystem.MaxContentBytes)
 
 	// Handle signal for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -1926,6 +1928,7 @@ MEMORY COMMANDS:
   consolidate     Run memory consolidation cycle
 
 DATA MANAGEMENT:
+  ingest DIR      Bulk-ingest a directory (--dry-run, --project NAME)
   export          Export memories (--format json|sqlite, --output path)
   import FILE     Import from JSON export (--mode merge|replace)
   backup          Timestamped backup with retention (keeps last 5)
@@ -1952,6 +1955,7 @@ EXAMPLES:
   mnemonic watch                                    Live event stream
   mnemonic remember "I learned something today"     Store a memory
   mnemonic recall "important lessons"               Retrieve memories
+  mnemonic ingest ~/Projects/myapp --project myapp   Ingest a project
   mnemonic export --format json                     Export all data
   mnemonic backup                                   Quick backup
   mnemonic insights                                 Memory health report

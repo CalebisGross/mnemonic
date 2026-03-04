@@ -504,6 +504,71 @@ func (s *SQLiteStore) WriteRaw(ctx context.Context, raw store.RawMemory) error {
 	return nil
 }
 
+// RawMemoryExistsByPath checks if a raw memory with the given source, project, and file path already exists.
+func (s *SQLiteStore) RawMemoryExistsByPath(ctx context.Context, source string, project string, filePath string) (bool, error) {
+	query := `SELECT COUNT(1) FROM raw_memories WHERE source = ? AND project = ? AND metadata IS NOT NULL AND json_extract(metadata, '$.path') = ?`
+	var count int
+	err := s.db.QueryRowContext(ctx, query, source, project, filePath).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("checking raw memory exists by path: %w", err)
+	}
+	return count > 0, nil
+}
+
+// BatchWriteRaw writes multiple raw memories in a single transaction.
+func (s *SQLiteStore) BatchWriteRaw(ctx context.Context, raws []store.RawMemory) error {
+	if len(raws) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	query := `
+	INSERT INTO raw_memories
+	(id, timestamp, source, type, content, metadata, heuristic_score, initial_salience, processed, project, session_id, created_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, raw := range raws {
+		metadataStr, err := encodeMap(raw.Metadata)
+		if err != nil {
+			return fmt.Errorf("encoding metadata for %s: %w", raw.ID, err)
+		}
+		_, err = stmt.ExecContext(ctx,
+			raw.ID,
+			raw.Timestamp.Format(time.RFC3339),
+			raw.Source,
+			raw.Type,
+			raw.Content,
+			metadataStr,
+			raw.HeuristicScore,
+			raw.InitialSalience,
+			boolToInt(raw.Processed),
+			nullableString(raw.Project),
+			nullableString(raw.SessionID),
+			raw.CreatedAt.Format(time.RFC3339),
+		)
+		if err != nil {
+			return fmt.Errorf("writing raw memory %s: %w", raw.ID, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit batch write: %w", err)
+	}
+
+	return nil
+}
+
 // GetRaw retrieves a raw memory by ID.
 func (s *SQLiteStore) GetRaw(ctx context.Context, id string) (store.RawMemory, error) {
 	query := `SELECT ` + rawMemoryColumns + ` FROM raw_memories WHERE id = ?`

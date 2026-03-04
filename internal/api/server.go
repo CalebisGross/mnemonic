@@ -24,14 +24,16 @@ type ServerConfig struct {
 
 // ServerDeps holds dependencies injected into the server.
 type ServerDeps struct {
-	Store             store.Store
-	LLM               llm.Provider
-	Bus               events.Bus
-	Retriever         *retrieval.RetrievalAgent
-	Consolidator      routes.ConsolidationRunner // can be nil if disabled
-	AgentEvolutionDir string                     // empty = agent dashboard disabled
-	AgentWebPort      int                        // 0 = agent chat disabled
-	Log               *slog.Logger
+	Store                 store.Store
+	LLM                   llm.Provider
+	Bus                   events.Bus
+	Retriever             *retrieval.RetrievalAgent
+	Consolidator          routes.ConsolidationRunner // can be nil if disabled
+	AgentEvolutionDir     string                     // empty = agent dashboard disabled
+	AgentWebPort          int                        // 0 = agent chat disabled
+	IngestExcludePatterns []string
+	IngestMaxContentBytes int
+	Log                   *slog.Logger
 }
 
 // Server is the HTTP API server for the Mnemonic system.
@@ -93,6 +95,9 @@ func (s *Server) registerRoutes() {
 
 	// Consolidation
 	s.mux.HandleFunc("POST /api/v1/consolidation/run", routes.HandleConsolidationRun(s.deps.Consolidator, s.deps.Log))
+
+	// Ingestion
+	s.mux.HandleFunc("POST /api/v1/ingest", routes.HandleIngest(s.deps.Store, s.deps.Bus, s.deps.IngestExcludePatterns, s.deps.IngestMaxContentBytes, s.deps.Log))
 
 	// Insights
 	s.mux.HandleFunc("GET /api/v1/insights", routes.HandleInsights(s.deps.Store, s.deps.Log))

@@ -245,7 +245,8 @@ func (h *HeuristicFilter) evaluateSource(source, eventType, path, content string
 // evaluateFilesystem scores filesystem events.
 func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, string) {
 	// Skip if path contains ignored patterns
-	ignoredPatterns := []string{".git/", "node_modules/", "__pycache__/", ".DS_Store", "~", ".swp", ".tmp", ".xbel"}
+	ignoredPatterns := []string{".git/", "node_modules/", "__pycache__/", ".DS_Store", "~", ".swp", ".tmp", ".xbel",
+		"venv/", ".venv/", "site-packages/", ".tox/", ".mypy_cache/", ".ruff_cache/", ".pytest_cache/"}
 	for _, pattern := range ignoredPatterns {
 		if strings.Contains(path, pattern) {
 			return 0.0, fmt.Sprintf("filesystem: ignored path pattern '%s'", pattern)

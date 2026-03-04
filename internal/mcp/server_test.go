@@ -190,6 +190,10 @@ func (m *mockStore) GetProjectSummary(ctx context.Context, project string) (map[
 	return nil, nil
 }
 func (m *mockStore) ListProjects(ctx context.Context) ([]string, error) { return nil, nil }
+func (m *mockStore) RawMemoryExistsByPath(ctx context.Context, source string, project string, filePath string) (bool, error) {
+	return false, nil
+}
+func (m *mockStore) BatchWriteRaw(ctx context.Context, raws []store.RawMemory) error { return nil }
 
 func (m *mockStore) Close() error { return nil }
 
@@ -206,7 +210,7 @@ func (m *mockBus) Close() error                      { return nil }
 // TestHandleInitialize tests handleInitialize returns correct protocol version and server info.
 func TestHandleInitialize(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "")
+	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "", []string{}, 0)
 
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
@@ -265,7 +269,7 @@ func TestHandleInitialize(t *testing.T) {
 // TestHandleToolsList tests handleToolsList returns all 10 tools.
 func TestHandleToolsList(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "")
+	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "", []string{}, 0)
 
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
@@ -303,8 +307,8 @@ func TestHandleToolsList(t *testing.T) {
 		t.Fatalf("tools is not an array, got %T", toolsInterface)
 	}
 
-	if len(toolsArray) != 12 {
-		t.Fatalf("expected 12 tools, got %d", len(toolsArray))
+	if len(toolsArray) != 13 {
+		t.Fatalf("expected 13 tools, got %d", len(toolsArray))
 	}
 
 	// Verify tool names
@@ -321,6 +325,7 @@ func TestHandleToolsList(t *testing.T) {
 		"feedback":        false,
 		"audit_encodings": false,
 		"coach_local_llm": false,
+		"ingest_project":  false,
 	}
 
 	for _, toolInterface := range toolsArray {
@@ -464,7 +469,7 @@ func TestSuccessResponse(t *testing.T) {
 // TestHandleRequestDispatch tests that handleRequest correctly dispatches to handlers.
 func TestHandleRequestDispatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "")
+	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "", []string{}, 0)
 
 	tests := []struct {
 		method  string

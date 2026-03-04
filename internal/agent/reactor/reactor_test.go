@@ -188,7 +188,11 @@ func (m *mockStore) GetProjectSummary(context.Context, string) (map[string]inter
 	return nil, nil
 }
 func (m *mockStore) ListProjects(context.Context) ([]string, error) { return nil, nil }
-func (m *mockStore) Close() error                                   { return nil }
+func (m *mockStore) RawMemoryExistsByPath(context.Context, string, string, string) (bool, error) {
+	return false, nil
+}
+func (m *mockStore) BatchWriteRaw(context.Context, []store.RawMemory) error { return nil }
+func (m *mockStore) Close() error                                           { return nil }
 
 // ---------------------------------------------------------------------------
 // Helper: synchronous bus for deterministic tests

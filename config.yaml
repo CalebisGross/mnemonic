@@ -7,7 +7,7 @@ llm:
   endpoint: "http://localhost:1234/v1"
 
   # Model name for chat/conversation (must match what's loaded in LM Studio)
-  chat_model: "qwen/qwen3-8b"
+  chat_model: "qwen/qwen3.5-9b"
 
   # Model name for embeddings
   embedding_model: "text-embedding-embeddinggemma-300m-qat"
@@ -65,6 +65,19 @@ perception:
       - ".cache/"
       - "__pycache__/"
       - ".DS_Store"
+
+      # --- Python virtual environments & build artifacts ---
+      - "venv/"
+      - ".venv/"
+      - "site-packages/"
+      - ".tox/"
+      - ".eggs/"
+      - ".mypy_cache/"
+      - ".ruff_cache/"
+      - ".pytest_cache/"
+
+      # --- ML experiment logs ---
+      - "wandb/"
 
       # --- macOS Library (all app/system internal state) ---
       - "/Library/"
