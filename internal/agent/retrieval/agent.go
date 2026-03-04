@@ -175,7 +175,7 @@ func (ra *RetrievalAgent) Query(ctx context.Context, req QueryRequest) (QueryRes
 	ra.log.Debug("spread activation completed", "query_id", queryID, "activated_memories_count", len(activated), "traversals", len(traversedAssocs))
 
 	// Step 6: Rank results by combined score
-	ranked := ra.rankResults(activated, req.IncludeReasoning)
+	ranked := ra.rankResults(ctx, activated, req.IncludeReasoning)
 
 	// Step 7: Apply project and time filters (before truncation so matching results aren't discarded)
 	if req.Project != "" || !req.TimeFrom.IsZero() || !req.TimeTo.IsZero() {
@@ -413,9 +413,9 @@ func (ra *RetrievalAgent) spreadActivation(ctx context.Context, entryPoints map[
 }
 
 // rankResults sorts activated memories by a combined score and prepares results.
-func (ra *RetrievalAgent) rankResults(activated map[string]activationState, includeReasoning bool) []store.RetrievalResult {
+func (ra *RetrievalAgent) rankResults(ctx context.Context, activated map[string]activationState, includeReasoning bool) []store.RetrievalResult {
 	type scoredMemory struct {
-		id            string
+		mem           store.Memory
 		activation    float32
 		finalScore    float32
 		recencyBonus  float32
@@ -425,7 +425,7 @@ func (ra *RetrievalAgent) rankResults(activated map[string]activationState, incl
 	scored := make([]scoredMemory, 0, len(activated))
 
 	for memID, state := range activated {
-		mem, err := ra.store.GetMemory(context.Background(), memID)
+		mem, err := ra.store.GetMemory(ctx, memID)
 		if err != nil {
 			ra.log.Warn("failed to fetch memory for ranking", "memory_id", memID, "error", err)
 			continue
@@ -447,7 +447,7 @@ func (ra *RetrievalAgent) rankResults(activated map[string]activationState, incl
 		finalScore := state.activation * (1.0 + recencyBonus + activityBonus)
 
 		// Valence boost for significant memories
-		attrs, attrErr := ra.store.GetMemoryAttributes(context.Background(), memID)
+		attrs, attrErr := ra.store.GetMemoryAttributes(ctx, memID)
 		if attrErr == nil {
 			switch attrs.Significance {
 			case "critical":
@@ -458,7 +458,7 @@ func (ra *RetrievalAgent) rankResults(activated map[string]activationState, incl
 		}
 
 		scored = append(scored, scoredMemory{
-			id:            memID,
+			mem:           mem,
 			activation:    state.activation,
 			finalScore:    finalScore,
 			recencyBonus:  recencyBonus,
@@ -471,11 +471,9 @@ func (ra *RetrievalAgent) rankResults(activated map[string]activationState, incl
 		return scored[i].finalScore > scored[j].finalScore
 	})
 
-	// Build results
+	// Build results from already-fetched memories
 	results := make([]store.RetrievalResult, len(scored))
 	for i, sm := range scored {
-		mem, _ := ra.store.GetMemory(context.Background(), sm.id)
-
 		explanation := ""
 		if includeReasoning {
 			explanation = fmt.Sprintf(
@@ -485,7 +483,7 @@ func (ra *RetrievalAgent) rankResults(activated map[string]activationState, incl
 		}
 
 		results[i] = store.RetrievalResult{
-			Memory:      mem,
+			Memory:      sm.mem,
 			Score:       sm.finalScore,
 			Explanation: explanation,
 		}

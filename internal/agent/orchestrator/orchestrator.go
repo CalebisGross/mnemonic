@@ -63,15 +63,12 @@ type Orchestrator struct {
 }
 
 func NewOrchestrator(s store.Store, llmProv llm.Provider, cfg OrchestratorConfig, log *slog.Logger) *Orchestrator {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &Orchestrator{
 		store:       s,
 		llmProvider: llmProv,
 		config:      cfg,
 		log:         log,
 		startTime:   time.Now(),
-		ctx:         ctx,
-		cancel:      cancel,
 		llmHealthy:  true,
 	}
 }
@@ -81,6 +78,7 @@ func (o *Orchestrator) Name() string {
 }
 
 func (o *Orchestrator) Start(ctx context.Context, bus events.Bus) error {
+	o.ctx, o.cancel = context.WithCancel(ctx)
 	o.bus = bus
 
 	// Run initial health checks

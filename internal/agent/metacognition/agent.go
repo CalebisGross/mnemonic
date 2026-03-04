@@ -31,14 +31,11 @@ type MetacognitionAgent struct {
 }
 
 func NewMetacognitionAgent(s store.Store, llmProv llm.Provider, cfg MetacognitionConfig, log *slog.Logger) *MetacognitionAgent {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &MetacognitionAgent{
 		store:       s,
 		llmProvider: llmProv,
 		config:      cfg,
 		log:         log,
-		ctx:         ctx,
-		cancel:      cancel,
 		triggerCh:   make(chan struct{}, 1),
 	}
 }
@@ -48,6 +45,7 @@ func (ma *MetacognitionAgent) Name() string {
 }
 
 func (ma *MetacognitionAgent) Start(ctx context.Context, bus events.Bus) error {
+	ma.ctx, ma.cancel = context.WithCancel(ctx)
 	ma.bus = bus
 	ma.wg.Add(1)
 	go ma.loop()

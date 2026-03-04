@@ -53,14 +53,11 @@ type EpisodingAgent struct {
 
 // NewEpisodingAgent creates a new episoding agent.
 func NewEpisodingAgent(s store.Store, llmProvider llm.Provider, log *slog.Logger, cfg EpisodingConfig) *EpisodingAgent {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &EpisodingAgent{
 		store:             s,
 		llmProvider:       llmProvider,
 		config:            cfg,
 		log:               log,
-		ctx:               ctx,
-		cancel:            cancel,
 		lastProcessedTime: time.Now().Add(-1 * time.Hour), // look back 1 hour on start
 		assignedRawIDs:    make(map[string]bool),
 	}
@@ -71,6 +68,7 @@ func (ea *EpisodingAgent) Name() string {
 }
 
 func (ea *EpisodingAgent) Start(ctx context.Context, bus events.Bus) error {
+	ea.ctx, ea.cancel = context.WithCancel(ctx)
 	ea.bus = bus
 
 	// Hydrate in-memory state from existing episodes so we don't re-process
@@ -202,7 +200,7 @@ func (ea *EpisodingAgent) processEpisodes(ctx context.Context) error {
 				EndTime:      raw.Timestamp,
 				RawMemoryIDs: []string{},
 				MemoryIDs:    []string{},
-				State:        "open",
+				State:        store.EpisodeStateOpen,
 				CreatedAt:    time.Now(),
 				UpdatedAt:    time.Now(),
 			}
@@ -400,7 +398,7 @@ Respond with ONLY a JSON object (no prose, no fences):
 		ep.Salience = parsed.Salience
 	}
 
-	ep.State = "closed"
+	ep.State = store.EpisodeStateClosed
 	ep.UpdatedAt = time.Now()
 
 	if err := ea.store.UpdateEpisode(ctx, *ep); err != nil {

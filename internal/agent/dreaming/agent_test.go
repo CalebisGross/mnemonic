@@ -52,8 +52,8 @@ func TestNewDreamingAgent(t *testing.T) {
 		t.Fatal("logger not set")
 	}
 
-	if agent.ctx == nil {
-		t.Fatal("context not created")
+	if agent.ctx != nil {
+		t.Fatal("expected nil context before Start()")
 	}
 }
 

@@ -75,7 +75,7 @@ func HandleGraph(s store.Store, log *slog.Logger) http.HandlerFunc {
 
 		if view == "episodes" {
 			// Fetch episodes as nodes
-			episodes, err := s.ListEpisodes(ctx, "closed", limit, 0)
+			episodes, err := s.ListEpisodes(ctx, store.EpisodeStateClosed, limit, 0)
 			if err != nil {
 				log.Error("failed to list episodes for graph", "error", err)
 				writeError(w, http.StatusInternalServerError, "failed to list episodes", "STORE_ERROR")

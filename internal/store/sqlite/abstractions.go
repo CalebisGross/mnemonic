@@ -90,7 +90,7 @@ func (s *SQLiteStore) UpdateAbstraction(ctx context.Context, a store.Abstraction
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		return fmt.Errorf("abstraction with id %s not found", a.ID)
+		return fmt.Errorf("abstraction with id %s: %w", a.ID, store.ErrNotFound)
 	}
 	return nil
 }
@@ -192,7 +192,7 @@ func scanAbstraction(row *sql.Row) (store.Abstraction, error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return a, fmt.Errorf("abstraction not found")
+			return a, fmt.Errorf("abstraction: %w", store.ErrNotFound)
 		}
 		return a, fmt.Errorf("failed to scan abstraction: %w", err)
 	}

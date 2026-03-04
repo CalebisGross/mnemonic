@@ -656,7 +656,7 @@ func TestHandleGetMemory(t *testing.T) {
 		ms := &mockStore{
 			getMemoryFn: func(_ context.Context, id string) (store.Memory, error) {
 				if id != "mem-abc-123" {
-					return store.Memory{}, fmt.Errorf("not found")
+					return store.Memory{}, store.ErrNotFound
 				}
 				return expected, nil
 			},
@@ -694,7 +694,7 @@ func TestHandleGetMemoryNotFound(t *testing.T) {
 	t.Run("missing ID returns 404", func(t *testing.T) {
 		ms := &mockStore{
 			getMemoryFn: func(_ context.Context, id string) (store.Memory, error) {
-				return store.Memory{}, fmt.Errorf("not found")
+				return store.Memory{}, store.ErrNotFound
 			},
 		}
 		handler := HandleGetMemory(ms, testLogger())

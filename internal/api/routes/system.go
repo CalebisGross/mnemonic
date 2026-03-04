@@ -28,7 +28,7 @@ func HandleHealth(s store.Store, llmProv llm.Provider, log *slog.Logger) http.Ha
 		log.Debug("health check requested")
 
 		// Check LLM health with 2s timeout
-		llmHealthCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		llmHealthCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
 
 		llmAvailable := true

@@ -86,7 +86,7 @@ func HandleQuery(retriever *retrieval.RetrievalAgent, bus events.Bus, s store.St
 		for _, mem := range queryResp.Memories {
 			retrievedIDs = append(retrievedIDs, mem.Memory.ID)
 		}
-		SaveRetrievalFeedback(s, log, queryResp.QueryID, reqBody.Query, retrievedIDs, queryResp.TraversedAssocs)
+		SaveRetrievalFeedback(ctx, s, log, queryResp.QueryID, reqBody.Query, retrievedIDs, queryResp.TraversedAssocs)
 
 		// Publish query executed event
 		queryEvt := events.QueryExecuted{
