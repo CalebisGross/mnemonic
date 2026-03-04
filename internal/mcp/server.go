@@ -12,6 +12,7 @@ import (
 
 	"github.com/appsprout/mnemonic/internal/agent/retrieval"
 	"github.com/appsprout/mnemonic/internal/events"
+	"github.com/appsprout/mnemonic/internal/ingest"
 	"github.com/appsprout/mnemonic/internal/store"
 	"github.com/google/uuid"
 )
@@ -39,17 +40,19 @@ type rpcError struct {
 
 // MCPServer implements the Model Context Protocol over JSON-RPC 2.0
 type MCPServer struct {
-	store        store.Store
-	retriever    *retrieval.RetrievalAgent
-	bus          events.Bus
-	log          *slog.Logger
-	sessionID    string // auto-generated per MCP server lifetime
-	project      string // auto-detected from working directory
-	coachingFile string // path for coach_local_llm writes
+	store           store.Store
+	retriever       *retrieval.RetrievalAgent
+	bus             events.Bus
+	log             *slog.Logger
+	sessionID       string // auto-generated per MCP server lifetime
+	project         string // auto-detected from working directory
+	coachingFile    string // path for coach_local_llm writes
+	excludePatterns []string
+	maxContentBytes int
 }
 
 // NewMCPServer creates a new MCP server with the given dependencies.
-func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, log *slog.Logger, coachingFile string) *MCPServer {
+func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, log *slog.Logger, coachingFile string, excludePatterns []string, maxContentBytes int) *MCPServer {
 	// Auto-detect project from working directory
 	project := detectProject()
 
@@ -59,13 +62,15 @@ func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, lo
 	log.Info("MCP server initialized", "session_id", sessionID, "project", project)
 
 	return &MCPServer{
-		store:        s,
-		retriever:    r,
-		bus:          bus,
-		log:          log,
-		sessionID:    sessionID,
-		project:      project,
-		coachingFile: coachingFile,
+		store:           s,
+		retriever:       r,
+		bus:             bus,
+		log:             log,
+		sessionID:       sessionID,
+		project:         project,
+		coachingFile:    coachingFile,
+		excludePatterns: excludePatterns,
+		maxContentBytes: maxContentBytes,
 	}
 }
 
@@ -388,6 +393,28 @@ func (srv *MCPServer) handleToolsList(req *jsonRPCRequest) *jsonRPCResponse {
 				"required": []string{"coaching_yaml"},
 			},
 		},
+		{
+			Name:        "ingest_project",
+			Description: "Ingest a local directory into the memory system. Walks the directory, filters binary/excluded files, deduplicates against existing memories, and writes raw memories for encoding. Re-running on the same directory is safe — duplicates are skipped.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"directory": map[string]interface{}{
+						"type":        "string",
+						"description": "Absolute path to the directory to ingest",
+					},
+					"project": map[string]interface{}{
+						"type":        "string",
+						"description": "Project name (default: directory basename)",
+					},
+					"dry_run": map[string]interface{}{
+						"type":        "boolean",
+						"description": "If true, scan and report without writing (default: false)",
+					},
+				},
+				"required": []string{"directory"},
+			},
+		},
 	}
 
 	result := map[string]interface{}{
@@ -438,6 +465,8 @@ func (srv *MCPServer) handleToolCall(ctx context.Context, req *jsonRPCRequest) *
 		result, toolErr = srv.handleAuditEncodings(ctx, params.Arguments)
 	case "coach_local_llm":
 		result, toolErr = srv.handleCoachLocalLLM(ctx, params.Arguments)
+	case "ingest_project":
+		result, toolErr = srv.handleIngestProject(ctx, params.Arguments)
 	default:
 		return errorResponse(req.ID, -32602, fmt.Sprintf("Unknown tool: %s", params.Name))
 	}
@@ -1273,6 +1302,70 @@ func (srv *MCPServer) handleCoachLocalLLM(ctx context.Context, args map[string]i
 		"Coaching file written to %s.\n\nNote: Restart the mnemonic daemon (`mnemonic restart`) for encoding agents to pick up the new coaching instructions.",
 		path,
 	)), nil
+}
+
+// handleIngestProject ingests a local directory into the memory system.
+func (srv *MCPServer) handleIngestProject(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	directory, ok := args["directory"].(string)
+	if !ok || directory == "" {
+		return nil, fmt.Errorf("directory parameter is required and must be a string")
+	}
+
+	project := ""
+	if p, ok := args["project"].(string); ok {
+		project = p
+	}
+
+	dryRun := false
+	if d, ok := args["dry_run"].(bool); ok {
+		dryRun = d
+	}
+
+	cfg := ingest.Config{
+		Dir:             directory,
+		Project:         project,
+		DryRun:          dryRun,
+		ExcludePatterns: srv.excludePatterns,
+		MaxContentBytes: srv.maxContentBytes,
+	}
+
+	result, err := ingest.Run(ctx, cfg, srv.store, srv.bus, srv.log)
+	if err != nil {
+		return nil, fmt.Errorf("ingest failed: %w", err)
+	}
+
+	if dryRun {
+		return toolResult(fmt.Sprintf(
+			"Dry run: found %d files in %s (project: %s). Nothing written.",
+			result.FilesFound, directory, result.Project,
+		)), nil
+	}
+
+	text := fmt.Sprintf(
+		"Ingested %s (project: %s)\n\n"+
+			"  Files found: %d\n"+
+			"  Files written: %d\n"+
+			"  Duplicates skipped: %d\n"+
+			"  Files skipped (binary/empty): %d\n"+
+			"  Files failed: %d\n"+
+			"  Elapsed: %s",
+		directory, result.Project,
+		result.FilesFound, result.FilesWritten,
+		result.DuplicatesSkipped, result.FilesSkipped,
+		result.FilesFailed, result.Elapsed.Round(time.Millisecond),
+	)
+
+	if result.FilesWritten > 0 {
+		encodeEstimate := result.FilesWritten * 8
+		text += fmt.Sprintf("\n\n  The daemon will encode these over the next ~%d minutes.", encodeEstimate/60)
+	}
+
+	srv.log.Info("ingest completed via MCP",
+		"directory", directory,
+		"project", result.Project,
+		"files_written", result.FilesWritten)
+
+	return toolResult(text), nil
 }
 
 // Helper functions

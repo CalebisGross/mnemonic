@@ -438,6 +438,14 @@ func (m *mockStore) GetProjectSummary(ctx context.Context, project string) (map[
 }
 func (m *mockStore) ListProjects(ctx context.Context) ([]string, error) { return nil, nil }
 
+func (m *mockStore) RawMemoryExistsByPath(ctx context.Context, source string, project string, filePath string) (bool, error) {
+	return false, nil
+}
+
+func (m *mockStore) BatchWriteRaw(ctx context.Context, raws []store.RawMemory) error {
+	return nil
+}
+
 func (m *mockStore) Close() error {
 	return nil
 }

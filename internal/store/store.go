@@ -279,7 +279,11 @@ type Store interface {
 	ActivateAssociation(ctx context.Context, sourceID, targetID string) error
 	PruneWeakAssociations(ctx context.Context, strengthThreshold float32) (int, error)
 
+	// --- Deduplication ---
+	RawMemoryExistsByPath(ctx context.Context, source string, project string, filePath string) (bool, error)
+
 	// --- Batch operations (for consolidation) ---
+	BatchWriteRaw(ctx context.Context, raws []RawMemory) error
 	BatchUpdateSalience(ctx context.Context, updates map[string]float32) error
 	BatchMergeMemories(ctx context.Context, sourceIDs []string, gist Memory) error
 	DeleteOldArchived(ctx context.Context, olderThan time.Time) (int, error)
