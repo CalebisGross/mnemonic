@@ -266,6 +266,9 @@ func (m *mockStore) ListPatterns(ctx context.Context, project string, limit int)
 func (m *mockStore) SearchPatternsByEmbedding(ctx context.Context, embedding []float32, limit int) ([]store.Pattern, error) {
 	return nil, nil
 }
+func (m *mockStore) ArchiveAllPatterns(ctx context.Context) (int, error) {
+	return 0, nil
+}
 
 // --- Abstraction operations ---
 func (m *mockStore) WriteAbstraction(ctx context.Context, a store.Abstraction) error { return nil }
@@ -278,6 +281,9 @@ func (m *mockStore) ListAbstractions(ctx context.Context, level int, limit int) 
 }
 func (m *mockStore) SearchAbstractionsByEmbedding(ctx context.Context, embedding []float32, limit int) ([]store.Abstraction, error) {
 	return nil, nil
+}
+func (m *mockStore) ArchiveAllAbstractions(ctx context.Context) (int, error) {
+	return 0, nil
 }
 
 // --- Scoped queries ---

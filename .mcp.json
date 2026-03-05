@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mnemonic": {
+      "command": "./bin/mnemonic",
+      "args": ["mcp"]
+    }
+  }
+}

@@ -167,6 +167,9 @@ func (m *mockStore) ListPatterns(context.Context, string, int) ([]store.Pattern,
 func (m *mockStore) SearchPatternsByEmbedding(context.Context, []float32, int) ([]store.Pattern, error) {
 	return nil, nil
 }
+func (m *mockStore) ArchiveAllPatterns(context.Context) (int, error) {
+	return 0, nil
+}
 func (m *mockStore) WriteAbstraction(context.Context, store.Abstraction) error { return nil }
 func (m *mockStore) GetAbstraction(context.Context, string) (store.Abstraction, error) {
 	return store.Abstraction{}, nil
@@ -177,6 +180,9 @@ func (m *mockStore) ListAbstractions(context.Context, int, int) ([]store.Abstrac
 }
 func (m *mockStore) SearchAbstractionsByEmbedding(context.Context, []float32, int) ([]store.Abstraction, error) {
 	return nil, nil
+}
+func (m *mockStore) ArchiveAllAbstractions(context.Context) (int, error) {
+	return 0, nil
 }
 func (m *mockStore) SearchByProject(context.Context, string, string, int) ([]store.Memory, error) {
 	return nil, nil

@@ -255,3 +255,14 @@ func scanAbstractionRows(rows *sql.Rows) ([]store.Abstraction, error) {
 
 	return abstractions, nil
 }
+
+// ArchiveAllAbstractions transitions all active abstractions to archived state.
+func (s *SQLiteStore) ArchiveAllAbstractions(ctx context.Context) (int, error) {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE abstractions SET state = 'archived', updated_at = datetime('now') WHERE state = 'active'`)
+	if err != nil {
+		return 0, fmt.Errorf("archiving abstractions: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	return int(n), nil
+}

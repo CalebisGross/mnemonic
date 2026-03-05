@@ -1700,11 +1700,15 @@ func cleanupCommand(configPath string, args []string) {
 		return
 	}
 
-	// Check for --yes flag
+	// Check for flags
 	autoConfirm := false
+	cleanPatterns := false
 	for _, a := range args {
 		if a == "--yes" || a == "-y" {
 			autoConfirm = true
+		}
+		if a == "--patterns" {
+			cleanPatterns = true
 		}
 	}
 
@@ -1718,14 +1722,20 @@ func cleanupCommand(configPath string, args []string) {
 	fmt.Printf("%sCleanup Summary%s\n", colorBold, colorReset)
 	fmt.Printf("  Exclude patterns:       %d (from config.yaml)\n", len(patterns))
 	fmt.Printf("  Unprocessed raw events:  %s%d%s matching exclude patterns\n", colorYellow, rawCount, colorReset)
+	if cleanPatterns {
+		fmt.Printf("  --patterns flag:        will archive all active patterns and abstractions\n")
+	}
 
-	if rawCount == 0 {
+	if rawCount == 0 && !cleanPatterns {
 		fmt.Println("\nNothing to clean up.")
 		return
 	}
 
 	if !autoConfirm {
 		fmt.Printf("\nThis will mark matching raw events as processed and archive derived memories.\n")
+		if cleanPatterns {
+			fmt.Printf("It will also archive ALL active patterns and abstractions (they regenerate from clean data).\n")
+		}
 		fmt.Printf("Type 'yes' to confirm: ")
 		var confirmation string
 		_, _ = fmt.Scanln(&confirmation)
@@ -1735,23 +1745,47 @@ func cleanupCommand(configPath string, args []string) {
 		}
 	}
 
-	// Mark raw events as processed
-	rawCleaned, err := db.BulkMarkRawProcessedByPathPatterns(ctx, patterns)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error cleaning raw memories: %v\n", err)
-		os.Exit(1)
+	rawCleaned := 0
+	memArchived := 0
+
+	if rawCount > 0 {
+		// Mark raw events as processed
+		rawCleaned, err = db.BulkMarkRawProcessedByPathPatterns(ctx, patterns)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error cleaning raw memories: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Archive derived encoded memories
+		memArchived, err = db.ArchiveMemoriesByRawPathPatterns(ctx, patterns)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error archiving memories: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
-	// Archive derived encoded memories
-	memArchived, err := db.ArchiveMemoriesByRawPathPatterns(ctx, patterns)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error archiving memories: %v\n", err)
-		os.Exit(1)
+	patternsArchived := 0
+	abstractionsArchived := 0
+	if cleanPatterns {
+		patternsArchived, err = db.ArchiveAllPatterns(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error archiving patterns: %v\n", err)
+			os.Exit(1)
+		}
+		abstractionsArchived, err = db.ArchiveAllAbstractions(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error archiving abstractions: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	fmt.Printf("\n%sCleanup complete%s\n", colorGreen, colorReset)
 	fmt.Printf("  Raw events marked processed:  %d\n", rawCleaned)
 	fmt.Printf("  Encoded memories archived:    %d\n", memArchived)
+	if cleanPatterns {
+		fmt.Printf("  Patterns archived:            %d\n", patternsArchived)
+		fmt.Printf("  Abstractions archived:        %d\n", abstractionsArchived)
+	}
 }
 
 // ============================================================================

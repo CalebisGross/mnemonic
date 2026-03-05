@@ -362,6 +362,7 @@ type Store interface {
 	UpdatePattern(ctx context.Context, p Pattern) error
 	ListPatterns(ctx context.Context, project string, limit int) ([]Pattern, error)
 	SearchPatternsByEmbedding(ctx context.Context, embedding []float32, limit int) ([]Pattern, error)
+	ArchiveAllPatterns(ctx context.Context) (int, error)
 
 	// --- Abstraction operations ---
 	WriteAbstraction(ctx context.Context, a Abstraction) error
@@ -369,6 +370,7 @@ type Store interface {
 	UpdateAbstraction(ctx context.Context, a Abstraction) error
 	ListAbstractions(ctx context.Context, level int, limit int) ([]Abstraction, error)
 	SearchAbstractionsByEmbedding(ctx context.Context, embedding []float32, limit int) ([]Abstraction, error)
+	ArchiveAllAbstractions(ctx context.Context) (int, error)
 
 	// --- Scoped queries ---
 	SearchByProject(ctx context.Context, project string, query string, limit int) ([]Memory, error)

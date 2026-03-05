@@ -690,8 +690,8 @@ func (ra *RetrievalAgent) synthesizeNarrative(ctx context.Context, query string,
 
 	// Build the initial prompt with pre-fetched context
 	var prompt strings.Builder
-	prompt.WriteString("Someone is searching their memory. Help them remember — not just the facts, but the meaning. Draw on everything below to give them a thoughtful, useful answer.\n\n")
-	prompt.WriteString("You have tools available to search for more context if the memories below don't fully answer the question. Use them if something seems incomplete or if you want to follow a thread. When you have enough context, respond with your final synthesis.\n\n")
+	prompt.WriteString("Answer this memory search concisely. Summarize what the memories tell you — focus on concrete facts, decisions, and specifics. Do NOT pad with filler or restate what each memory says individually.\n\n")
+	prompt.WriteString("You have tools available to search for more context if needed. Use them only if the memories below are clearly incomplete.\n\n")
 	fmt.Fprintf(&prompt, "They're asking: %s\n\n", query)
 
 	// Memories section — include IDs so the LLM can reference them with tools
@@ -745,7 +745,7 @@ func (ra *RetrievalAgent) synthesizeNarrative(ctx context.Context, query string,
 		prompt.WriteString("\n")
 	}
 
-	prompt.WriteString("Weave these together into a clear, informative response. Reference specific memories when they illuminate the answer. Include concrete details — file names, what changed, why it matters. If patterns or principles apply, share that wisdom. Be honest about what you're confident in and what's fuzzy. Aim for a thorough summary — a short paragraph per major theme or activity, not just a couple of sentences.")
+	prompt.WriteString("Respond in 2-5 sentences. Include specific details (file names, commands, decisions). Skip patterns/principles unless directly relevant to the query. Do not repeat each memory — synthesize.")
 
 	// Build conversation history for the tool-use loop
 	messages := []llm.Message{

@@ -270,4 +270,15 @@ func scanPatternRows(rows *sql.Rows) ([]store.Pattern, error) {
 	return patterns, nil
 }
 
+// ArchiveAllPatterns transitions all active patterns to archived state.
+func (s *SQLiteStore) ArchiveAllPatterns(ctx context.Context) (int, error) {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE patterns SET state = 'archived', updated_at = datetime('now') WHERE state = 'active'`)
+	if err != nil {
+		return 0, fmt.Errorf("archiving patterns: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	return int(n), nil
+}
+
 // cosineSimilarity and sqrt32 are defined in embindex.go
