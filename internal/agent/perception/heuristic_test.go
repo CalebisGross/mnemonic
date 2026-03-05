@@ -109,6 +109,46 @@ func TestEvaluate_NormalSourceCodePasses(t *testing.T) {
 	}
 }
 
+func TestEvaluate_DesktopNoiseHardReject(t *testing.T) {
+	hf := newTestFilter()
+
+	content := `{"error": "config merge failed", "fix": "update release"}`
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"wireplumber restore-stream", "/home/user/.local/state/wireplumber/restore-stream"},
+		{"wireplumber default-routes", "/home/user/.local/state/wireplumber/default-routes"},
+		{"copilot ide lock", "/home/user/.copilot/ide/346d20a4-955c-47fd-adec-84a8195fb292.lock"},
+		{"snap revision", "/home/user/snap/code/current/.last_revision"},
+		{"gtk bookmarks", "/home/user/.config/gtk-3.0/bookmarks"},
+		{"egg-info", "/home/user/Projects/foo/foo.egg-info/PKG-INFO"},
+		{"mnemonic internal", "/home/user/.mnemonic/memory.db-journal"},
+		{"claude internal", "/home/user/.claude/settings.json"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			event := Event{
+				Source:  "filesystem",
+				Type:    "file_modified",
+				Path:    tc.path,
+				Content: content,
+			}
+
+			result := hf.Evaluate(event)
+			if result.Pass {
+				t.Errorf("expected hard reject for %s, got Pass=true (score=%.2f, rationale=%q)",
+					tc.path, result.Score, result.Rationale)
+			}
+			if result.Score != 0.0 {
+				t.Errorf("expected score 0.0 for %s, got %.2f", tc.path, result.Score)
+			}
+		})
+	}
+}
+
 func TestEvaluate_ClipboardURLHardReject(t *testing.T) {
 	hf := newTestFilter()
 

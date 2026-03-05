@@ -257,7 +257,8 @@ func (h *HeuristicFilter) evaluateSource(source, eventType, path, content string
 func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, string, bool) {
 	// Skip if path contains ignored patterns — hard reject, no keyword override
 	ignoredPatterns := []string{".git/", "node_modules/", "__pycache__/", ".DS_Store", "~", ".swp", ".tmp", ".xbel",
-		"venv/", ".venv/", "site-packages/", ".tox/", ".mypy_cache/", ".ruff_cache/", ".pytest_cache/"}
+		"venv/", ".venv/", "site-packages/", ".tox/", ".mypy_cache/", ".ruff_cache/", ".pytest_cache/",
+		".egg-info/", ".eggs/"}
 	for _, pattern := range ignoredPatterns {
 		if strings.Contains(path, pattern) {
 			return 0.0, fmt.Sprintf("filesystem: ignored path pattern '%s'", pattern), true
@@ -272,9 +273,13 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 		"/leveldb/", "/IndexedDB/", "/Local Storage/", "/Session Storage/",
 		"/Cache/", "/GPUCache/", "/ShaderCache/", "/Code Cache/",
 		"/dconf/", "/gconf/",
-		"/pulse/", "/pipewire/",
+		"/pulse/", "/pipewire/", "/wireplumber/",
 		"/gvfs-metadata/", "/tracker3/",
 		"session_migration-",
+		"/.copilot/", "/.github-copilot/",
+		"/snap/", "/.snap/",
+		"/.config/gtk-", "/.config/dbus-",
+		"/.mnemonic/", "/.claude/",
 	}
 	lowerPathCheck := strings.ToLower(path)
 	for _, dir := range appInternalDirs {

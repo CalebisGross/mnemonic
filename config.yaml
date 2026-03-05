@@ -112,12 +112,19 @@ perception:
       - ".config/google-chrome/"
       - ".config/chromium/"
       - ".config/BraveSoftware/"
+      - ".config/gtk-"
+      - ".config/dbus-"
       - ".local/share/gnome-shell/"
       - ".local/share/Trash/"
+      - ".local/state/wireplumber/"
       - "/dconf/"
       - "/gconf/"
       - "/pulse/"
       - "/pipewire/"
+      - ".copilot/"
+      - ".github-copilot/"
+      - "/snap/"
+      - ".egg-info/"
 
     # Maximum file content size to process (in bytes)
     max_content_bytes: 102400

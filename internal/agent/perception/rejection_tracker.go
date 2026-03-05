@@ -118,6 +118,7 @@ func extractPrefix(path string) string {
 	noiseDirs := []string{
 		".venv/", "venv/", "node_modules/", "__pycache__/",
 		"site-packages/", ".tox/", ".mypy_cache/", ".ruff_cache/", ".pytest_cache/",
+		".egg-info/", ".eggs/",
 	}
 	for _, noiseDir := range noiseDirs {
 		idx := strings.Index(rel, noiseDir)
