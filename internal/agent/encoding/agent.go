@@ -16,6 +16,7 @@ import (
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
+	"github.com/appsprout/mnemonic/internal/watcher/filesystem"
 )
 
 // maxRetries is the number of encoding attempts before a raw memory is skipped.
@@ -53,9 +54,10 @@ type EncodingConfig struct {
 	CompletionModel         string
 	CompletionMaxTokens     int
 	CompletionTemperature   float32
-	MaxConcurrentEncodings  int    // max concurrent LLM encoding calls (default 1 for local models)
-	EnableLLMClassification bool   // if true, use LLM to reclassify "similar" associations in background
-	CoachingFile            string // path to coaching.yaml; empty = no coaching
+	MaxConcurrentEncodings  int      // max concurrent LLM encoding calls (default 1 for local models)
+	EnableLLMClassification bool     // if true, use LLM to reclassify "similar" associations in background
+	CoachingFile            string   // path to coaching.yaml; empty = no coaching
+	ExcludePatterns         []string // paths matching these patterns are skipped (defense-in-depth)
 }
 
 // DefaultConfig returns sensible defaults for encoding configuration.
@@ -369,6 +371,19 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 	consecutiveFailures := 0
 
 	for _, raw := range unprocessed {
+		// Defense-in-depth: skip raw memories whose path matches an exclude pattern.
+		// These should have been filtered at the watcher/perception layer, but if
+		// they leaked through (e.g., added before patterns existed), catch them here.
+		if path, ok := raw.Metadata["path"]; ok {
+			if pathStr, ok := path.(string); ok && pathStr != "" {
+				if filesystem.MatchesExcludePattern(pathStr, ea.config.ExcludePatterns) {
+					ea.log.Debug("skipping excluded path", "raw_id", raw.ID, "path", pathStr)
+					_ = ea.store.MarkRawProcessed(ctx, raw.ID)
+					continue
+				}
+			}
+		}
+
 		// Skip memories that have exceeded max retries
 		ea.processingMutex.Lock()
 		retries := ea.failureCounts[raw.ID]

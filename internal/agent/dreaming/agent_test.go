@@ -441,6 +441,15 @@ func (m *mockStore) ListProjects(ctx context.Context) ([]string, error) { return
 func (m *mockStore) RawMemoryExistsByPath(ctx context.Context, source string, project string, filePath string) (bool, error) {
 	return false, nil
 }
+func (m *mockStore) CountRawUnprocessedByPathPatterns(ctx context.Context, patterns []string) (int, error) {
+	return 0, nil
+}
+func (m *mockStore) BulkMarkRawProcessedByPathPatterns(ctx context.Context, patterns []string) (int, error) {
+	return 0, nil
+}
+func (m *mockStore) ArchiveMemoriesByRawPathPatterns(ctx context.Context, patterns []string) (int, error) {
+	return 0, nil
+}
 
 func (m *mockStore) BatchWriteRaw(ctx context.Context, raws []store.RawMemory) error {
 	return nil

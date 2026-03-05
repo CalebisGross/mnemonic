@@ -140,7 +140,17 @@ func (h *HeuristicFilter) Evaluate(event Event) HeuristicResult {
 	}
 
 	// 4. Source-specific heuristics and base score
-	score, sourceRationale := h.evaluateSource(event.Source, event.Type, event.Path, event.Content)
+	score, sourceRationale, hardReject := h.evaluateSource(event.Source, event.Type, event.Path, event.Content)
+
+	// Hard rejection: source-level filter says this event should never be remembered,
+	// regardless of keyword content. Do not allow keyword scoring to override.
+	if hardReject {
+		return HeuristicResult{
+			Pass:      false,
+			Score:     0.0,
+			Rationale: sourceRationale,
+		}
+	}
 
 	// 4b. Recall-aware salience boost for filesystem events
 	if event.Source == "filesystem" && event.Path != "" {
@@ -225,8 +235,9 @@ func (h *HeuristicFilter) checkAndRecordFrequency(contentHash string) bool {
 	return true
 }
 
-// evaluateSource returns a base score and rationale based on the event source.
-func (h *HeuristicFilter) evaluateSource(source, eventType, path, content string) (float32, string) {
+// evaluateSource returns a base score, rationale, and whether the event should
+// be hard-rejected (no keyword scoring can override it).
+func (h *HeuristicFilter) evaluateSource(source, eventType, path, content string) (float32, string, bool) {
 	switch source {
 	case "filesystem":
 		return h.evaluateFilesystem(path, content)
@@ -238,23 +249,22 @@ func (h *HeuristicFilter) evaluateSource(source, eventType, path, content string
 		return h.evaluateMCP(eventType, content)
 	default:
 		// Unknown source: neutral score
-		return 0.3, fmt.Sprintf("source=%s", source)
+		return 0.3, fmt.Sprintf("source=%s", source), false
 	}
 }
 
 // evaluateFilesystem scores filesystem events.
-func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, string) {
-	// Skip if path contains ignored patterns
+func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, string, bool) {
+	// Skip if path contains ignored patterns — hard reject, no keyword override
 	ignoredPatterns := []string{".git/", "node_modules/", "__pycache__/", ".DS_Store", "~", ".swp", ".tmp", ".xbel",
 		"venv/", ".venv/", "site-packages/", ".tox/", ".mypy_cache/", ".ruff_cache/", ".pytest_cache/"}
 	for _, pattern := range ignoredPatterns {
 		if strings.Contains(path, pattern) {
-			return 0.0, fmt.Sprintf("filesystem: ignored path pattern '%s'", pattern)
+			return 0.0, fmt.Sprintf("filesystem: ignored path pattern '%s'", pattern), true
 		}
 	}
 
-	// Suppress application-internal state directories — these produce high-volume
-	// noise that is never useful for memory (browser storage, desktop state, etc.)
+	// Suppress application-internal state directories — hard reject
 	appInternalDirs := []string{
 		"/google-chrome/", "/chromium/", "/BraveSoftware/",
 		"/LM Studio/", "/lm-studio/",
@@ -269,7 +279,7 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 	lowerPathCheck := strings.ToLower(path)
 	for _, dir := range appInternalDirs {
 		if strings.Contains(lowerPathCheck, strings.ToLower(dir)) {
-			return 0.0, fmt.Sprintf("filesystem: application-internal path '%s'", dir)
+			return 0.0, fmt.Sprintf("filesystem: application-internal path '%s'", dir), true
 		}
 	}
 
@@ -298,22 +308,22 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 		}
 	}
 
-	return score, rationale
+	return score, rationale, false
 }
 
 // evaluateTerminal scores terminal events.
-func (h *HeuristicFilter) evaluateTerminal(content string) (float32, string) {
+func (h *HeuristicFilter) evaluateTerminal(content string) (float32, string, bool) {
 	score := float32(0.3)
 	rationale := "terminal event"
 
 	command := strings.Fields(content)
 	if len(command) == 0 {
-		return score, rationale
+		return score, rationale, false
 	}
 
 	cmd := strings.ToLower(command[0])
 
-	// Skip trivial commands (only if they are just the command itself)
+	// Skip trivial commands (only if they are just the command itself) — hard reject
 	trivialCommands := map[string]bool{
 		"cd": true, "ls": true, "pwd": true, "clear": true,
 		"exit": true, "history": true, "which": true, "whoami": true,
@@ -321,7 +331,7 @@ func (h *HeuristicFilter) evaluateTerminal(content string) (float32, string) {
 	}
 
 	if trivialCommands[cmd] && len(command) == 1 {
-		return 0.0, fmt.Sprintf("terminal: trivial command '%s'", cmd)
+		return 0.0, fmt.Sprintf("terminal: trivial command '%s'", cmd), true
 	}
 
 	// Score boost for high-signal commands
@@ -338,20 +348,20 @@ func (h *HeuristicFilter) evaluateTerminal(content string) (float32, string) {
 		}
 	}
 
-	return score, rationale
+	return score, rationale, false
 }
 
 // evaluateClipboard scores clipboard events.
-func (h *HeuristicFilter) evaluateClipboard(content string) (float32, string) {
+func (h *HeuristicFilter) evaluateClipboard(content string) (float32, string, bool) {
 	score := float32(0.3)
 	rationale := "clipboard event"
 
 	trimmed := strings.TrimSpace(content)
 
-	// Skip if content looks like just a URL
+	// Skip if content looks like just a URL — hard reject
 	if (strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://")) &&
 		!strings.ContainsAny(trimmed, " \t\n") {
-		return 0.0, "clipboard: URL-only content"
+		return 0.0, "clipboard: URL-only content", true
 	}
 
 	// Score boost for code snippets
@@ -368,7 +378,7 @@ func (h *HeuristicFilter) evaluateClipboard(content string) (float32, string) {
 		rationale += fmt.Sprintf("; code snippet detected (%d indicators)", foundCodeIndicators)
 	}
 
-	return score, rationale
+	return score, rationale, false
 }
 
 // scoreKeywords scans content for high-signal words and returns the score bonus and count.
@@ -417,7 +427,7 @@ func (h *HeuristicFilter) scoreKeywords(content string) (float32, int) {
 
 // evaluateMCP scores MCP-source events (from Claude Code tool calls).
 // MCP events are high-signal — they represent explicit user/AI interaction.
-func (h *HeuristicFilter) evaluateMCP(eventType, content string) (float32, string) {
+func (h *HeuristicFilter) evaluateMCP(eventType, content string) (float32, string, bool) {
 	score := float32(0.6) // High base score — MCP events are always intentional
 	rationale := "mcp event (high-signal)"
 
@@ -436,7 +446,7 @@ func (h *HeuristicFilter) evaluateMCP(eventType, content string) (float32, strin
 		rationale += "; learning type"
 	}
 
-	return score, rationale
+	return score, rationale, false
 }
 
 // IsBatchEdit checks if a filesystem event is part of a rapid batch of edits

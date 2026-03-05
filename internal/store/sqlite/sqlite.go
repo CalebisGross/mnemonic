@@ -500,6 +500,96 @@ func (s *SQLiteStore) RawMemoryExistsByPath(ctx context.Context, source string, 
 	return count > 0, nil
 }
 
+// CountRawUnprocessedByPathPatterns counts unprocessed raw memories whose
+// metadata path contains any of the given substring patterns.
+func (s *SQLiteStore) CountRawUnprocessedByPathPatterns(ctx context.Context, patterns []string) (int, error) {
+	if len(patterns) == 0 {
+		return 0, nil
+	}
+
+	conditions := make([]string, len(patterns))
+	args := make([]interface{}, len(patterns))
+	for i, p := range patterns {
+		conditions[i] = "json_extract(metadata, '$.path') LIKE ?"
+		args[i] = "%" + p + "%"
+	}
+
+	query := fmt.Sprintf(
+		"SELECT COUNT(*) FROM raw_memories WHERE processed = 0 AND (%s)",
+		strings.Join(conditions, " OR "),
+	)
+
+	var count int
+	if err := s.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("counting unprocessed raw memories by path patterns: %w", err)
+	}
+	return count, nil
+}
+
+// BulkMarkRawProcessedByPathPatterns marks unprocessed raw memories as processed
+// where the metadata path contains any of the given substring patterns.
+func (s *SQLiteStore) BulkMarkRawProcessedByPathPatterns(ctx context.Context, patterns []string) (int, error) {
+	if len(patterns) == 0 {
+		return 0, nil
+	}
+
+	conditions := make([]string, len(patterns))
+	args := make([]interface{}, len(patterns))
+	for i, p := range patterns {
+		conditions[i] = "json_extract(metadata, '$.path') LIKE ?"
+		args[i] = "%" + p + "%"
+	}
+
+	query := fmt.Sprintf(
+		"UPDATE raw_memories SET processed = 1 WHERE processed = 0 AND (%s)",
+		strings.Join(conditions, " OR "),
+	)
+
+	result, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("bulk marking raw memories processed: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("getting rows affected: %w", err)
+	}
+	return int(affected), nil
+}
+
+// ArchiveMemoriesByRawPathPatterns archives encoded memories whose raw_id
+// references a raw memory with a path matching any of the given patterns.
+func (s *SQLiteStore) ArchiveMemoriesByRawPathPatterns(ctx context.Context, patterns []string) (int, error) {
+	if len(patterns) == 0 {
+		return 0, nil
+	}
+
+	conditions := make([]string, len(patterns))
+	args := make([]interface{}, len(patterns))
+	for i, p := range patterns {
+		conditions[i] = "json_extract(r.metadata, '$.path') LIKE ?"
+		args[i] = "%" + p + "%"
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE memories SET state = 'archived', updated_at = datetime('now')
+		WHERE raw_id IN (
+			SELECT r.id FROM raw_memories r
+			WHERE %s
+		) AND state != 'archived'`,
+		strings.Join(conditions, " OR "),
+	)
+
+	result, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("archiving memories by raw path patterns: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("getting rows affected: %w", err)
+	}
+	return int(affected), nil
+}
+
 // BatchWriteRaw writes multiple raw memories in a single transaction.
 func (s *SQLiteStore) BatchWriteRaw(ctx context.Context, raws []store.RawMemory) error {
 	if len(raws) == 0 {

@@ -48,6 +48,26 @@ func TestExtractPrefix(t *testing.T) {
 			path: filepath.Join(home, ".config/somefile"),
 			want: "",
 		},
+		{
+			name: "project venv",
+			path: filepath.Join(home, "Projects/felixlm/.venv/lib/python3.12/site-packages/pip/config.py"),
+			want: "./Projects/felixlm/.venv/",
+		},
+		{
+			name: "project node_modules",
+			path: filepath.Join(home, "Projects/webapp/node_modules/express/lib/router.js"),
+			want: "./Projects/webapp/node_modules/",
+		},
+		{
+			name: "project pycache",
+			path: filepath.Join(home, "Projects/myapp/__pycache__/module.cpython-312.pyc"),
+			want: "./Projects/myapp/__pycache__/",
+		},
+		{
+			name: "normal project file (no noise dir)",
+			path: filepath.Join(home, "Projects/myapp/internal/server/handler.go"),
+			want: "",
+		},
 	}
 
 	for _, tt := range tests {

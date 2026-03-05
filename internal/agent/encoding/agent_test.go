@@ -248,6 +248,15 @@ func (m *mockStore) ListProjects(ctx context.Context) ([]string, error) { return
 func (m *mockStore) RawMemoryExistsByPath(ctx context.Context, source string, project string, filePath string) (bool, error) {
 	return false, nil
 }
+func (m *mockStore) CountRawUnprocessedByPathPatterns(ctx context.Context, patterns []string) (int, error) {
+	return 0, nil
+}
+func (m *mockStore) BulkMarkRawProcessedByPathPatterns(ctx context.Context, patterns []string) (int, error) {
+	return 0, nil
+}
+func (m *mockStore) ArchiveMemoriesByRawPathPatterns(ctx context.Context, patterns []string) (int, error) {
+	return 0, nil
+}
 func (m *mockStore) BatchWriteRaw(ctx context.Context, raws []store.RawMemory) error { return nil }
 
 func (m *mockStore) Close() error { return nil }
@@ -1592,6 +1601,78 @@ func TestPollAndProcessRawMemories(t *testing.T) {
 			t.Errorf("expected 'failed to list unprocessed' in error, got %q", err.Error())
 		}
 	})
+}
+
+func TestPollAndProcessRawMemories_SkipsExcludedPaths(t *testing.T) {
+	var mu sync.Mutex
+	markedProcessed := make(map[string]bool)
+	encodedIDs := make(map[string]bool)
+
+	ms := &mockStore{
+		listRawUnprocessedFn: func(_ context.Context, limit int) ([]store.RawMemory, error) {
+			return []store.RawMemory{
+				{
+					ID: "venv-1", Content: "pip config", Source: "filesystem", Type: "file_modified",
+					Metadata: map[string]interface{}{"path": "/home/user/Projects/foo/.venv/lib/python3.12/site-packages/pip/config.py"},
+				},
+				{
+					ID: "good-1", Content: "real code", Source: "user", Type: "explicit",
+					Metadata: map[string]interface{}{"path": "/home/user/Projects/foo/main.go"},
+				},
+			}, nil
+		},
+		getRawFn: func(_ context.Context, id string) (store.RawMemory, error) {
+			return store.RawMemory{ID: id, Content: "content", Source: "user", Type: "explicit"}, nil
+		},
+		writeMemoryFn: func(_ context.Context, mem store.Memory) error {
+			mu.Lock()
+			encodedIDs[mem.RawID] = true
+			mu.Unlock()
+			return nil
+		},
+		markRawProcessedFn: func(_ context.Context, id string) error {
+			mu.Lock()
+			markedProcessed[id] = true
+			mu.Unlock()
+			return nil
+		},
+	}
+
+	compressionJSON := `{"summary": "test", "content": "test", "concepts": ["test"], "salience": 0.5}`
+	llmProv := &mockLLMProvider{
+		completeFn: func(_ context.Context, req llm.CompletionRequest) (llm.CompletionResponse, error) {
+			return llm.CompletionResponse{Content: compressionJSON}, nil
+		},
+	}
+
+	bus := newMockBus()
+	agent := NewEncodingAgentWithConfig(ms, llmProv, testLogger(), EncodingConfig{
+		ExcludePatterns: []string{"venv/", ".venv/", "site-packages/", "node_modules/"},
+	})
+	agent.bus = bus
+
+	err := agent.pollAndProcessRawMemories(context.Background())
+	if err != nil {
+		t.Fatalf("pollAndProcessRawMemories failed: %v", err)
+	}
+
+	agent.wg.Wait()
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	// venv-1 should be marked processed but NOT encoded
+	if !markedProcessed["venv-1"] {
+		t.Error("expected venv-1 to be marked processed (skipped)")
+	}
+	if encodedIDs["venv-1"] {
+		t.Error("expected venv-1 to NOT be encoded")
+	}
+
+	// good-1 should be encoded
+	if !encodedIDs["good-1"] {
+		t.Error("expected good-1 to be encoded")
+	}
 }
 
 // ---------------------------------------------------------------------------

@@ -300,6 +300,17 @@ type Store interface {
 	// --- Deduplication ---
 	RawMemoryExistsByPath(ctx context.Context, source string, project string, filePath string) (bool, error)
 
+	// --- Cleanup operations ---
+	// CountRawUnprocessedByPathPatterns counts unprocessed raw memories
+	// whose metadata path matches any of the given substring patterns.
+	CountRawUnprocessedByPathPatterns(ctx context.Context, patterns []string) (int, error)
+	// BulkMarkRawProcessedByPathPatterns marks unprocessed raw memories as processed
+	// where the metadata path matches any of the given substring patterns.
+	BulkMarkRawProcessedByPathPatterns(ctx context.Context, patterns []string) (int, error)
+	// ArchiveMemoriesByRawPathPatterns archives encoded memories whose raw_id
+	// references a raw memory with a path matching any of the given patterns.
+	ArchiveMemoriesByRawPathPatterns(ctx context.Context, patterns []string) (int, error)
+
 	// --- Batch operations (for consolidation) ---
 	BatchWriteRaw(ctx context.Context, raws []RawMemory) error
 	BatchUpdateSalience(ctx context.Context, updates map[string]float32) error

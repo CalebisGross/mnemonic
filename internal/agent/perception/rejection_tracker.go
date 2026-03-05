@@ -113,6 +113,19 @@ func extractPrefix(path string) string {
 		}
 	}
 
+	// Fallback: detect common project-level noise directories anywhere in the path.
+	// E.g., "Projects/foo/.venv/lib/python3.12/..." → "./Projects/foo/.venv/"
+	noiseDirs := []string{
+		".venv/", "venv/", "node_modules/", "__pycache__/",
+		"site-packages/", ".tox/", ".mypy_cache/", ".ruff_cache/", ".pytest_cache/",
+	}
+	for _, noiseDir := range noiseDirs {
+		idx := strings.Index(rel, noiseDir)
+		if idx > 0 {
+			return "./" + rel[:idx+len(noiseDir)]
+		}
+	}
+
 	return ""
 }
 

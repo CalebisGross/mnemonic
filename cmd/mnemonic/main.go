@@ -141,6 +141,8 @@ func main() {
 		dreamCycleCommand(*configPath)
 	case "purge":
 		purgeCommand(*configPath)
+	case "cleanup":
+		cleanupCommand(*configPath, args)
 	case "mcp":
 		mcpCommand(*configPath)
 	case "autopilot":
@@ -898,6 +900,7 @@ func serveCommand(configPath string) {
 			MaxConcurrentEncodings:  cfg.Encoding.MaxConcurrentEncodings,
 			EnableLLMClassification: cfg.Encoding.EnableLLMClassification,
 			CoachingFile:            cfg.Coaching.CoachingFile,
+			ExcludePatterns:         cfg.Perception.Filesystem.ExcludePatterns,
 		})
 		if err := encoder.Start(rootCtx, bus); err != nil {
 			log.Error("failed to start encoding agent", "error", err)
@@ -1345,6 +1348,7 @@ func rememberCommand(configPath, text string) {
 		MaxConcurrentEncodings:  cfg.Encoding.MaxConcurrentEncodings,
 		EnableLLMClassification: cfg.Encoding.EnableLLMClassification,
 		CoachingFile:            cfg.Coaching.CoachingFile,
+		ExcludePatterns:         cfg.Perception.Filesystem.ExcludePatterns,
 	})
 	if err := encoder.Start(encodeCtx, bus); err != nil {
 		fmt.Fprintf(os.Stderr, "Error starting encoder: %v\n", err)
@@ -1679,6 +1683,78 @@ func purgeCommand(configPath string) {
 }
 
 // ============================================================================
+// Cleanup Command (selective noise removal)
+// ============================================================================
+
+// cleanupCommand scans raw_memories for paths matching exclude patterns and
+// bulk-marks them as processed, then archives any encoded memories derived from them.
+func cleanupCommand(configPath string, args []string) {
+	cfg, db, _, _ := initRuntime(configPath)
+	defer db.Close()
+
+	ctx := context.Background()
+
+	patterns := cfg.Perception.Filesystem.ExcludePatterns
+	if len(patterns) == 0 {
+		fmt.Println("No exclude patterns configured in config.yaml — nothing to clean.")
+		return
+	}
+
+	// Check for --yes flag
+	autoConfirm := false
+	for _, a := range args {
+		if a == "--yes" || a == "-y" {
+			autoConfirm = true
+		}
+	}
+
+	// Count what would be cleaned
+	rawCount, err := db.CountRawUnprocessedByPathPatterns(ctx, patterns)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error counting raw memories: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%sCleanup Summary%s\n", colorBold, colorReset)
+	fmt.Printf("  Exclude patterns:       %d (from config.yaml)\n", len(patterns))
+	fmt.Printf("  Unprocessed raw events:  %s%d%s matching exclude patterns\n", colorYellow, rawCount, colorReset)
+
+	if rawCount == 0 {
+		fmt.Println("\nNothing to clean up.")
+		return
+	}
+
+	if !autoConfirm {
+		fmt.Printf("\nThis will mark matching raw events as processed and archive derived memories.\n")
+		fmt.Printf("Type 'yes' to confirm: ")
+		var confirmation string
+		_, _ = fmt.Scanln(&confirmation)
+		if confirmation != "yes" {
+			fmt.Println("Aborted.")
+			return
+		}
+	}
+
+	// Mark raw events as processed
+	rawCleaned, err := db.BulkMarkRawProcessedByPathPatterns(ctx, patterns)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error cleaning raw memories: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Archive derived encoded memories
+	memArchived, err := db.ArchiveMemoriesByRawPathPatterns(ctx, patterns)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error archiving memories: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("\n%sCleanup complete%s\n", colorGreen, colorReset)
+	fmt.Printf("  Raw events marked processed:  %d\n", rawCleaned)
+	fmt.Printf("  Encoded memories archived:    %d\n", memArchived)
+}
+
+// ============================================================================
 // Insights Command (metacognition)
 // ============================================================================
 
@@ -1867,6 +1943,7 @@ func mcpCommand(configPath string) {
 		MaxConcurrentEncodings:  cfg.Encoding.MaxConcurrentEncodings,
 		EnableLLMClassification: cfg.Encoding.EnableLLMClassification,
 		CoachingFile:            cfg.Coaching.CoachingFile,
+		ExcludePatterns:         cfg.Perception.Filesystem.ExcludePatterns,
 	})
 	if err := encoder.Start(ctx, bus); err != nil {
 		log.Error("failed to start encoding agent for MCP", "error", err)
@@ -1932,6 +2009,7 @@ DATA MANAGEMENT:
   export          Export memories (--format json|sqlite, --output path)
   import FILE     Import from JSON export (--mode merge|replace)
   backup          Timestamped backup with retention (keeps last 5)
+  cleanup         Remove noise: mark excluded-path raw events as processed (--yes)
   purge           Stop daemon and delete all data (fresh start)
   insights        Show metacognition observations (memory health)
   meta-cycle      Run a single metacognition analysis cycle
