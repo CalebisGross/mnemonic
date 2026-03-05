@@ -756,6 +756,32 @@ func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, cluste
 			continue
 		}
 
+		// Second dedup: compare the new pattern's own embedding against existing patterns.
+		// This catches duplicates that the cluster-centroid check misses (e.g., two different
+		// clusters producing the same "Code Modification for System Enhancement" pattern).
+		if len(pattern.Embedding) > 0 {
+			existingPatterns, searchErr := ca.store.SearchPatternsByEmbedding(ctx, pattern.Embedding, 1)
+			if searchErr == nil && len(existingPatterns) > 0 && len(existingPatterns[0].Embedding) > 0 {
+				sim := cosineSimilarity(pattern.Embedding, existingPatterns[0].Embedding)
+				if sim >= 0.85 {
+					// Strengthen the existing pattern instead of creating a duplicate
+					ep := &existingPatterns[0]
+					for _, mem := range cluster {
+						if !containsString(ep.EvidenceIDs, mem.ID) {
+							ep.EvidenceIDs = append(ep.EvidenceIDs, mem.ID)
+						}
+					}
+					ep.Strength = min32(ep.Strength+0.03, 1.0)
+					ep.AccessCount++
+					ep.LastAccessed = time.Now()
+					_ = ca.store.UpdatePattern(ctx, *ep)
+					ca.log.Info("dedup: merged new pattern into existing",
+						"existing_id", ep.ID, "existing_title", ep.Title, "similarity", sim)
+					continue
+				}
+			}
+		}
+
 		if err := ca.store.WritePattern(ctx, *pattern); err != nil {
 			ca.log.Warn("failed to write pattern", "error", err)
 			continue
