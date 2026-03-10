@@ -1,4 +1,4 @@
-.PHONY: build run clean test fmt vet start stop restart status watch install uninstall export backup insights dream-cycle mcp benchmark setup-hooks lint
+.PHONY: build run clean test fmt vet start stop restart status watch install uninstall export backup insights dream-cycle mcp benchmark benchmark-quality setup-hooks lint
 
 BINARY=mnemonic
 BUILD_DIR=bin
@@ -86,6 +86,10 @@ mcp: build
 benchmark:
 	CGO_ENABLED=1 go build $(TAGS) -o $(BUILD_DIR)/benchmark ./cmd/benchmark
 	@echo "Benchmark built. Run: ./$(BUILD_DIR)/benchmark (daemon must be running)"
+
+benchmark-quality:
+	CGO_ENABLED=1 go build $(TAGS) $(LDFLAGS) -o $(BUILD_DIR)/benchmark-quality ./cmd/benchmark-quality
+	@echo "Quality benchmark built. Run: ./$(BUILD_DIR)/benchmark-quality"
 
 # --- Lint ---
 lint:
