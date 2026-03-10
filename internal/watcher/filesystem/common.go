@@ -12,12 +12,55 @@ import (
 type Config struct {
 	WatchDirs          []string
 	ExcludePatterns    []string
+	SensitivePatterns  []string
 	MaxContentBytes    int
 	MaxWatches         int // hard cap on inotify watches (Linux only, 0 = unlimited)
 	ShallowDepth       int // inotify watch depth at startup (default: 3)
 	PollIntervalSec    int // how often to scan cold directories (default: 45)
 	PromotionThreshold int // changes in poll window to promote to hot (default: 3)
 	DemotionTimeoutMin int // minutes of inactivity before demotion (default: 30)
+}
+
+// DefaultSensitivePatterns returns patterns for files that should never be ingested.
+func DefaultSensitivePatterns() []string {
+	return []string{
+		".env",
+		".env.",
+		"id_rsa",
+		"id_ed25519",
+		"id_ecdsa",
+		"id_dsa",
+		".pem",
+		".key",
+		".p12",
+		".pfx",
+		"credentials",
+		"secret",
+		".keychain",
+		".keystore",
+		".jks",
+		"known_hosts",
+		"authorized_keys",
+		".netrc",
+		".npmrc",
+		".pypirc",
+		"token.json",
+		"service-account",
+		".htpasswd",
+	}
+}
+
+// IsSensitiveFile checks if a file path matches any sensitive pattern.
+// Uses filename-level matching: checks if the base filename contains the pattern.
+func IsSensitiveFile(path string, patterns []string) bool {
+	base := strings.ToLower(filepath.Base(path))
+	for _, pattern := range patterns {
+		p := strings.ToLower(pattern)
+		if strings.Contains(base, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // MatchesExcludePattern checks if a path matches any exclude pattern.

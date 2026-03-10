@@ -75,6 +75,7 @@ type FilesystemPerceptionConfig struct {
 	Enabled            bool     `yaml:"enabled"`
 	WatchDirs          []string `yaml:"watch_dirs"`
 	ExcludePatterns    []string `yaml:"exclude_patterns"`
+	SensitivePatterns  []string `yaml:"sensitive_patterns"` // file patterns to never ingest (e.g. .env, id_rsa)
 	MaxContentBytes    int      `yaml:"max_content_bytes"`
 	MaxWatches         int      `yaml:"max_watches"`          // hard cap on inotify watches (Linux only, 0 = unlimited)
 	ShallowDepth       int      `yaml:"shallow_depth"`        // inotify watch depth at startup (default: 3)
@@ -313,6 +314,30 @@ func Default() *Config {
 					"venv/",
 					".venv/",
 					"site-packages/",
+				},
+				SensitivePatterns: []string{
+					".env",
+					"id_rsa",
+					"id_ed25519",
+					"id_ecdsa",
+					"id_dsa",
+					".pem",
+					".key",
+					".p12",
+					".pfx",
+					"credentials",
+					"secret",
+					".keychain",
+					".keystore",
+					".jks",
+					"known_hosts",
+					"authorized_keys",
+					".netrc",
+					".npmrc",
+					".pypirc",
+					"token.json",
+					"service-account",
+					".htpasswd",
 				},
 				MaxContentBytes:    102400,
 				MaxWatches:         20000,
@@ -603,12 +628,19 @@ func (c *Config) Validate() error {
 
 	// Warn about dangerous watch directories
 	home, _ := os.UserHomeDir()
+	sensitiveDirs := []string{".ssh", ".gnupg", ".aws", ".config/gcloud"}
 	for _, dir := range c.Perception.Filesystem.WatchDirs {
 		if dir == "/" {
 			return fmt.Errorf("perception.filesystem.watch_dirs contains root directory — this will overwhelm the system")
 		}
 		if home != "" && dir == home {
 			return fmt.Errorf("perception.filesystem.watch_dirs contains home directory %q — use specific subdirectories instead (e.g. ~/Documents, ~/Projects)", home)
+		}
+		for _, sensitive := range sensitiveDirs {
+			sensitiveDir := filepath.Join(home, sensitive)
+			if dir == sensitiveDir || strings.HasPrefix(dir, sensitiveDir+"/") {
+				return fmt.Errorf("perception.filesystem.watch_dirs contains sensitive directory %q — this may expose secrets", dir)
+			}
 		}
 	}
 	if c.Memory.MaxWorkingMemory <= 0 {

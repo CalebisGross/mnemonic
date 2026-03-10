@@ -1157,6 +1157,7 @@ func serveCommand(configPath string) {
 			fsw, err := fswatcher.NewFilesystemWatcher(fswatcher.Config{
 				WatchDirs:          cfg.Perception.Filesystem.WatchDirs,
 				ExcludePatterns:    allExclusions,
+				SensitivePatterns:  cfg.Perception.Filesystem.SensitivePatterns,
 				MaxContentBytes:    cfg.Perception.Filesystem.MaxContentBytes,
 				MaxWatches:         cfg.Perception.Filesystem.MaxWatches,
 				ShallowDepth:       cfg.Perception.Filesystem.ShallowDepth,
@@ -1526,6 +1527,12 @@ func initRuntime(configPath string) (*config.Config, *sqlite.SQLiteStore, *llm.L
 // daemon via API so the daemon's own encoding agent picks it up (no duplicate encoder).
 // If the daemon is NOT running, it spins up a local encoder and waits for it to finish.
 func rememberCommand(configPath, text string) {
+	const maxRememberBytes = 10240 // 10KB
+	if len(text) > maxRememberBytes {
+		fmt.Fprintf(os.Stderr, "Error: input too large (%d bytes, max %d). Pipe large content through 'mnemonic ingest' instead.\n", len(text), maxRememberBytes)
+		os.Exit(1)
+	}
+
 	cfg, db, llmProvider, log := initRuntime(configPath)
 	defer db.Close()
 

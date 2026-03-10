@@ -465,8 +465,9 @@ func (fw *FilesystemWatcher) handleEvents(ctx context.Context) {
 			}
 			fw.mu.RLock()
 			excluded := MatchesExcludePattern(event.Name, fw.cfg.ExcludePatterns)
+			sensitive := len(fw.cfg.SensitivePatterns) > 0 && IsSensitiveFile(event.Name, fw.cfg.SensitivePatterns)
 			fw.mu.RUnlock()
-			if excluded {
+			if excluded || sensitive {
 				continue
 			}
 

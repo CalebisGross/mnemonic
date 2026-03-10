@@ -288,6 +288,19 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 		}
 	}
 
+	// Hard-reject sensitive files (defense-in-depth — watcher should block these first)
+	sensitiveNames := []string{".env", "id_rsa", "id_ed25519", "id_ecdsa", ".pem", ".key",
+		"credentials", "secret", ".keychain", ".keystore", ".netrc", ".htpasswd"}
+	baseName := strings.ToLower(path)
+	if idx := strings.LastIndex(baseName, "/"); idx >= 0 {
+		baseName = baseName[idx+1:]
+	}
+	for _, s := range sensitiveNames {
+		if strings.Contains(baseName, s) {
+			return 0.0, fmt.Sprintf("filesystem: sensitive file '%s'", s), true
+		}
+	}
+
 	score := float32(0.3)
 	rationale := "filesystem event"
 
