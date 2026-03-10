@@ -723,7 +723,7 @@
         .agent-memory-stat .stat-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
 
         /* ── Agent Chat ── */
-        .agent-chat-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-top: 16px; display: flex; flex-direction: column; height: 420px; }
+        .agent-chat-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-top: 16px; display: flex; flex-direction: column; height: 600px; }
         .agent-chat-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; gap: 8px; }
         .agent-chat-header-left { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
         .agent-chat-header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
@@ -805,7 +805,7 @@
             .agent-view { padding: 12px 16px; }
             .agent-header { flex-direction: column; align-items: flex-start; gap: 8px; }
             .agent-memory-bar { grid-template-columns: 1fr 1fr; }
-            .agent-chat-panel { height: 350px; }
+            .agent-chat-panel { height: 450px; }
         }
     </style>
 </head>
@@ -930,6 +930,12 @@
                     <div class="legend-item"><div class="legend-line" style="background:var(--accent-violet)"></div> part_of</div>
                 </div>
                 <div class="graph-controls" id="graphControls">
+                    <label>View
+                        <select id="graphView" onchange="onGraphFilterChange()" style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:4px;color:var(--text-secondary);font-size:0.75rem;padding:2px 4px;font-family:inherit;outline:none;">
+                            <option value="episodes">Episodes</option>
+                            <option value="memories">Memories</option>
+                        </select>
+                    </label>
                     <label>Edge strength <input type="range" id="graphStrength" min="0" max="0.8" step="0.05" value="0.20" oninput="onGraphFilterChange()"> <span class="range-val" id="graphStrengthVal">0.20</span></label>
                     <label>Min salience <input type="range" id="graphSalience" min="0" max="0.8" step="0.05" value="0.10" oninput="onGraphFilterChange()"> <span class="range-val" id="graphSalienceVal">0.10</span></label>
                 </div>
@@ -995,7 +1001,7 @@
                         <div id="agentPatchesContent"></div>
                     </div>
                     <!-- Chat Panel -->
-                    <div class="agent-chat-panel" id="agentChatPanel" style="display:none">
+                    <div class="agent-chat-panel" id="agentChatPanel">
                         <div class="agent-chat-header">
                             <div class="agent-chat-header-left">
                                 <button class="chat-header-btn" onclick="toggleChatHistory()" title="Chat history">
@@ -1021,7 +1027,14 @@
                         <div class="chat-history-panel" id="chatHistoryPanel" style="display:none">
                             <div id="chatHistoryList"><div class="chat-history-empty">No conversations yet</div></div>
                         </div>
-                        <div class="agent-chat-messages" id="chatMessages"></div>
+                        <div class="agent-chat-messages" id="chatMessages">
+                            <div id="chatSetupHint" style="text-align:center;padding:24px 16px;color:var(--text-dim);font-size:0.8rem;line-height:1.6;">
+                                <div style="font-size:1.2rem;margin-bottom:8px;opacity:0.5;">&#9670;</div>
+                                Agent chat requires the Python SDK.<br>
+                                Enable <code style="background:var(--bg-tertiary);padding:1px 5px;border-radius:3px;font-size:0.75rem;">agent_sdk.enabled: true</code> in config.yaml<br>
+                                and run the agent on port 9998.
+                            </div>
+                        </div>
                         <div class="agent-chat-input-row">
                             <textarea class="agent-chat-input" id="chatInput" rows="1" placeholder="Ask the agent anything..." disabled
                                 onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"
@@ -1461,7 +1474,8 @@
         var minStrength = document.getElementById('graphStrength').value;
         var minSalience = document.getElementById('graphSalience').value;
         try {
-            var resp = await fetch(CONFIG.API_BASE + '/graph?limit=200&min_strength=' + minStrength + '&min_salience=' + minSalience + '&view=episodes');
+            var graphView = document.getElementById('graphView').value;
+            var resp = await fetch(CONFIG.API_BASE + '/graph?limit=200&min_strength=' + minStrength + '&min_salience=' + minSalience + '&view=' + graphView);
             var data = await resp.json();
             state.graphData = data;
             renderGraph(data);
@@ -2064,7 +2078,8 @@
         if (!webPort || webPort === 0) return;
         var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         agentChat.wsUrl = proto + '//127.0.0.1:' + webPort + '/ws';
-        document.getElementById('agentChatPanel').style.display = 'flex';
+        var hint = document.getElementById('chatSetupHint');
+        if (hint) hint.remove();
         // Restore model preference from localStorage
         var savedModel = localStorage.getItem('agentModel');
         if (savedModel) {
@@ -2233,7 +2248,8 @@
 
     function scrollChatBottom() {
         var el = document.getElementById('chatMessages');
-        el.scrollTop = el.scrollHeight;
+        var nearBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 80;
+        if (nearBottom) el.scrollTop = el.scrollHeight;
     }
 
     function sendChatMessage() {
