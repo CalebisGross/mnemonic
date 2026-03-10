@@ -207,7 +207,10 @@ func (m *mockStore) ArchiveMemoriesByRawPathPatterns(context.Context, []string) 
 	return 0, nil
 }
 func (m *mockStore) BatchWriteRaw(context.Context, []store.RawMemory) error { return nil }
-func (m *mockStore) Close() error                                           { return nil }
+func (m *mockStore) DeleteOldMetaObservations(_ context.Context, _ time.Time) (int, error) {
+	return 0, nil
+}
+func (m *mockStore) Close() error { return nil }
 
 // ---------------------------------------------------------------------------
 // Helper: synchronous bus for deterministic tests

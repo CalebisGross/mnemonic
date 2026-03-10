@@ -461,6 +461,10 @@ func (m *mockStore) BatchWriteRaw(ctx context.Context, raws []store.RawMemory) e
 	return nil
 }
 
+func (m *mockStore) DeleteOldMetaObservations(_ context.Context, _ time.Time) (int, error) {
+	return 0, nil
+}
+
 func (m *mockStore) Close() error {
 	return nil
 }

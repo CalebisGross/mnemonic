@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -43,7 +44,10 @@ Add new principles when you discover a reliable rule through experience:
   source: "How/when you learned this"
   confidence: 0.5  # start at 0.5, increase with validation
   created: "<today's date>"
+  last_reinforced: "<today's date>"  # reset when confidence increases
 ```
+Note: Principles decay automatically (~2%/day after 14 days without reinforcement).
+When you validate a principle, update both `confidence` and `last_reinforced`.
 
 ### evolution/strategies.yaml
 Add or refine strategies for task types (bug_fix, new_feature, refactor, etc.):
@@ -100,6 +104,9 @@ Time for a self-improvement cycle. Reflect deeply on recent experience:
 1. Call mcp__mnemonic__get_insights to review metacognition observations.
 2. Call mcp__mnemonic__get_patterns to review recurring patterns.
 3. Read evolution/principles.yaml — remove stale principles, increase confidence on validated ones.
+   When you increase a principle's confidence, also set `last_reinforced: "<today's date>"` (YYYY-MM-DD).
+   This resets the automatic decay timer. Principles that go unreinforced for 14+ days lose confidence
+   at ~2%/day and are pruned below 0.3 — so only reinforce principles you have fresh evidence for.
 4. Read evolution/strategies.yaml — refine strategies based on recent experience.
 5. Consider adding new prompt_patches if you notice behavioral gaps.
 6. Call mcp__mnemonic__audit_encodings (limit=5) — review recent encoding quality.
@@ -111,13 +118,109 @@ Only change things you have evidence for. Don't speculate.
 
 _PRINCIPLES_MIN_CONFIDENCE = 0.6
 _PRINCIPLES_MAX = 15
-_STRATEGIES_INCLUDE_TIPS = False
+_STRATEGIES_INCLUDE_TIPS = True
 _PATCHES_MAX = 20
 _PROMPT_BUDGET = 20_000
+
+_DECAY_GRACE_DAYS = 14
+_DECAY_RATE_PER_DAY = 0.98
+_DECAY_PRUNE_THRESHOLD = 0.3
+
+
+def _decay_stale_principles(evolution_dir: str) -> None:
+    """Apply time-based confidence decay to principles that haven't been reinforced.
+
+    - 14-day grace period from created/last_reinforced date.
+    - After grace: multiply confidence by 0.98 per elapsed day.
+    - Below 0.3 confidence: prune from the file.
+    - Runs at most once per day (stamp file).
+    """
+    evo = Path(evolution_dir)
+    principles_file = evo / "principles.yaml"
+    if not principles_file.exists():
+        return
+
+    # Rate-limit: only run decay once per day
+    stamp_file = evo / ".decay_stamp"
+    today = datetime.now().strftime("%Y-%m-%d")
+    if stamp_file.exists():
+        try:
+            if stamp_file.read_text().strip() == today:
+                return
+        except OSError:
+            pass
+
+    try:
+        data = yaml.safe_load(principles_file.read_text()) or {}
+    except (yaml.YAMLError, OSError) as e:
+        logger.warning("Failed to load principles.yaml for decay: %s", e)
+        return
+
+    principles = data.get("principles", [])
+    if not principles:
+        return
+
+    now = datetime.now()
+    changed = False
+    surviving = []
+
+    for p in principles:
+        # Determine the anchor date (last_reinforced takes priority over created)
+        anchor_str = p.get("last_reinforced") or p.get("created")
+        if not anchor_str:
+            surviving.append(p)
+            continue
+
+        try:
+            anchor = datetime.strptime(str(anchor_str), "%Y-%m-%d")
+        except ValueError:
+            surviving.append(p)
+            continue
+
+        days_since = (now - anchor).days
+        if days_since <= _DECAY_GRACE_DAYS:
+            surviving.append(p)
+            continue
+
+        # Apply multiplicative decay for days beyond grace period
+        decay_days = days_since - _DECAY_GRACE_DAYS
+        confidence = p.get("confidence", 0.5)
+        new_confidence = confidence * (_DECAY_RATE_PER_DAY ** decay_days)
+        new_confidence = round(new_confidence, 3)
+
+        if new_confidence < _DECAY_PRUNE_THRESHOLD:
+            logger.info("Pruning principle %s (confidence %.3f < %.1f)",
+                        p.get("id", "?"), new_confidence, _DECAY_PRUNE_THRESHOLD)
+            changed = True
+            continue  # skip — don't add to surviving
+
+        if new_confidence != confidence:
+            p["confidence"] = new_confidence
+            changed = True
+
+        surviving.append(p)
+
+    if changed:
+        data["principles"] = surviving
+        try:
+            principles_file.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
+            logger.info("Decayed principles: %d kept, %d pruned",
+                        len(surviving), len(principles) - len(surviving))
+        except OSError as e:
+            logger.warning("Failed to write decayed principles: %s", e)
+
+    # Write stamp regardless of whether changes occurred — decay was evaluated today
+    try:
+        stamp_file.write_text(today)
+    except OSError:
+        pass
 
 
 def assemble_system_prompt(evolution_dir: str) -> str:
     """Dynamically build the system prompt from base + evolution files."""
+    # Decay stale principles before building the prompt
+    _decay_stale_principles(evolution_dir)
+
     parts = [BASE_PROMPT]
 
     evo = Path(evolution_dir)

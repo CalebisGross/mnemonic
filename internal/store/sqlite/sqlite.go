@@ -1763,6 +1763,18 @@ func (s *SQLiteStore) ListMetaObservations(ctx context.Context, observationType 
 	return observations, rows.Err()
 }
 
+// DeleteOldMetaObservations removes meta observations older than the given time.
+func (s *SQLiteStore) DeleteOldMetaObservations(ctx context.Context, olderThan time.Time) (int, error) {
+	result, err := s.db.ExecContext(ctx,
+		`DELETE FROM meta_observations WHERE created_at < ?`,
+		olderThan.Format(time.RFC3339))
+	if err != nil {
+		return 0, fmt.Errorf("deleting old meta observations: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	return int(n), nil
+}
+
 // GetDeadMemories returns active memories that haven't been accessed since cutoffDate.
 func (s *SQLiteStore) GetDeadMemories(ctx context.Context, cutoffDate time.Time) ([]store.Memory, error) {
 	cutoffStr := cutoffDate.Format("2006-01-02 15:04:05")

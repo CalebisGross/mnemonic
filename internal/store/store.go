@@ -328,6 +328,7 @@ type Store interface {
 	// --- Metacognition operations ---
 	WriteMetaObservation(ctx context.Context, obs MetaObservation) error
 	ListMetaObservations(ctx context.Context, observationType string, limit int) ([]MetaObservation, error)
+	DeleteOldMetaObservations(ctx context.Context, olderThan time.Time) (int, error)
 	GetDeadMemories(ctx context.Context, cutoffDate time.Time) ([]Memory, error)
 	GetSourceDistribution(ctx context.Context) (map[string]int, error)
 

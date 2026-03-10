@@ -258,7 +258,7 @@ func (aa *AbstractionAgent) synthesizePrinciples(ctx context.Context, report *Cy
 
 // synthesizeAxioms clusters level-2 abstractions and synthesizes level-3 axioms.
 func (aa *AbstractionAgent) synthesizeAxioms(ctx context.Context, report *CycleReport) error {
-	principles, err := aa.store.ListAbstractions(ctx, 2, 50)
+	principles, err := aa.store.ListAbstractions(ctx, 2, 500)
 	if err != nil {
 		return fmt.Errorf("failed to list principles: %w", err)
 	}
@@ -349,7 +349,7 @@ func (aa *AbstractionAgent) synthesizeAxioms(ctx context.Context, report *CycleR
 // verifyGrounding checks that abstractions still have active supporting evidence.
 func (aa *AbstractionAgent) verifyGrounding(ctx context.Context, report *CycleReport) error {
 	for _, level := range []int{2, 3} {
-		abstractions, err := aa.store.ListAbstractions(ctx, level, 50)
+		abstractions, err := aa.store.ListAbstractions(ctx, level, 500)
 		if err != nil {
 			continue
 		}

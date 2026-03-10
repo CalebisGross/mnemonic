@@ -168,16 +168,18 @@ func (ca *ConsolidationAgent) consolidationLoop() {
 
 // CycleReport summarizes what happened during a consolidation cycle.
 type CycleReport struct {
-	StartTime            time.Time
-	Duration             time.Duration
-	MemoriesProcessed    int
-	MemoriesDecayed      int
-	TransitionedFading   int
-	TransitionedArchived int
-	AssociationsPruned   int
-	MergesPerformed      int
-	PatternsExtracted    int
-	ExpiredDeleted       int
+	StartTime                time.Time
+	Duration                 time.Duration
+	MemoriesProcessed        int
+	MemoriesDecayed          int
+	TransitionedFading       int
+	TransitionedArchived     int
+	AssociationsPruned       int
+	MergesPerformed          int
+	PatternsExtracted        int
+	ExpiredDeleted           int
+	AbstractionsDeduplicated int
+	PatternsDecayed          int
 }
 
 // runCycle executes the full consolidation pipeline.
@@ -240,6 +242,20 @@ func (ca *ConsolidationAgent) runCycle(ctx context.Context) (*CycleReport, error
 		ca.log.Warn("expired deletion failed", "error", err)
 	}
 	report.ExpiredDeleted = deleted
+
+	// Step 7: Deduplicate abstractions (no LLM needed — compares existing embeddings + titles)
+	abstDeduped, err := ca.dedupAbstractions(ctx)
+	if err != nil {
+		ca.log.Warn("abstraction dedup failed", "error", err)
+	}
+	report.AbstractionsDeduplicated = abstDeduped
+
+	// Step 8: Decay stale pattern strength
+	patternsDecayed, err := ca.decayPatterns(ctx)
+	if err != nil {
+		ca.log.Warn("pattern decay failed", "error", err)
+	}
+	report.PatternsDecayed = patternsDecayed
 
 	// Record the cycle
 	report.Duration = time.Since(startTime)
@@ -756,27 +772,39 @@ func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, cluste
 			continue
 		}
 
-		// Second dedup: compare the new pattern's own embedding against existing patterns.
-		// This catches duplicates that the cluster-centroid check misses (e.g., two different
-		// clusters producing the same "Code Modification for System Enhancement" pattern).
+		// Second dedup: compare the new pattern's embedding AND title against existing patterns.
+		// Two signals: embedding cosine >= 0.80 OR title Jaccard >= 0.6.
+		// This catches duplicates where embeddings differ but titles are near-identical.
 		if len(pattern.Embedding) > 0 {
-			existingPatterns, searchErr := ca.store.SearchPatternsByEmbedding(ctx, pattern.Embedding, 1)
-			if searchErr == nil && len(existingPatterns) > 0 && len(existingPatterns[0].Embedding) > 0 {
-				sim := cosineSimilarity(pattern.Embedding, existingPatterns[0].Embedding)
-				if sim >= 0.85 {
-					// Strengthen the existing pattern instead of creating a duplicate
-					ep := &existingPatterns[0]
-					for _, mem := range cluster {
-						if !containsString(ep.EvidenceIDs, mem.ID) {
-							ep.EvidenceIDs = append(ep.EvidenceIDs, mem.ID)
-						}
+			existingPatterns, searchErr := ca.store.SearchPatternsByEmbedding(ctx, pattern.Embedding, 3)
+			if searchErr == nil {
+				foundDup := false
+				for i := range existingPatterns {
+					ep := &existingPatterns[i]
+					if len(ep.Embedding) == 0 {
+						continue
 					}
-					ep.Strength = min32(ep.Strength+0.03, 1.0)
-					ep.AccessCount++
-					ep.LastAccessed = time.Now()
-					_ = ca.store.UpdatePattern(ctx, *ep)
-					ca.log.Info("dedup: merged new pattern into existing",
-						"existing_id", ep.ID, "existing_title", ep.Title, "similarity", sim)
+					embSim := cosineSimilarity(pattern.Embedding, ep.Embedding)
+					titleSim := normalizedTitleSimilarity(pattern.Title, ep.Title)
+					if isDuplicate(pattern.Title, ep.Title, pattern.Embedding, ep.Embedding, 0.6, 0.80) {
+						for _, mem := range cluster {
+							if !containsString(ep.EvidenceIDs, mem.ID) {
+								ep.EvidenceIDs = append(ep.EvidenceIDs, mem.ID)
+							}
+						}
+						ep.Strength = min32(ep.Strength+0.03, 1.0)
+						ep.AccessCount++
+						ep.LastAccessed = time.Now()
+						ep.UpdatedAt = time.Now()
+						_ = ca.store.UpdatePattern(ctx, *ep)
+						ca.log.Info("dedup: merged new pattern into existing",
+							"existing_id", ep.ID, "existing_title", ep.Title,
+							"emb_sim", embSim, "title_sim", titleSim)
+						foundDup = true
+						break
+					}
+				}
+				if foundDup {
 					continue
 				}
 			}
@@ -1180,6 +1208,8 @@ func (ca *ConsolidationAgent) logReport(report *CycleReport) {
 		"merges", report.MergesPerformed,
 		"patterns", report.PatternsExtracted,
 		"expired_deleted", report.ExpiredDeleted,
+		"abstractions_deduped", report.AbstractionsDeduplicated,
+		"patterns_decayed", report.PatternsDecayed,
 	)
 }
 
@@ -1198,4 +1228,196 @@ func cosineSimilarity(a, b []float32) float32 {
 		return 0
 	}
 	return dot / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB))))
+}
+
+// isDuplicate returns true if two items are near-duplicates based on title Jaccard and embedding cosine.
+// For short titles (<=4 words in either), requires BOTH signals to exceed thresholds to avoid false positives.
+func isDuplicate(titleA, titleB string, embA, embB []float32, titleThresh, embThresh float32) bool {
+	titleSim := normalizedTitleSimilarity(titleA, titleB)
+	var embSim float32
+	if len(embA) > 0 && len(embB) > 0 {
+		embSim = cosineSimilarity(embA, embB)
+	}
+	wordsA := len(strings.Fields(titleA))
+	wordsB := len(strings.Fields(titleB))
+	shortTitle := wordsA <= 4 || wordsB <= 4
+	if shortTitle {
+		// Both signals must agree for short titles
+		return titleSim >= titleThresh && embSim >= embThresh
+	}
+	return titleSim >= titleThresh || embSim >= embThresh
+}
+
+// normalizedTitleSimilarity computes word-level Jaccard similarity between two titles.
+func normalizedTitleSimilarity(a, b string) float32 {
+	wordsA := strings.Fields(strings.ToLower(a))
+	wordsB := strings.Fields(strings.ToLower(b))
+	if len(wordsA) == 0 || len(wordsB) == 0 {
+		return 0
+	}
+	setA := make(map[string]bool, len(wordsA))
+	for _, w := range wordsA {
+		setA[w] = true
+	}
+	intersection := 0
+	setB := make(map[string]bool, len(wordsB))
+	for _, w := range wordsB {
+		setB[w] = true
+		if setA[w] {
+			intersection++
+		}
+	}
+	union := len(setA)
+	for w := range setB {
+		if !setA[w] {
+			union++
+		}
+	}
+	if union == 0 {
+		return 0
+	}
+	return float32(intersection) / float32(union)
+}
+
+// dedupAbstractions archives near-duplicate abstractions, keeping the oldest (canonical) one.
+// Uses two signals: title Jaccard similarity >= 0.6 OR embedding cosine >= 0.75.
+func (ca *ConsolidationAgent) dedupAbstractions(ctx context.Context) (int, error) {
+	archived := 0
+
+	for _, level := range []int{2, 3} {
+		abstractions, err := ca.store.ListAbstractions(ctx, level, 500)
+		if err != nil {
+			return archived, fmt.Errorf("listing level-%d abstractions: %w", level, err)
+		}
+
+		// Sort by CreatedAt ascending — oldest first (canonical)
+		sort.Slice(abstractions, func(i, j int) bool {
+			return abstractions[i].CreatedAt.Before(abstractions[j].CreatedAt)
+		})
+
+		// Track which IDs have already been archived in this pass
+		archivedIDs := make(map[string]bool)
+
+		for i := 0; i < len(abstractions); i++ {
+			if archivedIDs[abstractions[i].ID] {
+				continue
+			}
+
+			for j := i + 1; j < len(abstractions); j++ {
+				if archivedIDs[abstractions[j].ID] {
+					continue
+				}
+
+				titleSim := normalizedTitleSimilarity(abstractions[i].Title, abstractions[j].Title)
+				var embSim float32
+				if len(abstractions[i].Embedding) > 0 && len(abstractions[j].Embedding) > 0 {
+					embSim = cosineSimilarity(abstractions[i].Embedding, abstractions[j].Embedding)
+				}
+
+				if isDuplicate(abstractions[i].Title, abstractions[j].Title, abstractions[i].Embedding, abstractions[j].Embedding, 0.6, 0.75) {
+					// Archive the newer one (j), transfer unique source IDs to canonical (i)
+					canonical := &abstractions[i]
+					dup := &abstractions[j]
+
+					for _, pid := range dup.SourcePatternIDs {
+						if !containsString(canonical.SourcePatternIDs, pid) {
+							canonical.SourcePatternIDs = append(canonical.SourcePatternIDs, pid)
+						}
+					}
+					for _, mid := range dup.SourceMemoryIDs {
+						if !containsString(canonical.SourceMemoryIDs, mid) {
+							canonical.SourceMemoryIDs = append(canonical.SourceMemoryIDs, mid)
+						}
+					}
+					canonical.UpdatedAt = time.Now()
+					if err := ca.store.UpdateAbstraction(ctx, *canonical); err != nil {
+						ca.log.Warn("failed to update canonical abstraction", "id", canonical.ID, "error", err)
+					}
+
+					dup.State = "archived"
+					dup.UpdatedAt = time.Now()
+					if err := ca.store.UpdateAbstraction(ctx, *dup); err != nil {
+						ca.log.Warn("failed to archive duplicate abstraction", "id", dup.ID, "error", err)
+						continue
+					}
+					archivedIDs[dup.ID] = true
+					archived++
+					ca.log.Debug("deduped abstraction",
+						"canonical", canonical.Title, "duplicate", dup.Title,
+						"title_sim", titleSim, "emb_sim", embSim, "level", level)
+				}
+			}
+		}
+	}
+
+	if archived > 0 {
+		ca.log.Info("abstraction dedup completed", "archived", archived)
+	}
+	return archived, nil
+}
+
+// decayPatterns applies strength decay to patterns that haven't been accessed recently
+// and whose evidence memories are mostly archived/fading.
+func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
+	patterns, err := ca.store.ListPatterns(ctx, "", 500)
+	if err != nil {
+		return 0, fmt.Errorf("listing patterns for decay: %w", err)
+	}
+
+	decayed := 0
+	for i := range patterns {
+		p := &patterns[i]
+		if p.State != "active" {
+			continue
+		}
+
+		// No decay if accessed or created within 7 days
+		recency := p.LastAccessed
+		if recency.IsZero() {
+			recency = p.CreatedAt
+		}
+		if !recency.IsZero() && time.Since(recency).Hours() < 168 {
+			continue
+		}
+
+		// Check evidence health
+		totalEvidence := len(p.EvidenceIDs)
+		if totalEvidence == 0 {
+			p.Strength *= 0.90
+		} else {
+			activeEvidence := 0
+			for _, memID := range p.EvidenceIDs {
+				mem, err := ca.store.GetMemory(ctx, memID)
+				if err == nil && (mem.State == store.MemoryStateActive || mem.State == store.MemoryStateFading) {
+					activeEvidence++
+				}
+			}
+			evidenceRatio := float32(activeEvidence) / float32(totalEvidence)
+			switch {
+			case evidenceRatio >= 0.5:
+				p.Strength *= 0.98 // gentle — evidence mostly alive
+			case evidenceRatio >= 0.2:
+				p.Strength *= 0.95 // moderate
+			default:
+				p.Strength *= 0.90 // aggressive — most evidence gone
+			}
+		}
+
+		// Below 0.1 → transition to fading
+		if p.Strength < 0.1 {
+			p.State = "fading"
+		}
+
+		p.UpdatedAt = time.Now()
+		if err := ca.store.UpdatePattern(ctx, *p); err != nil {
+			ca.log.Warn("failed to decay pattern", "pattern_id", p.ID, "error", err)
+			continue
+		}
+		decayed++
+	}
+
+	if decayed > 0 {
+		ca.log.Info("pattern strength decay applied", "patterns_decayed", decayed)
+	}
+	return decayed, nil
 }

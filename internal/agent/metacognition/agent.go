@@ -116,6 +116,14 @@ func (ma *MetacognitionAgent) loop() {
 func (ma *MetacognitionAgent) runCycle(ctx context.Context) (*CycleReport, error) {
 	startTime := time.Now()
 
+	// Cleanup: remove meta observations older than 7 days to prevent stale triggers
+	cutoff := time.Now().Add(-7 * 24 * time.Hour)
+	if deleted, err := ma.store.DeleteOldMetaObservations(ctx, cutoff); err != nil {
+		ma.log.Warn("failed to cleanup old meta observations", "error", err)
+	} else if deleted > 0 {
+		ma.log.Info("cleaned up stale meta observations", "deleted", deleted)
+	}
+
 	observations := []store.MetaObservation{}
 
 	// --- Observation phase ---
