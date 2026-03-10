@@ -70,11 +70,12 @@ func ingestCommand(configPath string, args []string) {
 
 	ctx := context.Background()
 	icfg := ingest.Config{
-		Dir:             dir,
-		Project:         *projectName,
-		DryRun:          *dryRun,
-		ExcludePatterns: cfg.Perception.Filesystem.ExcludePatterns,
-		MaxContentBytes: cfg.Perception.Filesystem.MaxContentBytes,
+		Dir:               dir,
+		Project:           *projectName,
+		DryRun:            *dryRun,
+		ExcludePatterns:   cfg.Perception.Filesystem.ExcludePatterns,
+		SensitivePatterns: cfg.Perception.Filesystem.SensitivePatterns,
+		MaxContentBytes:   cfg.Perception.Filesystem.MaxContentBytes,
 		OnProgress: func(current, total int, path string) {
 			fmt.Printf("  [%d/%d] %s\n", current, total, path)
 		},

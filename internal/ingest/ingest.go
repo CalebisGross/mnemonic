@@ -19,12 +19,13 @@ const batchSize = 50
 
 // Config holds parameters for an ingestion run.
 type Config struct {
-	Dir             string
-	Project         string
-	DryRun          bool
-	ExcludePatterns []string
-	MaxContentBytes int
-	OnProgress      func(current, total int, path string) // optional progress callback
+	Dir               string
+	Project           string
+	DryRun            bool
+	ExcludePatterns   []string
+	SensitivePatterns []string
+	MaxContentBytes   int
+	OnProgress        func(current, total int, path string) // optional progress callback
 }
 
 // Result holds the outcome of an ingestion run.
@@ -77,6 +78,11 @@ func Run(ctx context.Context, cfg Config, s store.Store, bus events.Bus, log *sl
 			return nil
 		}
 		if filesystem.IsBinaryFile(path) {
+			excluded++
+			return nil
+		}
+		if len(cfg.SensitivePatterns) > 0 && filesystem.IsSensitiveFile(path, cfg.SensitivePatterns) {
+			log.Warn("skipping sensitive file", "path", path)
 			excluded++
 			return nil
 		}

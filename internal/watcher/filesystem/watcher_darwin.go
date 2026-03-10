@@ -158,8 +158,9 @@ func (fw *FilesystemWatcher) processEvent(event fsevents.Event) {
 	// Skip excluded paths
 	fw.mu.RLock()
 	excluded := MatchesExcludePattern(path, fw.cfg.ExcludePatterns)
+	sensitive := len(fw.cfg.SensitivePatterns) > 0 && IsSensitiveFile(path, fw.cfg.SensitivePatterns)
 	fw.mu.RUnlock()
-	if excluded {
+	if excluded || sensitive {
 		return
 	}
 
