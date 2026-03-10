@@ -1100,7 +1100,17 @@
         STATS_POLL: 30000,
         INSIGHTS_POLL: 60000,
         MAX_EVENTS: 100,
+        TOKEN: new URLSearchParams(window.location.search).get('token') || '',
     };
+
+    // Wrapper for fetch that adds auth header when token is configured
+    function apiFetch(url, opts) {
+        opts = opts || {};
+        if (CONFIG.TOKEN) {
+            opts.headers = Object.assign({}, opts.headers, { 'Authorization': 'Bearer ' + CONFIG.TOKEN });
+        }
+        return fetch(url, opts);
+    }
 
     // ── View Switching ──
     function switchView(name) {
@@ -1143,7 +1153,7 @@
         results.innerHTML = '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
         try {
             var synth = document.getElementById('synthesizeToggle').checked;
-            var resp = await fetch(CONFIG.API_BASE + '/query', {
+            var resp = await apiFetch(CONFIG.API_BASE + '/query', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query: query, limit: 10, synthesize: synth, include_reasoning: false }),
@@ -1209,7 +1219,7 @@
         bar.querySelectorAll('.feedback-btn').forEach(function(b) { b.classList.remove('selected'); });
         event.target.classList.add('selected');
         try {
-            await fetch(CONFIG.API_BASE + '/feedback', {
+            await apiFetch(CONFIG.API_BASE + '/feedback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query_id: state.lastQueryId, quality: quality }),
@@ -1235,7 +1245,7 @@
         var btn = document.querySelector('.remember-submit');
         btn.disabled = true;
         try {
-            await fetch(CONFIG.API_BASE + '/memories', {
+            await apiFetch(CONFIG.API_BASE + '/memories', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content: content, source: 'web_ui', type: type, project: project }),
@@ -1268,7 +1278,7 @@
     }
 
     async function loadEpisodes(section) {
-        var resp = await fetch(CONFIG.API_BASE + '/episodes?limit=50');
+        var resp = await apiFetch(CONFIG.API_BASE + '/episodes?limit=50');
         var data = await resp.json();
         var episodes = data.episodes || [];
         if (episodes.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128218;</div><div class="empty-state-text">No episodes yet</div><div class="empty-state-sub">Episodes are created as memories accumulate</div></div>'; return; }
@@ -1308,7 +1318,7 @@
     }
 
     async function loadMemories(section) {
-        var resp = await fetch(CONFIG.API_BASE + '/memories?limit=50&state=active');
+        var resp = await apiFetch(CONFIG.API_BASE + '/memories?limit=50&state=active');
         var data = await resp.json();
         var memories = data.memories || [];
         if (memories.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#129504;</div><div class="empty-state-text">No memories yet</div><div class="empty-state-sub">Use the Remember panel to add your first memory</div></div>'; return; }
@@ -1402,7 +1412,7 @@
     }
 
     async function loadPatterns(section) {
-        var resp = await fetch(CONFIG.API_BASE + '/patterns?limit=20');
+        var resp = await apiFetch(CONFIG.API_BASE + '/patterns?limit=20');
         var data = await resp.json();
         var patterns = data.patterns || [];
         if (patterns.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128200;</div><div class="empty-state-text">No patterns discovered yet</div><div class="empty-state-sub">Patterns emerge after consolidation cycles</div></div>'; return; }
@@ -1428,7 +1438,7 @@
     }
 
     async function loadAbstractions(section) {
-        var resp = await fetch(CONFIG.API_BASE + '/abstractions?limit=20');
+        var resp = await apiFetch(CONFIG.API_BASE + '/abstractions?limit=20');
         var data = await resp.json();
         var abstractions = data.abstractions || [];
         if (abstractions.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128161;</div><div class="empty-state-text">No abstractions yet</div><div class="empty-state-sub">Abstractions form from patterns during dream cycles</div></div>'; return; }
@@ -1475,7 +1485,7 @@
         var minSalience = document.getElementById('graphSalience').value;
         try {
             var graphView = document.getElementById('graphView').value;
-            var resp = await fetch(CONFIG.API_BASE + '/graph?limit=200&min_strength=' + minStrength + '&min_salience=' + minSalience + '&view=' + graphView);
+            var resp = await apiFetch(CONFIG.API_BASE + '/graph?limit=200&min_strength=' + minStrength + '&min_salience=' + minSalience + '&view=' + graphView);
             var data = await resp.json();
             state.graphData = data;
             renderGraph(data);
@@ -1680,14 +1690,14 @@
     function clearEvents() { document.getElementById('eventsContainer').innerHTML = ''; }
 
     async function triggerConsolidation() {
-        try { await fetch(CONFIG.API_BASE + '/consolidation/run', { method: 'POST' }); showToast('Consolidation triggered', 'success'); }
+        try { await apiFetch(CONFIG.API_BASE + '/consolidation/run', { method: 'POST' }); showToast('Consolidation triggered', 'success'); }
         catch (e) { showToast('Failed to trigger consolidation', 'error'); }
     }
 
     // ── Insights ──
     async function loadInsights() {
         try {
-            var resp = await fetch(CONFIG.API_BASE + '/insights');
+            var resp = await apiFetch(CONFIG.API_BASE + '/insights');
             var data = await resp.json();
             var observations = data.observations || [];
             var container = document.getElementById('insightsContainer');
@@ -1704,7 +1714,7 @@
     // ── Stats ──
     async function loadStats() {
         try {
-            var results = await Promise.all([fetch(CONFIG.API_BASE + '/health'), fetch(CONFIG.API_BASE + '/stats')]);
+            var results = await Promise.all([apiFetch(CONFIG.API_BASE + '/health'), apiFetch(CONFIG.API_BASE + '/stats')]);
             var health = await results[0].json();
             var stats = await results[1].json();
             document.getElementById('navMemoryCount').textContent = (stats.store && stats.store.active_memories) || health.memory_count || 0;
@@ -1722,7 +1732,7 @@
     // ── Projects ──
     async function loadProjects() {
         try {
-            var resp = await fetch(CONFIG.API_BASE + '/projects');
+            var resp = await apiFetch(CONFIG.API_BASE + '/projects');
             var data = await resp.json();
             state.projectList = data.projects || [];
             var select = document.getElementById('rememberProject');
@@ -1825,11 +1835,11 @@
     async function loadAgentData() {
         try {
             var [evoRes, logRes, sessRes, sysRes, cfgRes] = await Promise.all([
-                fetch(CONFIG.API_BASE + '/agent/evolution').then(function(r) { return r.json(); }),
-                fetch(CONFIG.API_BASE + '/agent/changelog').then(function(r) { return r.json(); }),
-                fetch(CONFIG.API_BASE + '/agent/sessions').then(function(r) { return r.json(); }),
-                fetch(CONFIG.API_BASE + '/stats').then(function(r) { return r.json(); }),
-                fetch(CONFIG.API_BASE + '/agent/config').then(function(r) { return r.json(); }).catch(function() { return {}; }),
+                apiFetch(CONFIG.API_BASE + '/agent/evolution').then(function(r) { return r.json(); }),
+                apiFetch(CONFIG.API_BASE + '/agent/changelog').then(function(r) { return r.json(); }),
+                apiFetch(CONFIG.API_BASE + '/agent/sessions').then(function(r) { return r.json(); }),
+                apiFetch(CONFIG.API_BASE + '/stats').then(function(r) { return r.json(); }),
+                apiFetch(CONFIG.API_BASE + '/agent/config').then(function(r) { return r.json(); }).catch(function() { return {}; }),
             ]);
             state.agentData = { evolution: evoRes, changelog: logRes, sessions: sessRes, system: sysRes };
             state.agentLoaded = true;
