@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -149,6 +151,8 @@ func main() {
 		autopilotCommand(*configPath)
 	case "diagnose":
 		diagnoseCommand(*configPath)
+	case "generate-token":
+		generateTokenCommand()
 	case "version":
 		fmt.Printf("mnemonic v%s\n", Version)
 	default:
@@ -185,7 +189,7 @@ func startCommand(configPath string) {
 			if cfg != nil {
 				fmt.Printf("  Dashboard: http://%s:%d\n", cfg.API.Host, cfg.API.Port)
 				healthURL := fmt.Sprintf("http://%s:%d/api/v1/health", cfg.API.Host, cfg.API.Port)
-				checkLLMFromAPI(healthURL, cfg.LLM.Endpoint)
+				checkLLMFromAPI(healthURL, cfg.LLM.Endpoint, cfg.API.Token)
 			}
 			fmt.Printf("  Logs:      %s\n", daemon.LogPath())
 		} else {
@@ -235,7 +239,7 @@ func startCommand(configPath string) {
 	apiURL := fmt.Sprintf("http://%s:%d/api/v1/health", cfg.API.Host, cfg.API.Port)
 	healthy := false
 	for i := 0; i < 3; i++ {
-		resp, err := http.Get(apiURL)
+		resp, err := apiGet(apiURL, cfg.API.Token)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -253,16 +257,41 @@ func startCommand(configPath string) {
 		fmt.Printf("  PID file:  %s\n", daemon.PIDFilePath())
 
 		// Check if LLM is available via health endpoint
-		checkLLMFromAPI(apiURL, cfg.LLM.Endpoint)
+		checkLLMFromAPI(apiURL, cfg.LLM.Endpoint, cfg.API.Token)
 	} else {
 		fmt.Printf("%sWarning:%s Daemon started (PID %d) but health check failed.\n", colorYellow, colorReset, pid)
 		fmt.Printf("  Check logs: %s\n", daemon.LogPath())
 	}
 }
 
+// generateTokenCommand generates a random API token and prints it.
+func generateTokenCommand() {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating token: %v\n", err)
+		os.Exit(1)
+	}
+	token := hex.EncodeToString(b)
+	fmt.Printf("Generated API token:\n\n  %s\n\n", token)
+	fmt.Printf("Add this to your config.yaml:\n\n  api:\n    token: \"%s\"\n\n", token)
+	fmt.Printf("Then set this environment variable for CLI tools:\n\n  export MNEMONIC_API_TOKEN=\"%s\"\n", token)
+}
+
+// apiGet performs an HTTP GET with optional bearer token auth.
+func apiGet(url, token string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	return http.DefaultClient.Do(req)
+}
+
 // checkLLMFromAPI queries the health endpoint and warns if LLM is unavailable.
-func checkLLMFromAPI(healthURL, llmEndpoint string) {
-	resp, err := http.Get(healthURL)
+func checkLLMFromAPI(healthURL, llmEndpoint, token string) {
+	resp, err := apiGet(healthURL, token)
 	if err != nil {
 		return
 	}
@@ -522,7 +551,7 @@ func statusCommand(configPath string) {
 	apiReachable := false
 
 	// Health check
-	healthResp, err := http.Get(apiBase + "/health")
+	healthResp, err := apiGet(apiBase+"/health", cfg.API.Token)
 	if err == nil {
 		defer healthResp.Body.Close()
 		if healthResp.StatusCode == http.StatusOK {
@@ -556,7 +585,7 @@ func statusCommand(configPath string) {
 	fmt.Printf("\n  %sMemory Store%s\n", colorBold, colorReset)
 
 	if apiReachable {
-		statsResp, err := http.Get(apiBase + "/stats")
+		statsResp, err := apiGet(apiBase+"/stats", cfg.API.Token)
 		if err == nil {
 			defer statsResp.Body.Close()
 			var data map[string]interface{}
@@ -1401,6 +1430,7 @@ func serveCommand(configPath string) {
 			Host:              cfg.API.Host,
 			Port:              cfg.API.Port,
 			RequestTimeoutSec: cfg.API.RequestTimeoutSec,
+			Token:             cfg.API.Token,
 		}, apiDeps)
 
 		if err := apiServer.Start(); err != nil {
@@ -2295,6 +2325,7 @@ MONITORING COMMANDS:
 SETUP COMMANDS:
   install         Install as system service (auto-start on login)
   uninstall       Remove system service
+  generate-token  Generate a random API authentication token
   version         Show version
 
 EXAMPLES:

@@ -220,6 +220,7 @@ type APIConfig struct {
 	Host              string `yaml:"host"`
 	Port              int    `yaml:"port"`
 	RequestTimeoutSec int    `yaml:"request_timeout_sec"`
+	Token             string `yaml:"token"` // bearer token for API auth (empty = no auth)
 }
 
 // WebConfig holds web UI settings.

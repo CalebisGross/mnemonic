@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/appsprout/mnemonic/internal/agent/retrieval"
@@ -20,6 +22,7 @@ type ServerConfig struct {
 	Host              string
 	Port              int
 	RequestTimeoutSec int
+	Token             string // bearer token for API auth (empty = no auth)
 }
 
 // ServerDeps holds dependencies injected into the server.
@@ -162,6 +165,26 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
+		}
+
+		// Bearer token auth for API routes (when token is configured)
+		if s.config.Token != "" && len(r.URL.Path) > 5 && r.URL.Path[:5] == "/api/" {
+			authorized := false
+			auth := r.Header.Get("Authorization")
+			if strings.HasPrefix(auth, "Bearer ") {
+				provided := auth[7:]
+				authorized = subtle.ConstantTimeCompare([]byte(provided), []byte(s.config.Token)) == 1
+			}
+			if !authorized {
+				// Also check query parameter for dashboard convenience
+				qToken := r.URL.Query().Get("token")
+				authorized = qToken != "" && subtle.ConstantTimeCompare([]byte(qToken), []byte(s.config.Token)) == 1
+			}
+			if !authorized {
+				w.Header().Set("Content-Type", "application/json")
+				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+				return
+			}
 		}
 
 		// JSON content type for /api/ routes
