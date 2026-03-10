@@ -133,10 +133,22 @@ def _decay_stale_principles(evolution_dir: str) -> None:
     - 14-day grace period from created/last_reinforced date.
     - After grace: multiply confidence by 0.98 per elapsed day.
     - Below 0.3 confidence: prune from the file.
+    - Runs at most once per day (stamp file).
     """
-    principles_file = Path(evolution_dir) / "principles.yaml"
+    evo = Path(evolution_dir)
+    principles_file = evo / "principles.yaml"
     if not principles_file.exists():
         return
+
+    # Rate-limit: only run decay once per day
+    stamp_file = evo / ".decay_stamp"
+    today = datetime.now().strftime("%Y-%m-%d")
+    if stamp_file.exists():
+        try:
+            if stamp_file.read_text().strip() == today:
+                return
+        except OSError:
+            pass
 
     try:
         data = yaml.safe_load(principles_file.read_text()) or {}
@@ -196,6 +208,12 @@ def _decay_stale_principles(evolution_dir: str) -> None:
                         len(surviving), len(principles) - len(surviving))
         except OSError as e:
             logger.warning("Failed to write decayed principles: %s", e)
+
+    # Write stamp regardless of whether changes occurred — decay was evaluated today
+    try:
+        stamp_file.write_text(today)
+    except OSError:
+        pass
 
 
 def assemble_system_prompt(evolution_dir: str) -> str:

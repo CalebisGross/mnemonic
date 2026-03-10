@@ -786,7 +786,7 @@ func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, cluste
 					}
 					embSim := cosineSimilarity(pattern.Embedding, ep.Embedding)
 					titleSim := normalizedTitleSimilarity(pattern.Title, ep.Title)
-					if embSim >= 0.80 || titleSim >= 0.6 {
+					if isDuplicate(pattern.Title, ep.Title, pattern.Embedding, ep.Embedding, 0.6, 0.80) {
 						for _, mem := range cluster {
 							if !containsString(ep.EvidenceIDs, mem.ID) {
 								ep.EvidenceIDs = append(ep.EvidenceIDs, mem.ID)
@@ -1230,6 +1230,24 @@ func cosineSimilarity(a, b []float32) float32 {
 	return dot / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB))))
 }
 
+// isDuplicate returns true if two items are near-duplicates based on title Jaccard and embedding cosine.
+// For short titles (<=4 words in either), requires BOTH signals to exceed thresholds to avoid false positives.
+func isDuplicate(titleA, titleB string, embA, embB []float32, titleThresh, embThresh float32) bool {
+	titleSim := normalizedTitleSimilarity(titleA, titleB)
+	var embSim float32
+	if len(embA) > 0 && len(embB) > 0 {
+		embSim = cosineSimilarity(embA, embB)
+	}
+	wordsA := len(strings.Fields(titleA))
+	wordsB := len(strings.Fields(titleB))
+	shortTitle := wordsA <= 4 || wordsB <= 4
+	if shortTitle {
+		// Both signals must agree for short titles
+		return titleSim >= titleThresh && embSim >= embThresh
+	}
+	return titleSim >= titleThresh || embSim >= embThresh
+}
+
 // normalizedTitleSimilarity computes word-level Jaccard similarity between two titles.
 func normalizedTitleSimilarity(a, b string) float32 {
 	wordsA := strings.Fields(strings.ToLower(a))
@@ -1296,7 +1314,7 @@ func (ca *ConsolidationAgent) dedupAbstractions(ctx context.Context) (int, error
 					embSim = cosineSimilarity(abstractions[i].Embedding, abstractions[j].Embedding)
 				}
 
-				if titleSim >= 0.6 || embSim >= 0.75 {
+				if isDuplicate(abstractions[i].Title, abstractions[j].Title, abstractions[i].Embedding, abstractions[j].Embedding, 0.6, 0.75) {
 					// Archive the newer one (j), transfer unique source IDs to canonical (i)
 					canonical := &abstractions[i]
 					dup := &abstractions[j]
@@ -1353,8 +1371,12 @@ func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
 			continue
 		}
 
-		// No decay if accessed within 7 days
-		if !p.LastAccessed.IsZero() && time.Since(p.LastAccessed).Hours() < 168 {
+		// No decay if accessed or created within 7 days
+		recency := p.LastAccessed
+		if recency.IsZero() {
+			recency = p.CreatedAt
+		}
+		if !recency.IsZero() && time.Since(recency).Hours() < 168 {
 			continue
 		}
 
