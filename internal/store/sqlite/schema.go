@@ -224,6 +224,15 @@ CREATE INDEX IF NOT EXISTS idx_abstraction_state ON abstractions(state);
 CREATE INDEX IF NOT EXISTS idx_abstraction_confidence ON abstractions(confidence);
 `
 
+const migration005 = `
+-- Migration 005: System metadata key-value store
+CREATE TABLE IF NOT EXISTS system_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT (datetime('now'))
+);
+`
+
 // InitSchema initializes the SQLite database schema by creating all tables,
 // indexes, and triggers if they don't already exist. It also configures
 // important PRAGMA settings for performance and safety.
@@ -317,6 +326,11 @@ func InitSchema(db *sql.DB) error {
 	}
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_episode_project ON episodes(project)`); err != nil {
 		return fmt.Errorf("failed to create idx_episode_project index: %w", err)
+	}
+
+	// Apply migration 005: System metadata
+	if _, err := db.Exec(migration005); err != nil {
+		return fmt.Errorf("failed to apply migration 005: %w", err)
 	}
 
 	return nil
