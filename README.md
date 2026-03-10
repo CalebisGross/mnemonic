@@ -14,7 +14,7 @@ The "analog LLM" vision: the association graph IS the model. Memories build into
 
 **Prerequisites:**
 - Go 1.23+
-- LM Studio running locally (or compatible OpenAI-compatible API)
+- LM Studio running locally — see [LM Studio Setup](docs/setup-lmstudio.md)
 - CGO enabled (for SQLite)
 
 **Setup:**
@@ -22,6 +22,7 @@ The "analog LLM" vision: the association graph IS the model. Memories build into
 git clone https://github.com/CalebisGross/mnemonic.git
 cd mnemonic
 # Edit config.yaml: set llm.chat_model, llm.embedding_model
+# See docs/setup-lmstudio.md for recommended models and settings
 make build
 ./bin/mnemonic serve   # Run in foreground (recommended for first run)
 # Open http://127.0.0.1:9999
@@ -193,6 +194,13 @@ make setup-hooks    # Configure git pre-commit hooks
 | macOS x86 | Untested | Should work with CGO enabled |
 | Linux x86_64 | **Full** | All features including systemd daemon management |
 | Windows | **Not supported** | Compiles but `start`/`stop`/`install` return errors. Use `mnemonic serve` for foreground mode. Full support planned for a future release. |
+
+## Documentation
+
+- [LM Studio Setup](docs/setup-lmstudio.md) — Model downloads, server config, performance tuning
+- [Backup & Restore](docs/backup-restore.md) — Backup strategies and disaster recovery
+- [Troubleshooting](docs/troubleshooting.md) — Common problems and fixes
+- [Architecture](ARCHITECTURE.md) — Deep dive into the cognitive agent pipeline
 
 ## License
 
