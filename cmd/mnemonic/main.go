@@ -729,6 +729,7 @@ func diagnoseCommand(configPath string) {
 	}
 
 	// 3. Database
+	var diagDB *sqlite.SQLiteStore
 	dbInfo, dbErr := os.Stat(cfg.Store.DBPath)
 	if dbErr != nil {
 		fail("Database", fmt.Sprintf("file not found: %s", cfg.Store.DBPath))
@@ -739,18 +740,19 @@ func diagnoseCommand(configPath string) {
 		if err != nil {
 			fail("Database", fmt.Sprintf("cannot open: %v", err))
 		} else {
-			defer db.Close()
+			diagDB = db
+			defer diagDB.Close()
 			ctx := context.Background()
 
 			// Integrity check
 			var integrityResult string
-			row := db.DB().QueryRowContext(ctx, "PRAGMA integrity_check")
+			row := diagDB.DB().QueryRowContext(ctx, "PRAGMA integrity_check")
 			if err := row.Scan(&integrityResult); err != nil {
 				fail("Database", fmt.Sprintf("integrity check error: %v", err))
 			} else if integrityResult != "ok" {
 				fail("Database", fmt.Sprintf("integrity check: %s", integrityResult))
 			} else {
-				stats, err := db.GetStatistics(ctx)
+				stats, err := diagDB.GetStatistics(ctx)
 				if err != nil {
 					warn("Database", fmt.Sprintf("integrity OK but stats failed: %v", err))
 				} else {
@@ -816,20 +818,16 @@ func diagnoseCommand(configPath string) {
 		// If we can't check disk, just skip silently (platform-specific)
 	}
 
-	// 7. Encoding queue (direct DB check)
-	if dbErr == nil {
-		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath)
-		if err == nil {
-			defer db.Close()
-			ctx := context.Background()
-			var unprocessed int
-			row := db.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM raw_memories WHERE processed = 0")
-			if row.Scan(&unprocessed) == nil {
-				if unprocessed > 100 {
-					warn("Encoding queue", fmt.Sprintf("%d unprocessed raw memories (LLM may be falling behind)", unprocessed))
-				} else {
-					pass("Encoding queue", fmt.Sprintf("%d unprocessed", unprocessed))
-				}
+	// 7. Encoding queue (reuse DB connection from check 3)
+	if diagDB != nil {
+		ctx := context.Background()
+		var unprocessed int
+		row := diagDB.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM raw_memories WHERE processed = 0")
+		if row.Scan(&unprocessed) == nil {
+			if unprocessed > 500 {
+				warn("Encoding queue", fmt.Sprintf("%d unprocessed raw memories (LLM may be falling behind)", unprocessed))
+			} else {
+				pass("Encoding queue", fmt.Sprintf("%d unprocessed", unprocessed))
 			}
 		}
 	}
