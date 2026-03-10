@@ -147,6 +147,24 @@ func BackupWithRetention(ctx context.Context, s store.Store, backupDir string, m
 	return backupPath, nil
 }
 
+// BackupSQLiteFile creates a timestamped copy of the database file in the backup directory.
+// This is intended for pre-migration safety backups before the store is opened.
+// Returns the backup path, or empty string if the source does not exist.
+func BackupSQLiteFile(dbPath string, backupDir string) (string, error) {
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return "", nil // no DB yet, nothing to back up
+	}
+
+	timestamp := time.Now().Format("2006-01-02_150405")
+	backupPath := filepath.Join(backupDir, fmt.Sprintf("pre_migrate_%s.db", timestamp))
+
+	if err := ExportSQLite(context.Background(), dbPath, backupPath); err != nil {
+		return "", fmt.Errorf("backing up database: %w", err)
+	}
+
+	return backupPath, nil
+}
+
 func EnsureBackupDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {

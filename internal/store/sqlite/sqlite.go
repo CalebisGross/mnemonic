@@ -64,6 +64,35 @@ func (s *SQLiteStore) DB() *sql.DB {
 	return s.db
 }
 
+// CheckIntegrity runs PRAGMA integrity_check and returns any problems found.
+// Returns nil if the database is healthy.
+func (s *SQLiteStore) CheckIntegrity(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, "PRAGMA integrity_check")
+	if err != nil {
+		return fmt.Errorf("running integrity_check: %w", err)
+	}
+	defer rows.Close()
+
+	var problems []string
+	for rows.Next() {
+		var result string
+		if err := rows.Scan(&result); err != nil {
+			return fmt.Errorf("scanning integrity_check result: %w", err)
+		}
+		if result != "ok" {
+			problems = append(problems, result)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterating integrity_check results: %w", err)
+	}
+
+	if len(problems) > 0 {
+		return fmt.Errorf("database corruption detected (%d issues): %s", len(problems), strings.Join(problems, "; "))
+	}
+	return nil
+}
+
 // loadEmbeddingIndex reads all (id, embedding) pairs for active/fading memories
 // and populates the in-memory index. Only loads the two columns needed, not full rows.
 func (s *SQLiteStore) loadEmbeddingIndex() error {

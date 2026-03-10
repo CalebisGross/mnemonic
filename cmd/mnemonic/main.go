@@ -135,6 +135,12 @@ func main() {
 		importCommand(*configPath, args[1], args)
 	case "backup":
 		backupCommand(*configPath)
+	case "restore":
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "Error: 'restore' requires a backup file path\nUsage: mnemonic restore <backup.db|backup.json>\n")
+			os.Exit(1)
+		}
+		restoreCommand(*configPath, args[1])
 	case "insights":
 		insightsCommand(*configPath)
 	case "meta-cycle":
@@ -1086,11 +1092,52 @@ func serveCommand(configPath string) {
 		os.Exit(1)
 	}
 
+	// Pre-migration safety backup (only if DB already exists)
+	if _, statErr := os.Stat(cfg.Store.DBPath); statErr == nil {
+		backupDir, bdErr := backup.EnsureBackupDir()
+		if bdErr != nil {
+			log.Warn("could not create backup directory for pre-migration backup", "error", bdErr)
+		} else {
+			bkPath, bkErr := backup.BackupSQLiteFile(cfg.Store.DBPath, backupDir)
+			if bkErr != nil {
+				log.Warn("pre-migration backup failed", "error", bkErr)
+			} else if bkPath != "" {
+				log.Info("pre-migration backup created", "path", bkPath)
+			}
+		}
+	}
+
 	// Open SQLite store
 	memStore, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 	if err != nil {
 		log.Error("failed to open store", "path", cfg.Store.DBPath, "error", err)
 		os.Exit(1)
+	}
+
+	// Run integrity check on startup
+	intCtx, intCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if intErr := memStore.CheckIntegrity(intCtx); intErr != nil {
+		log.Error("database integrity check failed", "error", intErr)
+		fmt.Fprintf(os.Stderr, "\n%s✗ DATABASE CORRUPTION DETECTED%s\n", colorRed, colorReset)
+		fmt.Fprintf(os.Stderr, "  %v\n", intErr)
+		fmt.Fprintf(os.Stderr, "  A pre-migration backup was saved. Use 'mnemonic restore <backup>' to recover.\n\n")
+	} else {
+		log.Info("database integrity check passed")
+	}
+	intCancel()
+
+	// Check available disk space
+	dbDir := filepath.Dir(cfg.Store.DBPath)
+	if availBytes, diskErr := diskAvailable(dbDir); diskErr == nil {
+		availMB := availBytes / (1024 * 1024)
+		if availMB < 100 {
+			log.Error("critically low disk space", "available_mb", availMB, "path", dbDir)
+			fmt.Fprintf(os.Stderr, "\n%s✗ CRITICALLY LOW DISK SPACE: %d MB available%s\n", colorRed, availMB, colorReset)
+			fmt.Fprintf(os.Stderr, "  Database writes may fail. Free up disk space before continuing.\n\n")
+		} else if availMB < 500 {
+			log.Warn("low disk space", "available_mb", availMB, "path", dbDir)
+			fmt.Fprintf(os.Stderr, "\n%s⚠ Low disk space: %d MB available%s\n", colorYellow, availMB, colorReset)
+		}
 	}
 
 	// Create LLM provider
@@ -1883,6 +1930,76 @@ func backupCommand(configPath string) {
 }
 
 // ============================================================================
+// Restore Command (disaster recovery)
+// ============================================================================
+
+// restoreCommand restores the database from a SQLite backup file.
+func restoreCommand(configPath string, backupPath string) {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Verify backup file exists
+	info, err := os.Stat(backupPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: backup file not found: %s\n", backupPath)
+		os.Exit(1)
+	}
+	if info.IsDir() {
+		fmt.Fprintf(os.Stderr, "Error: %s is a directory, not a backup file\n", backupPath)
+		os.Exit(1)
+	}
+
+	// Verify backup integrity by opening it as a SQLite database
+	fmt.Printf("Verifying backup integrity: %s\n", backupPath)
+	testStore, err := sqlite.NewSQLiteStore(backupPath, 5000)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s✗ Backup file is not a valid SQLite database: %v%s\n", colorRed, err, colorReset)
+		os.Exit(1)
+	}
+	intCtx, intCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	intErr := testStore.CheckIntegrity(intCtx)
+	intCancel()
+	testStore.Close()
+	if intErr != nil {
+		fmt.Fprintf(os.Stderr, "%s✗ Backup file is corrupted: %v%s\n", colorRed, intErr, colorReset)
+		os.Exit(1)
+	}
+	fmt.Printf("  %s✓ Backup integrity verified%s\n", colorGreen, colorReset)
+
+	// Check if daemon is running
+	svc := daemon.NewServiceManager()
+	if running, _ := svc.IsRunning(); running {
+		fmt.Fprintf(os.Stderr, "%sError: daemon is running. Stop it first with 'mnemonic stop'.%s\n", colorRed, colorReset)
+		os.Exit(1)
+	}
+
+	// If current DB exists, move it aside
+	dbPath := cfg.Store.DBPath
+	if _, statErr := os.Stat(dbPath); statErr == nil {
+		aside := dbPath + ".pre-restore"
+		fmt.Printf("  Moving current database to %s\n", aside)
+		if err := os.Rename(dbPath, aside); err != nil {
+			fmt.Fprintf(os.Stderr, "Error moving current database: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Copy backup to DB path
+	_ = cfg.EnsureDataDir()
+	if err := backup.ExportSQLite(context.Background(), backupPath, dbPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Error copying backup to database path: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("\n%s✓ Database restored from %s%s\n", colorGreen, filepath.Base(backupPath), colorReset)
+	fmt.Printf("  Database: %s (%.1f KB)\n", dbPath, float64(info.Size())/1024)
+	fmt.Printf("  Start the daemon with 'mnemonic start' or 'mnemonic serve'.\n")
+}
+
+// ============================================================================
 // Purge Command (reset database)
 // ============================================================================
 
@@ -2308,6 +2425,7 @@ DATA MANAGEMENT:
   export          Export memories (--format json|sqlite, --output path)
   import FILE     Import from JSON export (--mode merge|replace)
   backup          Timestamped backup with retention (keeps last 5)
+  restore FILE    Restore database from a SQLite backup file
   cleanup         Remove noise: mark excluded-path raw events as processed (--yes)
   purge           Stop daemon and delete all data (fresh start)
   insights        Show metacognition observations (memory health)
