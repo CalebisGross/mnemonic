@@ -1000,3 +1000,114 @@ func (p *failingLLMProvider) Health(ctx context.Context) error {
 func (p *failingLLMProvider) ModelInfo(ctx context.Context) (llm.ModelMetadata, error) {
 	return llm.ModelMetadata{}, fmt.Errorf("unavailable")
 }
+
+// ---------------------------------------------------------------------------
+// Tests for HandleStats
+// ---------------------------------------------------------------------------
+
+func TestHandleStats(t *testing.T) {
+	t.Run("returns statistics", func(t *testing.T) {
+		ms := &mockStore{
+			getStatisticsFn: func(_ context.Context) (store.StoreStatistics, error) {
+				return store.StoreStatistics{
+					TotalMemories:  100,
+					ActiveMemories: 50,
+					FadingMemories: 10,
+				}, nil
+			},
+		}
+		handler := HandleStats(ms, testLogger())
+
+		req := httptest.NewRequest(http.MethodGet, "/stats", nil)
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", rr.Code)
+		}
+
+		var resp StatsResponse
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if resp.Store.TotalMemories != 100 {
+			t.Errorf("expected 100 total memories, got %d", resp.Store.TotalMemories)
+		}
+		if resp.Timestamp == "" {
+			t.Error("expected non-empty timestamp")
+		}
+	})
+
+	t.Run("store error returns 500", func(t *testing.T) {
+		ms := &mockStore{
+			getStatisticsFn: func(_ context.Context) (store.StoreStatistics, error) {
+				return store.StoreStatistics{}, fmt.Errorf("db locked")
+			},
+		}
+		handler := HandleStats(ms, testLogger())
+
+		req := httptest.NewRequest(http.MethodGet, "/stats", nil)
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusInternalServerError {
+			t.Fatalf("expected status 500, got %d", rr.Code)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Tests for HandleFeedback
+// ---------------------------------------------------------------------------
+
+func TestHandleFeedback(t *testing.T) {
+	t.Run("valid feedback returns 200", func(t *testing.T) {
+		ms := &mockStore{}
+		handler := HandleFeedback(ms, testLogger())
+
+		body := `{"query_id": "q-1", "quality": "helpful"}`
+		req := httptest.NewRequest(http.MethodPost, "/feedback", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d; body: %s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("missing query_id returns 400", func(t *testing.T) {
+		ms := &mockStore{}
+		handler := HandleFeedback(ms, testLogger())
+
+		body := `{"quality": "helpful"}`
+		req := httptest.NewRequest(http.MethodPost, "/feedback", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("invalid quality returns 400", func(t *testing.T) {
+		ms := &mockStore{}
+		handler := HandleFeedback(ms, testLogger())
+
+		body := `{"query_id": "q-1", "quality": "bad_value"}`
+		req := httptest.NewRequest(http.MethodPost, "/feedback", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d", rr.Code)
+		}
+	})
+}
