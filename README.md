@@ -21,18 +21,21 @@ The "analog LLM" vision: the association graph IS the model. Memories build into
 ```bash
 git clone https://github.com/CalebisGross/mnemonic.git
 cd mnemonic
-# Edit config.yaml: set llm.endpoint, llm.chat_model, llm.embedding_model
+# Edit config.yaml: set llm.chat_model, llm.embedding_model
 make build
-./bin/mnemonic start
+./bin/mnemonic serve   # Run in foreground (recommended for first run)
 # Open http://127.0.0.1:9999
 ```
 
+The data directory (`~/.mnemonic/`) is created automatically on first run.
+
 **First commands:**
 ```bash
+./bin/mnemonic status    # System health
+./bin/mnemonic diagnose  # Check config, DB, LLM connectivity
 ./bin/mnemonic remember "I'm learning about memory systems"
 ./bin/mnemonic recall "memory"
-./bin/mnemonic watch  # Live event stream
-./bin/mnemonic status # System health
+./bin/mnemonic watch     # Live event stream
 ```
 
 ## Architecture
@@ -75,6 +78,7 @@ For architectural deep dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 | **Insights** | `autopilot` | Show autonomous activity log |
 | **MCP** | `mcp` | Run MCP server (stdio) |
 | **Monitor** | `status` | System health snapshot |
+| **Monitor** | `diagnose` | Check config, DB, LLM, disk, daemon |
 | **Monitor** | `watch` | Live event stream |
 | **Setup** | `install` | Auto-start (macOS LaunchAgent / Linux systemd) |
 | **Setup** | `uninstall` | Remove auto-start service |

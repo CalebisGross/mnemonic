@@ -14,7 +14,7 @@ import (
 // Helper function to create a test store with a temporary database
 func createTestStore(t *testing.T) *SQLiteStore {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	s, err := NewSQLiteStore(dbPath)
+	s, err := NewSQLiteStore(dbPath, 5000)
 	if err != nil {
 		t.Fatalf("failed to create test store: %v", err)
 	}

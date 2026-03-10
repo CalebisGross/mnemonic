@@ -59,7 +59,7 @@ func ingestCommand(configPath string, args []string) {
 	}
 
 	// Open store
-	db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath)
+	db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening store: %v\n", err)
 		os.Exit(1)

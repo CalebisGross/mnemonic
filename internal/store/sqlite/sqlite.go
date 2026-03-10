@@ -24,8 +24,12 @@ type SQLiteStore struct {
 }
 
 // NewSQLiteStore opens a SQLite database and initializes the schema.
-func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
-	db, err := sql.Open("sqlite3", dbPath+"?_busy_timeout=5000")
+// busyTimeoutMs sets the SQLite busy timeout in milliseconds (use 0 for default 5000).
+func NewSQLiteStore(dbPath string, busyTimeoutMs int) (*SQLiteStore, error) {
+	if busyTimeoutMs <= 0 {
+		busyTimeoutMs = 5000
+	}
+	db, err := sql.Open("sqlite3", fmt.Sprintf("%s?_busy_timeout=%d", dbPath, busyTimeoutMs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

@@ -48,8 +48,9 @@ type LLMConfig struct {
 
 // StoreConfig holds storage settings.
 type StoreConfig struct {
-	DBPath      string `yaml:"db_path"`
-	JournalMode string `yaml:"journal_mode"`
+	DBPath        string `yaml:"db_path"`
+	JournalMode   string `yaml:"journal_mode"`
+	BusyTimeoutMs int    `yaml:"busy_timeout_ms"` // SQLite busy timeout in milliseconds (default: 5000)
 }
 
 // MemoryConfig holds memory settings.
@@ -287,8 +288,9 @@ func Default() *Config {
 			MaxConcurrent:  2,
 		},
 		Store: StoreConfig{
-			DBPath:      "~/.mnemonic/memory.db",
-			JournalMode: "wal",
+			DBPath:        "~/.mnemonic/memory.db",
+			JournalMode:   "wal",
+			BusyTimeoutMs: 5000,
 		},
 		Memory: MemoryConfig{
 			MaxWorkingMemory: 7,
@@ -578,6 +580,37 @@ func (c *Config) Validate() error {
 	if c.Store.DBPath == "" {
 		return errors.New("store.db_path is required")
 	}
+	if c.Store.BusyTimeoutMs < 0 {
+		return errors.New("store.busy_timeout_ms must be >= 0")
+	}
+
+	// Verify db_path parent directory is writable
+	dbDir := filepath.Dir(c.Store.DBPath)
+	if info, err := os.Stat(dbDir); err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("store.db_path parent %q exists but is not a directory", dbDir)
+		}
+		// Try to verify writability by creating a temp file
+		tmp := filepath.Join(dbDir, ".mnemonic-write-test")
+		if f, err := os.Create(tmp); err != nil {
+			return fmt.Errorf("store.db_path parent %q is not writable: %w", dbDir, err)
+		} else {
+			_ = f.Close()
+			_ = os.Remove(tmp)
+		}
+	}
+	// If dir doesn't exist, EnsureDataDir will create it later
+
+	// Warn about dangerous watch directories
+	home, _ := os.UserHomeDir()
+	for _, dir := range c.Perception.Filesystem.WatchDirs {
+		if dir == "/" {
+			return fmt.Errorf("perception.filesystem.watch_dirs contains root directory — this will overwhelm the system")
+		}
+		if home != "" && dir == home {
+			return fmt.Errorf("perception.filesystem.watch_dirs contains home directory %q — use specific subdirectories instead (e.g. ~/Documents, ~/Projects)", home)
+		}
+	}
 	if c.Memory.MaxWorkingMemory <= 0 {
 		return errors.New("memory.max_working_memory must be > 0")
 	}
@@ -641,6 +674,31 @@ func resolvePath(path, configDir string) (string, error) {
 		return filepath.Join(configDir, path), nil
 	}
 	return path, nil
+}
+
+// WarnPermissions checks if the config file at path has overly permissive file
+// permissions. Returns a warning message or empty string.
+func WarnPermissions(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	mode := info.Mode().Perm()
+	// Warn if world-readable (others have read access)
+	if mode&0004 != 0 {
+		return fmt.Sprintf("config file %s is world-readable (mode %04o) — consider chmod 600", path, mode)
+	}
+	return ""
+}
+
+// EnsureDataDir creates the parent directory of the database path if it does not exist.
+// Safe to call multiple times. Typically called before opening the database.
+func (c *Config) EnsureDataDir() error {
+	dbDir := filepath.Dir(c.Store.DBPath)
+	if err := os.MkdirAll(dbDir, 0700); err != nil {
+		return fmt.Errorf("creating data directory %q: %w", dbDir, err)
+	}
+	return nil
 }
 
 // parseDurationString parses duration strings like "6h", "24h", "90d".

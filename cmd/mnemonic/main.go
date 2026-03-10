@@ -584,7 +584,7 @@ func statusCommand(configPath string) {
 		}
 	} else {
 		// Fall back to direct DB access
-		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath)
+		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 		if err == nil {
 			defer db.Close()
 			ctx := context.Background()
@@ -604,7 +604,7 @@ func statusCommand(configPath string) {
 	// Encoding queue depth — direct DB query
 	fmt.Printf("\n  %sEncoding Queue%s\n", colorBold, colorReset)
 	{
-		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath)
+		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 		if err == nil {
 			defer db.Close()
 			ctx := context.Background()
@@ -629,7 +629,7 @@ func statusCommand(configPath string) {
 	fmt.Printf("\n  %sConsolidation%s\n", colorBold, colorReset)
 	if cfg.Consolidation.Enabled {
 		fmt.Printf("    Enabled:        yes (every %s)\n", cfg.Consolidation.IntervalRaw)
-		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath)
+		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 		if err == nil {
 			defer db.Close()
 			lastConsolidation := getLastConsolidation(db)
@@ -786,7 +786,7 @@ func diagnoseCommand(configPath string) {
 	} else {
 		dbSizeMB := float64(dbInfo.Size()) / (1024 * 1024)
 
-		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath)
+		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 		if err != nil {
 			fail("Database", fmt.Sprintf("cannot open: %v", err))
 		} else {
@@ -1034,6 +1034,11 @@ func serveCommand(configPath string) {
 		os.Exit(1)
 	}
 
+	// Check config file permissions
+	if warn := config.WarnPermissions(configPath); warn != "" {
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", warn)
+	}
+
 	// Initialize logger
 	log, err := logger.New(logger.Config{
 		Level:  cfg.Logging.Level,
@@ -1047,19 +1052,13 @@ func serveCommand(configPath string) {
 	slog.SetDefault(log)
 
 	// Create data directory if it doesn't exist
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Error("failed to get home directory", "error", err)
-		os.Exit(1)
-	}
-	dataPath := filepath.Join(homeDir, ".mnemonic")
-	if err := os.MkdirAll(dataPath, 0755); err != nil {
-		log.Error("failed to create data directory", "path", dataPath, "error", err)
+	if err := cfg.EnsureDataDir(); err != nil {
+		log.Error("failed to create data directory", "error", err)
 		os.Exit(1)
 	}
 
 	// Open SQLite store
-	memStore, err := sqlite.NewSQLiteStore(cfg.Store.DBPath)
+	memStore, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 	if err != nil {
 		log.Error("failed to open store", "path", cfg.Store.DBPath, "error", err)
 		os.Exit(1)
@@ -1330,7 +1329,7 @@ func serveCommand(configPath string) {
 			MaxDBSizeMB:       cfg.Orchestrator.MaxDBSizeMB,
 			SelfTestInterval:  cfg.Orchestrator.SelfTestInterval,
 			AutoRecovery:      cfg.Orchestrator.AutoRecovery,
-			HealthReportPath:  filepath.Join(dataPath, "health.json"),
+			HealthReportPath:  filepath.Join(filepath.Dir(cfg.Store.DBPath), "health.json"),
 			MonitorInterval:   cfg.Orchestrator.MonitorInterval,
 		}, log)
 
@@ -1503,11 +1502,9 @@ func initRuntime(configPath string) (*config.Config, *sqlite.SQLiteStore, *llm.L
 		os.Exit(1)
 	}
 
-	homeDir, _ := os.UserHomeDir()
-	dataPath := filepath.Join(homeDir, ".mnemonic")
-	_ = os.MkdirAll(dataPath, 0755)
+	_ = cfg.EnsureDataDir()
 
-	db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath)
+	db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening store: %v\n", err)
 		os.Exit(1)
