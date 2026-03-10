@@ -1184,6 +1184,7 @@ func serveCommand(configPath string) {
 	cancel()
 
 	// Log startup info
+	embCount, embLoadTime := memStore.EmbeddingIndexStats()
 	log.Info("mnemonic daemon starting",
 		"version", Version,
 		"config_path", configPath,
@@ -1191,7 +1192,13 @@ func serveCommand(configPath string) {
 		"llm_endpoint", cfg.LLM.Endpoint,
 		"llm_chat_model", cfg.LLM.ChatModel,
 		"llm_embedding_model", cfg.LLM.EmbeddingModel,
+		"embedding_index_size", embCount,
+		"embedding_index_load_ms", embLoadTime.Milliseconds(),
 	)
+	if embCount > 50000 {
+		log.Warn("large embedding index — consider ANN index for better performance",
+			"count", embCount, "load_ms", embLoadTime.Milliseconds())
+	}
 
 	// Create a root context for all agents
 	rootCtx, rootCancel := context.WithCancel(context.Background())

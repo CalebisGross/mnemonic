@@ -18,9 +18,11 @@ import (
 
 // SQLiteStore implements the Store interface using SQLite as the backend.
 type SQLiteStore struct {
-	db       *sql.DB
-	dbPath   string
-	embIndex *embeddingIndex // in-memory embedding cache for fast similarity search
+	db            *sql.DB
+	dbPath        string
+	embIndex      *embeddingIndex // in-memory embedding cache for fast similarity search
+	indexCount    int             // number of embeddings loaded at startup
+	indexLoadTime time.Duration   // how long loadEmbeddingIndex took
 }
 
 // NewSQLiteStore opens a SQLite database and initializes the schema.
@@ -95,7 +97,13 @@ func (s *SQLiteStore) CheckIntegrity(ctx context.Context) error {
 
 // loadEmbeddingIndex reads all (id, embedding) pairs for active/fading memories
 // and populates the in-memory index. Only loads the two columns needed, not full rows.
+//
+// Scalability note: This performs a full table scan of active/fading embeddings.
+// At 10K memories with 1024-dim embeddings, this uses ~40MB RAM and takes <1s.
+// At 100K memories, consider migrating to an ANN index (FAISS, hnswlib, or sqlite-vss).
 func (s *SQLiteStore) loadEmbeddingIndex() error {
+	start := time.Now()
+
 	rows, err := s.db.Query(
 		`SELECT id, embedding FROM memories WHERE state IN ('active', 'fading') AND embedding IS NOT NULL AND length(embedding) > 0`)
 	if err != nil {
@@ -114,7 +122,24 @@ func (s *SQLiteStore) loadEmbeddingIndex() error {
 			s.embIndex.Add(id, emb)
 		}
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	count := s.embIndex.Len()
+	elapsed := time.Since(start)
+
+	// Log index stats (caller can check via EmbeddingIndexStats)
+	s.indexLoadTime = elapsed
+	s.indexCount = count
+
+	return nil
+}
+
+// EmbeddingIndexStats returns the number of embeddings in the in-memory index
+// and how long it took to load.
+func (s *SQLiteStore) EmbeddingIndexStats() (count int, loadTime time.Duration) {
+	return s.indexCount, s.indexLoadTime
 }
 
 // Helper functions for encoding/decoding
