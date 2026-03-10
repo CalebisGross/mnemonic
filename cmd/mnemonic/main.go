@@ -57,6 +57,17 @@ const (
 	bufferSize        = 1000
 )
 
+// Exit codes for structured error reporting.
+const (
+	exitOK         = 0
+	exitGeneral    = 1  // general/unknown error
+	exitConfig     = 2  // configuration error (user-fixable)
+	exitDatabase   = 3  // database / data integrity error
+	exitNetwork    = 4  // network / connectivity error (transient)
+	exitPermission = 5  // permission / access error (user-fixable)
+	exitUsage      = 64 // bad command-line usage (matches sysexits.h EX_USAGE)
+)
+
 // ANSI color codes for terminal output
 const (
 	colorReset  = "\033[0m"
@@ -68,6 +79,15 @@ const (
 	colorGray   = "\033[90m"
 	colorBold   = "\033[1m"
 )
+
+// die prints an error message with an optional hint and exits with the given code.
+func die(code int, msg string, hint string) {
+	fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
+	if hint != "" {
+		fmt.Fprintf(os.Stderr, "  Try: %s\n", hint)
+	}
+	os.Exit(code)
+}
 
 func main() {
 	// Parse global flags
@@ -99,20 +119,17 @@ func main() {
 		restartCommand(*configPath)
 	case "ingest":
 		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "Error: 'ingest' requires directory argument\nUsage: mnemonic ingest <directory> [--dry-run] [--project NAME]\n")
-			os.Exit(1)
+			die(exitUsage, "'ingest' requires directory argument", "mnemonic ingest <directory> [--dry-run] [--project NAME]")
 		}
 		ingestCommand(*configPath, args[1:])
 	case "remember":
 		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "Error: 'remember' requires text argument\n")
-			os.Exit(1)
+			die(exitUsage, "'remember' requires text argument", "mnemonic remember \"your text here\"")
 		}
 		rememberCommand(*configPath, args[1])
 	case "recall":
 		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "Error: 'recall' requires query argument\n")
-			os.Exit(1)
+			die(exitUsage, "'recall' requires query argument", "mnemonic recall \"your query\"")
 		}
 		recallCommand(*configPath, args[1])
 	case "status":
@@ -129,16 +146,14 @@ func main() {
 		exportCommand(*configPath, args)
 	case "import":
 		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "Error: 'import' requires file path argument\n")
-			os.Exit(1)
+			die(exitUsage, "'import' requires file path argument", "mnemonic import <backup.json> [--mode merge|replace]")
 		}
 		importCommand(*configPath, args[1], args)
 	case "backup":
 		backupCommand(*configPath)
 	case "restore":
 		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "Error: 'restore' requires a backup file path\nUsage: mnemonic restore <backup.db|backup.json>\n")
-			os.Exit(1)
+			die(exitUsage, "'restore' requires a backup file path", "mnemonic restore <backup.db>")
 		}
 		restoreCommand(*configPath, args[1])
 	case "insights":
@@ -164,7 +179,7 @@ func main() {
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", subcommand)
 		printUsage()
-		os.Exit(1)
+		os.Exit(exitUsage)
 	}
 }
 
@@ -214,30 +229,26 @@ func startCommand(configPath string) {
 	// Validate config can be loaded before starting
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		die(exitConfig, fmt.Sprintf("loading config: %v", err), "mnemonic diagnose")
 	}
 
 	// Resolve to absolute config path (so daemon finds it after detach)
 	absConfigPath, err := filepath.Abs(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error resolving config path: %v\n", err)
-		os.Exit(1)
+		die(exitGeneral, fmt.Sprintf("resolving config path: %v", err), "")
 	}
 
 	// Get our binary path
 	execPath, err := os.Executable()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error finding executable: %v\n", err)
-		os.Exit(1)
+		die(exitGeneral, fmt.Sprintf("finding executable: %v", err), "")
 	}
 
 	fmt.Printf("Starting mnemonic daemon...\n")
 
 	pid, err := daemon.Start(execPath, absConfigPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error starting daemon: %v\n", err)
-		os.Exit(1)
+		die(exitGeneral, fmt.Sprintf("starting daemon: %v", err), "mnemonic diagnose")
 	}
 
 	// Wait briefly and verify daemon is healthy via API
@@ -391,8 +402,7 @@ func restartCommand(configPath string) {
 func watchCommand(configPath string) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		die(exitConfig, fmt.Sprintf("loading config: %v", err), "mnemonic diagnose")
 	}
 
 	wsURL := fmt.Sprintf("ws://%s:%d/ws", cfg.API.Host, cfg.API.Port)
@@ -403,9 +413,7 @@ func watchCommand(configPath string) {
 	// Connect to WebSocket
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error connecting to daemon WebSocket: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Is the daemon running? Try: mnemonic start\n")
-		os.Exit(1)
+		die(exitNetwork, fmt.Sprintf("connecting to daemon: %v", err), "mnemonic start")
 	}
 	defer conn.Close()
 
@@ -940,26 +948,22 @@ func installCommand(configPath string) {
 	// Validate config
 	_, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		die(exitConfig, fmt.Sprintf("loading config: %v", err), "mnemonic diagnose")
 	}
 
 	// Resolve paths
 	absConfigPath, err := filepath.Abs(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error resolving config path: %v\n", err)
-		os.Exit(1)
+		die(exitGeneral, fmt.Sprintf("resolving config path: %v", err), "")
 	}
 
 	execPath, err := os.Executable()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error finding executable: %v\n", err)
-		os.Exit(1)
+		die(exitGeneral, fmt.Sprintf("finding executable: %v", err), "")
 	}
 
 	if err := svc.Install(execPath, absConfigPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Error installing service: %v\n", err)
-		os.Exit(1)
+		die(exitPermission, fmt.Sprintf("installing service: %v", err), "check system permissions")
 	}
 
 	fmt.Printf("%sService installed (%s).%s\n\n", colorGreen, svc.ServiceName(), colorReset)
@@ -1065,8 +1069,7 @@ func serveCommand(configPath string) {
 	// Load configuration
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		die(exitConfig, fmt.Sprintf("loading config: %v", err), "mnemonic diagnose")
 	}
 
 	// Check config file permissions
@@ -1081,15 +1084,13 @@ func serveCommand(configPath string) {
 		File:   cfg.Logging.File,
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing logger: %v\n", err)
-		os.Exit(1)
+		die(exitConfig, fmt.Sprintf("initializing logger: %v", err), "check logging config in config.yaml")
 	}
 	slog.SetDefault(log)
 
 	// Create data directory if it doesn't exist
 	if err := cfg.EnsureDataDir(); err != nil {
-		log.Error("failed to create data directory", "error", err)
-		os.Exit(1)
+		die(exitPermission, fmt.Sprintf("creating data directory: %v", err), "check permissions on ~/.mnemonic/")
 	}
 
 	// Pre-migration safety backup (only if DB already exists)
@@ -1110,8 +1111,7 @@ func serveCommand(configPath string) {
 	// Open SQLite store
 	memStore, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 	if err != nil {
-		log.Error("failed to open store", "path", cfg.Store.DBPath, "error", err)
-		os.Exit(1)
+		die(exitDatabase, fmt.Sprintf("opening database %s: %v", cfg.Store.DBPath, err), "mnemonic diagnose")
 	}
 
 	// Run integrity check on startup
@@ -1570,22 +1570,19 @@ func serveCommand(configPath string) {
 func initRuntime(configPath string) (*config.Config, *sqlite.SQLiteStore, *llm.LMStudioProvider, *slog.Logger) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		die(exitConfig, fmt.Sprintf("loading config: %v", err), "mnemonic diagnose")
 	}
 
 	log, err := logger.New(logger.Config{Level: "warn", Format: "text"})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing logger: %v\n", err)
-		os.Exit(1)
+		die(exitGeneral, fmt.Sprintf("initializing logger: %v", err), "")
 	}
 
 	_ = cfg.EnsureDataDir()
 
 	db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error opening store: %v\n", err)
-		os.Exit(1)
+		die(exitDatabase, fmt.Sprintf("opening database: %v", err), "mnemonic diagnose")
 	}
 
 	llmProvider := llm.NewLMStudioProvider(
@@ -1937,43 +1934,37 @@ func backupCommand(configPath string) {
 func restoreCommand(configPath string, backupPath string) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		die(exitConfig, fmt.Sprintf("loading config: %v", err), "mnemonic diagnose")
 	}
 
 	// Verify backup file exists
 	info, err := os.Stat(backupPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: backup file not found: %s\n", backupPath)
-		os.Exit(1)
+		die(exitUsage, fmt.Sprintf("backup file not found: %s", backupPath), "check the file path")
 	}
 	if info.IsDir() {
-		fmt.Fprintf(os.Stderr, "Error: %s is a directory, not a backup file\n", backupPath)
-		os.Exit(1)
+		die(exitUsage, fmt.Sprintf("%s is a directory, not a backup file", backupPath), "provide a .db file path")
 	}
 
 	// Verify backup integrity by opening it as a SQLite database
 	fmt.Printf("Verifying backup integrity: %s\n", backupPath)
 	testStore, err := sqlite.NewSQLiteStore(backupPath, 5000)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s✗ Backup file is not a valid SQLite database: %v%s\n", colorRed, err, colorReset)
-		os.Exit(1)
+		die(exitDatabase, fmt.Sprintf("backup is not a valid SQLite database: %v", err), "")
 	}
 	intCtx, intCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	intErr := testStore.CheckIntegrity(intCtx)
 	intCancel()
 	testStore.Close()
 	if intErr != nil {
-		fmt.Fprintf(os.Stderr, "%s✗ Backup file is corrupted: %v%s\n", colorRed, intErr, colorReset)
-		os.Exit(1)
+		die(exitDatabase, fmt.Sprintf("backup file is corrupted: %v", intErr), "")
 	}
 	fmt.Printf("  %s✓ Backup integrity verified%s\n", colorGreen, colorReset)
 
 	// Check if daemon is running
 	svc := daemon.NewServiceManager()
 	if running, _ := svc.IsRunning(); running {
-		fmt.Fprintf(os.Stderr, "%sError: daemon is running. Stop it first with 'mnemonic stop'.%s\n", colorRed, colorReset)
-		os.Exit(1)
+		die(exitGeneral, "daemon is running", "mnemonic stop")
 	}
 
 	// If current DB exists, move it aside
@@ -1982,8 +1973,7 @@ func restoreCommand(configPath string, backupPath string) {
 		aside := dbPath + ".pre-restore"
 		fmt.Printf("  Moving current database to %s\n", aside)
 		if err := os.Rename(dbPath, aside); err != nil {
-			fmt.Fprintf(os.Stderr, "Error moving current database: %v\n", err)
-			os.Exit(1)
+			die(exitPermission, fmt.Sprintf("moving current database: %v", err), "check file permissions")
 		}
 	}
 
@@ -2007,8 +1997,7 @@ func restoreCommand(configPath string, backupPath string) {
 func purgeCommand(configPath string) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		die(exitConfig, fmt.Sprintf("loading config: %v", err), "mnemonic diagnose")
 	}
 
 	// Confirm with user
@@ -2460,6 +2449,16 @@ EXAMPLES:
   mnemonic mcp                                      Start MCP server (stdio)
   mnemonic install                                  Auto-start on boot
   mnemonic autopilot                                Autonomous activity log
+  mnemonic restore ~/.mnemonic/backups/backup.db    Restore from backup
+
+EXIT CODES:
+  0     Success
+  1     General error
+  2     Configuration error (check config.yaml)
+  3     Database error (run 'mnemonic diagnose')
+  4     Network/connectivity error (transient)
+  5     Permission error (check file permissions)
+  64    Bad command-line usage
 `
 	fmt.Printf(usage, Version)
 }
