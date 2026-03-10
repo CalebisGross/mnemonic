@@ -55,6 +55,11 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	return s, nil
 }
 
+// DB returns the underlying *sql.DB for direct queries (e.g., PRAGMA checks).
+func (s *SQLiteStore) DB() *sql.DB {
+	return s.db
+}
+
 // loadEmbeddingIndex reads all (id, embedding) pairs for active/fading memories
 // and populates the in-memory index. Only loads the two columns needed, not full rows.
 func (s *SQLiteStore) loadEmbeddingIndex() error {

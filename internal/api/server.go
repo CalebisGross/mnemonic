@@ -122,7 +122,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /ws", routes.HandleWebSocket(s.deps.Bus, s.deps.Log))
 
 	// Web dashboard (serve static files at root)
-	web.RegisterRoutes(s.mux)
+	if err := web.RegisterRoutes(s.mux); err != nil {
+		s.deps.Log.Warn("web dashboard disabled: failed to load static files", "error", err)
+	}
 }
 
 // allowedCORSOrigins is the set of origins allowed for CORS requests.

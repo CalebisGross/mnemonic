@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"net/http"
 )
@@ -11,11 +12,12 @@ var staticFiles embed.FS
 
 // RegisterRoutes registers the web UI routes on the given ServeMux.
 // Serves the embedded static files at the root path.
-func RegisterRoutes(mux *http.ServeMux) {
+// Returns an error if the embedded filesystem cannot be loaded.
+func RegisterRoutes(mux *http.ServeMux) error {
 	// Create a sub-filesystem rooted at "static"
 	staticFS, err := fs.Sub(staticFiles, "static")
 	if err != nil {
-		panic("failed to create sub filesystem for static files: " + err.Error())
+		return fmt.Errorf("creating static filesystem: %w", err)
 	}
 
 	// Serve static files
@@ -23,4 +25,5 @@ func RegisterRoutes(mux *http.ServeMux) {
 
 	// Handle root path - serve index.html
 	mux.Handle("/", fileServer)
+	return nil
 }
