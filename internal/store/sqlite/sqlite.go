@@ -1859,6 +1859,32 @@ func (s *SQLiteStore) Close() error {
 	return nil
 }
 
+// GetMeta retrieves a value from the system_meta key-value store.
+// Returns empty string and no error if the key does not exist.
+func (s *SQLiteStore) GetMeta(ctx context.Context, key string) (string, error) {
+	var value string
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM system_meta WHERE key = ?`, key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("getting meta %q: %w", key, err)
+	}
+	return value, nil
+}
+
+// SetMeta upserts a value in the system_meta key-value store.
+func (s *SQLiteStore) SetMeta(ctx context.Context, key, value string) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, datetime('now'))
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+		key, value)
+	if err != nil {
+		return fmt.Errorf("setting meta %q: %w", key, err)
+	}
+	return nil
+}
+
 // Helper functions
 
 // nullableString converts an empty string to nil for SQL NULL, or returns the string.

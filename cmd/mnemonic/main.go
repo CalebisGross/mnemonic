@@ -1149,6 +1149,25 @@ func serveCommand(configPath string) {
 		cfg.LLM.MaxConcurrent,
 	)
 
+	// Check for embedding model drift
+	embModel := llmProvider.EmbeddingModelName()
+	if embModel != "" {
+		metaCtx, metaCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		prevModel, _ := memStore.GetMeta(metaCtx, "embedding_model")
+		metaCancel()
+
+		if prevModel != "" && prevModel != embModel {
+			log.Warn("embedding model changed", "previous", prevModel, "current", embModel)
+			fmt.Fprintf(os.Stderr, "\n%s⚠ Embedding model changed: %s → %s%s\n", colorYellow, prevModel, embModel, colorReset)
+			fmt.Fprintf(os.Stderr, "  Existing semantic search may return degraded results.\n")
+			fmt.Fprintf(os.Stderr, "  Old embeddings are from a different vector space.\n\n")
+		}
+
+		metaCtx2, metaCancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = memStore.SetMeta(metaCtx2, "embedding_model", embModel)
+		metaCancel2()
+	}
+
 	// Create event bus
 	bus := events.NewInMemoryBus(bufferSize)
 	defer bus.Close()

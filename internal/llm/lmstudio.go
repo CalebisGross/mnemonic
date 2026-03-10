@@ -518,3 +518,8 @@ func (p *LMStudioProvider) ModelInfo(ctx context.Context) (ModelMetadata, error)
 		MaxTokens:         1024, // Conservative default for response tokens
 	}, nil
 }
+
+// EmbeddingModelName returns the configured embedding model name.
+func (p *LMStudioProvider) EmbeddingModelName() string {
+	return p.embeddingModel
+}
