@@ -110,40 +110,130 @@ func HandleGraph(s store.Store, log *slog.Logger) http.HandlerFunc {
 				nodes = append(nodes, node)
 			}
 
-			// Build edges from shared concepts between episodes
-			var edges []GraphEdge
+			// edgeKey deduplicates edges between the same pair of episodes.
+			type edgeKey struct{ a, b string }
+			makeKey := func(a, b string) edgeKey {
+				if a > b {
+					a, b = b, a
+				}
+				return edgeKey{a, b}
+			}
+			bestEdge := make(map[edgeKey]GraphEdge)
+			addEdge := func(e GraphEdge) {
+				k := makeKey(e.Source, e.Target)
+				if existing, ok := bestEdge[k]; !ok || e.Strength > existing.Strength {
+					bestEdge[k] = e
+				}
+			}
+
+			// --- Edge source 1: Associations between episode member memories ---
+			// Build a map from memory ID -> episode ID for all member memories.
+			memToEpisode := make(map[string]string)
+			for _, ep := range episodes {
+				if !nodeIDs[ep.ID] {
+					continue
+				}
+				for _, mid := range ep.MemoryIDs {
+					memToEpisode[mid] = ep.ID
+				}
+				for _, rid := range ep.RawMemoryIDs {
+					memToEpisode[rid] = ep.ID
+				}
+			}
+
+			// Fetch all associations and promote to episode-level edges.
+			associations, assocErr := s.ListAllAssociations(ctx)
+			if assocErr != nil {
+				log.Warn("failed to fetch associations for episode graph", "error", assocErr)
+			} else {
+				for _, assoc := range associations {
+					srcEp := memToEpisode[assoc.SourceID]
+					tgtEp := memToEpisode[assoc.TargetID]
+					if srcEp == "" || tgtEp == "" || srcEp == tgtEp {
+						continue
+					}
+					if !nodeIDs[srcEp] || !nodeIDs[tgtEp] {
+						continue
+					}
+					addEdge(GraphEdge{
+						Source:       srcEp,
+						Target:       tgtEp,
+						Strength:     assoc.Strength,
+						RelationType: assoc.RelationType,
+					})
+				}
+			}
+
+			// --- Edge source 2: Temporal proximity ---
+			// Episodes within 30 minutes of each other get a temporal edge.
+			const temporalWindow = 30 * time.Minute
+			// Build a time-sorted index from nodeIDs-filtered episodes.
+			type epTime struct {
+				id    string
+				start time.Time
+				end   time.Time
+			}
+			var timeSorted []epTime
+			for _, ep := range episodes {
+				if !nodeIDs[ep.ID] {
+					continue
+				}
+				timeSorted = append(timeSorted, epTime{ep.ID, ep.StartTime, ep.EndTime})
+			}
+			for i := 0; i < len(timeSorted); i++ {
+				for j := i + 1; j < len(timeSorted); j++ {
+					gap := timeSorted[j].start.Sub(timeSorted[i].end)
+					if gap > temporalWindow {
+						break
+					}
+					if gap < 0 {
+						gap = 0
+					}
+					// Strength decays linearly from 0.8 (overlap) to 0.2 (30min apart)
+					strength := float32(0.8 - 0.6*(float64(gap)/float64(temporalWindow)))
+					addEdge(GraphEdge{
+						Source:       timeSorted[i].id,
+						Target:       timeSorted[j].id,
+						Strength:     strength,
+						RelationType: "temporal",
+					})
+				}
+			}
+
+			// --- Edge source 3: Shared concepts (fallback, lowered to 1+ shared) ---
 			for i := 0; i < len(nodes); i++ {
 				for j := i + 1; j < len(nodes); j++ {
-					concepts1 := nodes[i].Concepts
-					concepts2 := nodes[j].Concepts
-
-					// Find shared concepts
-					sharedCount := 0
-					conceptMap := make(map[string]bool)
-					for _, c := range concepts1 {
+					conceptMap := make(map[string]bool, len(nodes[i].Concepts))
+					for _, c := range nodes[i].Concepts {
 						conceptMap[c] = true
 					}
-					for _, c := range concepts2 {
+					sharedCount := 0
+					for _, c := range nodes[j].Concepts {
 						if conceptMap[c] {
 							sharedCount++
 						}
 					}
-
-					// Create edge if 2+ shared concepts and strength meets threshold
-					if sharedCount >= 2 {
-						strength := float32(sharedCount) / float32(len(concepts1)+len(concepts2)) * 2
+					if sharedCount >= 1 {
+						total := len(nodes[i].Concepts) + len(nodes[j].Concepts)
+						strength := float32(sharedCount) / float32(total) * 2
 						if strength > 1.0 {
 							strength = 1.0
 						}
-						if strength >= minStrength {
-							edges = append(edges, GraphEdge{
-								Source:       nodes[i].ID,
-								Target:       nodes[j].ID,
-								Strength:     strength,
-								RelationType: "shared_concepts",
-							})
-						}
+						addEdge(GraphEdge{
+							Source:       nodes[i].ID,
+							Target:       nodes[j].ID,
+							Strength:     strength,
+							RelationType: "similar",
+						})
 					}
+				}
+			}
+
+			// Collect edges that meet the strength threshold.
+			var edges []GraphEdge
+			for _, e := range bestEdge {
+				if e.Strength >= minStrength {
+					edges = append(edges, e)
 				}
 			}
 
