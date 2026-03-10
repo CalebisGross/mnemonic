@@ -52,7 +52,7 @@ func main() {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "bench.db")
-	s, err := sqlite.NewSQLiteStore(dbPath)
+	s, err := sqlite.NewSQLiteStore(dbPath, 5000)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating store: %v\n", err)
 		os.Exit(1)
