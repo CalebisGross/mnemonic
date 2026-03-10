@@ -602,11 +602,11 @@ func (c *Config) Validate() error {
 	// If dir doesn't exist, EnsureDataDir will create it later
 
 	// Warn about dangerous watch directories
+	home, _ := os.UserHomeDir()
 	for _, dir := range c.Perception.Filesystem.WatchDirs {
 		if dir == "/" {
 			return fmt.Errorf("perception.filesystem.watch_dirs contains root directory — this will overwhelm the system")
 		}
-		home, _ := os.UserHomeDir()
 		if home != "" && dir == home {
 			return fmt.Errorf("perception.filesystem.watch_dirs contains home directory %q — use specific subdirectories instead (e.g. ~/Documents, ~/Projects)", home)
 		}
