@@ -1709,6 +1709,78 @@ func (s *SQLiteStore) ListAllAssociations(ctx context.Context) ([]store.Associat
 	return associations, rows.Err()
 }
 
+// GetAssociationsForMemoryIDs returns associations where both source and target
+// are in the provided set of memory IDs. Processes in chunks to avoid SQLite
+// parameter limits.
+func (s *SQLiteStore) GetAssociationsForMemoryIDs(ctx context.Context, memoryIDs []string) ([]store.Association, error) {
+	if len(memoryIDs) == 0 {
+		return nil, nil
+	}
+
+	// Build a set for fast lookup of which IDs we care about.
+	idSet := make(map[string]bool, len(memoryIDs))
+	for _, id := range memoryIDs {
+		idSet[id] = true
+	}
+
+	// Query in chunks to stay under SQLite's variable limit (999).
+	const chunkSize = 500
+	var associations []store.Association
+	for start := 0; start < len(memoryIDs); start += chunkSize {
+		end := start + chunkSize
+		if end > len(memoryIDs) {
+			end = len(memoryIDs)
+		}
+		chunk := memoryIDs[start:end]
+
+		placeholders := make([]string, len(chunk))
+		args := make([]interface{}, 0, len(chunk)*2)
+		for i, id := range chunk {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		ph := strings.Join(placeholders, ",")
+		// Duplicate args for the OR clause.
+		for _, id := range chunk {
+			args = append(args, id)
+		}
+
+		query := `SELECT source_id, target_id, strength, relation_type, created_at, last_activated, activation_count
+			FROM associations WHERE source_id IN (` + ph + `) OR target_id IN (` + ph + `)`
+
+		rows, err := s.db.QueryContext(ctx, query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query associations for memory IDs: %w", err)
+		}
+
+		for rows.Next() {
+			var a store.Association
+			var createdAt, lastActivated sql.NullString
+			if err := rows.Scan(&a.SourceID, &a.TargetID, &a.Strength, &a.RelationType,
+				&createdAt, &lastActivated, &a.ActivationCount); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("failed to scan association: %w", err)
+			}
+			// Only include if both endpoints are in our set.
+			if !idSet[a.SourceID] || !idSet[a.TargetID] {
+				continue
+			}
+			if createdAt.Valid {
+				a.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt.String)
+			}
+			if lastActivated.Valid {
+				a.LastActivated, _ = time.Parse("2006-01-02 15:04:05", lastActivated.String)
+			}
+			associations = append(associations, a)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("rows error: %w", err)
+		}
+	}
+	return associations, nil
+}
+
 // ListAllRawMemories returns all raw memories in the system.
 func (s *SQLiteStore) ListAllRawMemories(ctx context.Context) ([]store.RawMemory, error) {
 	rows, err := s.db.QueryContext(ctx,

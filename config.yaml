@@ -12,16 +12,16 @@ llm:
 
   # Model name for chat/conversation
   # LM Studio:  "qwen/qwen3.5-9b"
-  # Gemini:     "gemini-2.5-flash"
-  chat_model: "gemini-3.1-flash-lite-preview"
+  # Gemini:     "gemini-3.1-flash-lite-preview"
+  chat_model: "gemini-3-flash-preview"
 
   # Model name for embeddings
   # LM Studio:  "text-embedding-embeddinggemma-300m-qat"
-  # Gemini:     "text-embedding-004"
+  # Gemini:     "gemini-embedding-2-preview"
   embedding_model: "gemini-embedding-2-preview"
 
-  # Maximum tokens in model responses
-  max_tokens: 4096
+  # Maximum tokens in model responses (thinking models need headroom for reasoning)
+  max_tokens: 8192
 
   # Temperature for sampling (0.0 = deterministic, 2.0 = more random)
   temperature: 0.3
@@ -30,7 +30,7 @@ llm:
   timeout_sec: 120
 
   # Maximum simultaneous LLM requests (local models: 2, cloud APIs: 5+)
-  max_concurrent: 2
+  max_concurrent: 8
 
 # Storage Configuration
 store:
@@ -42,8 +42,8 @@ store:
 
 # Memory Configuration
 memory:
-  # Maximum number of memories in working memory
-  max_working_memory: 7
+  # Maximum number of memories in working memory (higher = richer context per query)
+  max_working_memory: 12
 
 # Perception Configuration
 perception:
@@ -134,8 +134,8 @@ perception:
       - "/snap/"
       - ".egg-info/"
 
-    # Maximum file content size to process (in bytes)
-    max_content_bytes: 102400
+    # Maximum file content size to process (in bytes) — Gemini has 1M+ context
+    max_content_bytes: 524288
 
     # --- Attention-based watching (Linux only, ignored on macOS) ---
     # Hard cap on inotify watches to prevent starving VS Code and other apps.
@@ -144,7 +144,7 @@ perception:
 
     # How deep to add inotify watches at startup (shallow = fast, safe).
     # Deeper directories are polled in the background instead.
-    shallow_depth: 3
+    shallow_depth: 5
 
     # How often (seconds) to poll cold (non-inotify) directories for changes.
     poll_interval_sec: 45
@@ -197,10 +197,11 @@ perception:
     max_content_length: 100000
 
     # Frequency threshold (how many times to see content before encoding)
-    frequency_threshold: 5
+    # Lower = more memories captured; higher = only repeated patterns
+    frequency_threshold: 2
 
     # Frequency window in minutes
-    frequency_window_min: 10
+    frequency_window_min: 15
 
 # Encoding Configuration
 encoding:
@@ -208,7 +209,7 @@ encoding:
   enabled: true
 
   # Maximum number of concepts to extract per memory
-  max_concepts: 5
+  max_concepts: 8
 
   # Limit for similarity search results
   find_similar_limit: 5
@@ -222,11 +223,11 @@ encoding:
   # Number of semantically similar memories to include as context
   context_semantic_count: 3
 
-  # Maximum concurrent encoding goroutines (serializes local LLM calls)
-  max_concurrent_encodings: 1
+  # Maximum concurrent encoding goroutines (cloud APIs can handle more parallelism)
+  max_concurrent_encodings: 6
 
   # Enable LLM-based association type classification (similar → caused_by, part_of, etc.)
-  enable_llm_classification: false
+  enable_llm_classification: true
 
   # Maximum tokens for encoding LLM completions (higher = more room for structured JSON output)
   completion_max_tokens: 1024
@@ -272,13 +273,13 @@ retrieval:
   decay_factor: 0.7
 
   # Maximum results to return from retrieval
-  max_results: 7
+  max_results: 10
 
   # Maximum tool invocations per synthesis
-  max_tool_calls: 5
+  max_tool_calls: 8
 
-  # Maximum tokens per synthesis LLM call
-  synthesis_max_tokens: 500
+  # Maximum tokens per synthesis LLM call (needs headroom for thinking models)
+  synthesis_max_tokens: 2048
 
   # Weight of embedding vs FTS in score merge (0.0-1.0; higher = more embedding weight)
   merge_alpha: 0.6
@@ -303,7 +304,7 @@ dreaming:
   interval: "1h"
 
   # Number of memories to replay per cycle
-  batch_size: 20
+  batch_size: 60
 
   # Minimum salience threshold for replay (0.0-1.0)
   salience_threshold: 0.3
@@ -340,7 +341,7 @@ abstraction:
   min_strength: 0.4
 
   # Maximum LLM calls per abstraction cycle
-  max_llm_calls: 5
+  max_llm_calls: 10
 
 # Orchestrator Configuration (autonomous scheduler and health monitoring)
 orchestrator:

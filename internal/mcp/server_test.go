@@ -96,6 +96,9 @@ func (m *mockStore) GetLastConsolidation(ctx context.Context) (store.Consolidati
 func (m *mockStore) ListAllAssociations(ctx context.Context) ([]store.Association, error) {
 	return nil, nil
 }
+func (m *mockStore) GetAssociationsForMemoryIDs(ctx context.Context, memoryIDs []string) ([]store.Association, error) {
+	return nil, nil
+}
 func (m *mockStore) ListAllRawMemories(ctx context.Context) ([]store.RawMemory, error) {
 	return nil, nil
 }

@@ -165,14 +165,15 @@ type openAIJSONSchema struct {
 
 // openAICompletionRequest is the request format for the OpenAI-compatible chat completion API.
 type openAICompletionRequest struct {
-	Model          string                `json:"model"`
-	Messages       []openAIMessage       `json:"messages"`
-	MaxTokens      int                   `json:"max_tokens,omitempty"`
-	Temperature    float32               `json:"temperature,omitempty"`
-	TopP           float32               `json:"top_p,omitempty"`
-	Stop           []string              `json:"stop,omitempty"`
-	Tools          []openAITool          `json:"tools,omitempty"`
-	ResponseFormat *openAIResponseFormat `json:"response_format,omitempty"`
+	Model            string                `json:"model"`
+	Messages         []openAIMessage       `json:"messages"`
+	MaxTokens        int                   `json:"max_tokens,omitempty"`
+	Temperature      float32               `json:"temperature,omitempty"`
+	TopP             float32               `json:"top_p,omitempty"`
+	Stop             []string              `json:"stop,omitempty"`
+	Tools            []openAITool          `json:"tools,omitempty"`
+	ResponseFormat   *openAIResponseFormat `json:"response_format,omitempty"`
+	ReasoningEffort  string                `json:"reasoning_effort,omitempty"`
 }
 
 // openAIChoice represents a single choice in a completion response.
@@ -271,7 +272,9 @@ func (p *LMStudioProvider) Complete(ctx context.Context, req CompletionRequest) 
 
 	// Qwen3 thinking mode: append /no_think to the last user message
 	// to disable chain-of-thought reasoning and get direct JSON output.
+	isThinkingModel := false
 	if strings.Contains(strings.ToLower(model), "qwen3") {
+		isThinkingModel = true
 		for i := len(messages) - 1; i >= 0; i-- {
 			if messages[i].Role == "user" && messages[i].Content != nil {
 				noThink := *messages[i].Content + " /no_think"
@@ -279,6 +282,10 @@ func (p *LMStudioProvider) Complete(ctx context.Context, req CompletionRequest) 
 				break
 			}
 		}
+	}
+	// Gemini thinking models (gemini-2.5+, gemini-3+): detect by model name.
+	if strings.Contains(strings.ToLower(model), "gemini-2.5") || strings.Contains(strings.ToLower(model), "gemini-3") {
+		isThinkingModel = true
 	}
 
 	// Build the request
@@ -289,6 +296,13 @@ func (p *LMStudioProvider) Complete(ctx context.Context, req CompletionRequest) 
 		Temperature: req.Temperature,
 		TopP:        req.TopP,
 		Stop:        req.Stop,
+	}
+
+	// Thinking models: disable reasoning for structured output requests.
+	// Thinking tokens consume the max_tokens budget and can starve the actual
+	// JSON output, causing parse failures.
+	if isThinkingModel && req.ResponseFormat != nil && req.ResponseFormat.Type == "json_schema" {
+		apiReq.ReasoningEffort = "none"
 	}
 
 	// Convert tools if present
