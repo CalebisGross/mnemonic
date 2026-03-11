@@ -321,8 +321,8 @@ func checkLLMFromAPI(healthURL, llmEndpoint, token string) {
 
 	llmAvail, _ := health["llm_available"].(bool)
 	if !llmAvail {
-		fmt.Printf("\n  %s⚠ LM Studio is not reachable at %s%s\n", colorYellow, llmEndpoint, colorReset)
-		fmt.Printf("  Memory encoding will not work until LM Studio is running.\n")
+		fmt.Printf("\n  %s⚠ LLM provider is not reachable at %s%s\n", colorYellow, llmEndpoint, colorReset)
+		fmt.Printf("  Memory encoding will not work until the LLM provider is running.\n")
 		fmt.Printf("  Run 'mnemonic diagnose' for details.\n")
 	}
 }
@@ -856,7 +856,7 @@ func diagnoseCommand(configPath string) {
 		}
 	}
 
-	// 4. LLM (LM Studio)
+	// 4. LLM provider
 	timeout := time.Duration(cfg.LLM.TimeoutSec) * time.Second
 	if timeout == 0 {
 		timeout = 30 * time.Second
@@ -865,6 +865,7 @@ func diagnoseCommand(configPath string) {
 		cfg.LLM.Endpoint,
 		cfg.LLM.ChatModel,
 		cfg.LLM.EmbeddingModel,
+		cfg.LLM.APIKey,
 		timeout,
 		cfg.LLM.MaxConcurrent,
 	)
@@ -873,7 +874,7 @@ func diagnoseCommand(configPath string) {
 	defer cancel()
 
 	if err := llmProvider.Health(ctx); err != nil {
-		fail("LLM", fmt.Sprintf("LM Studio not reachable at %s (%v)", cfg.LLM.Endpoint, err))
+		fail("LLM", fmt.Sprintf("LLM provider not reachable at %s (%v)", cfg.LLM.Endpoint, err))
 	} else {
 		// Try a quick embedding to verify the model works
 		_, embErr := llmProvider.Embed(ctx, "test")
@@ -1145,6 +1146,7 @@ func serveCommand(configPath string) {
 		cfg.LLM.Endpoint,
 		cfg.LLM.ChatModel,
 		cfg.LLM.EmbeddingModel,
+		cfg.LLM.APIKey,
 		time.Duration(cfg.LLM.TimeoutSec)*time.Second,
 		cfg.LLM.MaxConcurrent,
 	)
@@ -1176,9 +1178,9 @@ func serveCommand(configPath string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.LLM.TimeoutSec)*time.Second)
 	if err := llmProvider.Health(ctx); err != nil {
 		log.Warn("LLM provider unavailable at startup", "endpoint", cfg.LLM.Endpoint, "error", err)
-		fmt.Fprintf(os.Stderr, "\n%s⚠ WARNING: LM Studio is not reachable at %s%s\n", colorYellow, cfg.LLM.Endpoint, colorReset)
-		fmt.Fprintf(os.Stderr, "  Memory encoding will not work until LM Studio is running.\n")
-		fmt.Fprintf(os.Stderr, "  Raw observations will queue and be processed once LM Studio is available.\n")
+		fmt.Fprintf(os.Stderr, "\n%s⚠ WARNING: LLM provider is not reachable at %s%s\n", colorYellow, cfg.LLM.Endpoint, colorReset)
+		fmt.Fprintf(os.Stderr, "  Memory encoding will not work until the LLM provider is running.\n")
+		fmt.Fprintf(os.Stderr, "  Raw observations will queue and be processed once the LLM provider is available.\n")
 		fmt.Fprintf(os.Stderr, "  Run 'mnemonic diagnose' for a full health check.\n\n")
 	}
 	cancel()
@@ -1204,6 +1206,11 @@ func serveCommand(configPath string) {
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	defer rootCancel()
 
+	// Instrumented provider wrapper — gives each agent its own usage tracking
+	wrap := func(caller string) llm.Provider {
+		return llm.NewInstrumentedProvider(llmProvider, memStore, caller, cfg.LLM.ChatModel)
+	}
+
 	// --- Start episoding agent (groups raw events into episodes) ---
 	var episodingAgent *episoding.EpisodingAgent
 	if cfg.Episoding.Enabled {
@@ -1212,7 +1219,7 @@ func serveCommand(configPath string) {
 			MinEventsPerEpisode:  cfg.Episoding.MinEventsPerEpisode,
 			PollingInterval:      10 * time.Second,
 		}
-		episodingAgent = episoding.NewEpisodingAgent(memStore, llmProvider, log, episodingCfg)
+		episodingAgent = episoding.NewEpisodingAgent(memStore, wrap("episoding"), log, episodingCfg)
 		if err := episodingAgent.Start(rootCtx, bus); err != nil {
 			log.Error("failed to start episoding agent", "error", err)
 		} else {
@@ -1223,7 +1230,7 @@ func serveCommand(configPath string) {
 	// --- Start encoding agent ---
 	var encoder *encoding.EncodingAgent
 	if cfg.Encoding.Enabled {
-		encoder = encoding.NewEncodingAgentWithConfig(memStore, llmProvider, log, encoding.EncodingConfig{
+		encoder = encoding.NewEncodingAgentWithConfig(memStore, wrap("encoding"), log, encoding.EncodingConfig{
 			PollingInterval:         5 * time.Second,
 			SimilarityThreshold:     0.3,
 			MaxSimilarSearchResults: cfg.Encoding.FindSimilarLimit,
@@ -1321,7 +1328,7 @@ func serveCommand(configPath string) {
 			percAgent = perception.NewPerceptionAgent(
 				watchers,
 				memStore,
-				llmProvider,
+				wrap("perception"),
 				perception.PerceptionConfig{
 					HeuristicConfig: perception.HeuristicConfig{
 						MinContentLength:   cfg.Perception.Heuristics.MinContentLength,
@@ -1343,7 +1350,7 @@ func serveCommand(configPath string) {
 	}
 
 	// --- Create retrieval agent for API queries ---
-	retriever := retrieval.NewRetrievalAgent(memStore, llmProvider, retrieval.RetrievalConfig{
+	retriever := retrieval.NewRetrievalAgent(memStore, wrap("retrieval"), retrieval.RetrievalConfig{
 		MaxHops:             cfg.Retrieval.MaxHops,
 		ActivationThreshold: float32(cfg.Retrieval.ActivationThreshold),
 		DecayFactor:         float32(cfg.Retrieval.DecayFactor),
@@ -1357,7 +1364,7 @@ func serveCommand(configPath string) {
 	// --- Start consolidation agent ---
 	var consolidator *consolidation.ConsolidationAgent
 	if cfg.Consolidation.Enabled {
-		consolidator = consolidation.NewConsolidationAgent(memStore, llmProvider, consolidation.ConsolidationConfig{
+		consolidator = consolidation.NewConsolidationAgent(memStore, wrap("consolidation"), consolidation.ConsolidationConfig{
 			Interval:            cfg.Consolidation.Interval,
 			DecayRate:           cfg.Consolidation.DecayRate,
 			FadeThreshold:       cfg.Consolidation.FadeThreshold,
@@ -1379,7 +1386,7 @@ func serveCommand(configPath string) {
 	// --- Start metacognition agent ---
 	var metaAgent *metacognition.MetacognitionAgent
 	if cfg.Metacognition.Enabled {
-		metaAgent = metacognition.NewMetacognitionAgent(memStore, llmProvider, metacognition.MetacognitionConfig{
+		metaAgent = metacognition.NewMetacognitionAgent(memStore, wrap("metacognition"), metacognition.MetacognitionConfig{
 			Interval: cfg.Metacognition.Interval,
 		}, log)
 
@@ -1393,7 +1400,7 @@ func serveCommand(configPath string) {
 	// --- Start dreaming agent ---
 	var dreamer *dreaming.DreamingAgent
 	if cfg.Dreaming.Enabled {
-		dreamer = dreaming.NewDreamingAgent(memStore, llmProvider, dreaming.DreamingConfig{
+		dreamer = dreaming.NewDreamingAgent(memStore, wrap("dreaming"), dreaming.DreamingConfig{
 			Interval:               cfg.Dreaming.Interval,
 			BatchSize:              cfg.Dreaming.BatchSize,
 			SalienceThreshold:      cfg.Dreaming.SalienceThreshold,
@@ -1411,7 +1418,7 @@ func serveCommand(configPath string) {
 	// --- Start abstraction agent ---
 	var abstractionAgent *abstraction.AbstractionAgent
 	if cfg.Abstraction.Enabled {
-		abstractionAgent = abstraction.NewAbstractionAgent(memStore, llmProvider, abstraction.AbstractionConfig{
+		abstractionAgent = abstraction.NewAbstractionAgent(memStore, wrap("abstraction"), abstraction.AbstractionConfig{
 			Interval:    cfg.Abstraction.Interval,
 			MinStrength: cfg.Abstraction.MinStrength,
 			MaxLLMCalls: cfg.Abstraction.MaxLLMCalls,
@@ -1427,7 +1434,7 @@ func serveCommand(configPath string) {
 	// --- Start orchestrator (autonomous health monitoring and self-testing) ---
 	var orch *orchestrator.Orchestrator
 	if cfg.Orchestrator.Enabled {
-		orch = orchestrator.NewOrchestrator(memStore, llmProvider, orchestrator.OrchestratorConfig{
+		orch = orchestrator.NewOrchestrator(memStore, wrap("orchestrator"), orchestrator.OrchestratorConfig{
 			AdaptiveIntervals: cfg.Orchestrator.AdaptiveIntervals,
 			MaxDBSizeMB:       cfg.Orchestrator.MaxDBSizeMB,
 			SelfTestInterval:  cfg.Orchestrator.SelfTestInterval,
@@ -1615,6 +1622,7 @@ func initRuntime(configPath string) (*config.Config, *sqlite.SQLiteStore, *llm.L
 		cfg.LLM.Endpoint,
 		cfg.LLM.ChatModel,
 		cfg.LLM.EmbeddingModel,
+		cfg.LLM.APIKey,
 		time.Duration(cfg.LLM.TimeoutSec)*time.Second,
 		cfg.LLM.MaxConcurrent,
 	)

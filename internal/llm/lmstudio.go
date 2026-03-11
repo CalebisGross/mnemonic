@@ -18,18 +18,20 @@ type LMStudioProvider struct {
 	endpoint       string
 	chatModel      string
 	embeddingModel string
+	apiKey         string // optional API key for authenticated providers (e.g., Gemini)
 	httpClient     *http.Client
 	timeout        time.Duration
 	sem            chan struct{} // concurrency limiter for LLM requests
 }
 
-// NewLMStudioProvider creates a new LM Studio provider.
-// endpoint should be the base URL (e.g., "http://localhost:1234"), without a trailing slash.
+// NewLMStudioProvider creates a new provider for OpenAI-compatible APIs (LM Studio, Gemini, etc.).
+// endpoint should be the base URL (e.g., "http://localhost:1234/v1"), without a trailing slash.
 // chatModel is the model name for text completion (e.g., "gpt-3.5-turbo").
 // embeddingModel is the model name for embeddings (e.g., "nomic-embed-text").
+// apiKey is an optional API key; when non-empty, requests include an Authorization: Bearer header.
 // timeout is the request timeout duration.
 // maxConcurrent limits simultaneous LLM requests (0 defaults to 2).
-func NewLMStudioProvider(endpoint, chatModel, embeddingModel string, timeout time.Duration, maxConcurrent int) *LMStudioProvider {
+func NewLMStudioProvider(endpoint, chatModel, embeddingModel, apiKey string, timeout time.Duration, maxConcurrent int) *LMStudioProvider {
 	if maxConcurrent <= 0 {
 		maxConcurrent = 2
 	}
@@ -37,6 +39,7 @@ func NewLMStudioProvider(endpoint, chatModel, embeddingModel string, timeout tim
 		endpoint:       endpoint,
 		chatModel:      chatModel,
 		embeddingModel: embeddingModel,
+		apiKey:         apiKey,
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -58,6 +61,13 @@ func (p *LMStudioProvider) acquire(ctx context.Context) error {
 // release frees a concurrency slot.
 func (p *LMStudioProvider) release() {
 	<-p.sem
+}
+
+// setAuthHeader sets the Authorization header if an API key is configured.
+func (p *LMStudioProvider) setAuthHeader(req *http.Request) {
+	if p.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
 }
 
 // doWithRetry executes an HTTP request with exponential backoff on transient errors.
@@ -202,7 +212,8 @@ type openAIEmbeddingData struct {
 
 // openAIEmbeddingResponse is the response format from the OpenAI-compatible embeddings API.
 type openAIEmbeddingResponse struct {
-	Data []openAIEmbeddingData `json:"data"`
+	Data  []openAIEmbeddingData `json:"data"`
+	Usage openAIUsage           `json:"usage"`
 }
 
 // stringPtr returns a pointer to a string value.
@@ -327,6 +338,7 @@ func (p *LMStudioProvider) Complete(ctx context.Context, req CompletionRequest) 
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
+	p.setAuthHeader(httpReq)
 
 	// Execute the request with retry
 	httpResp, err := p.doWithRetry(httpReq)
@@ -360,9 +372,11 @@ func (p *LMStudioProvider) Complete(ctx context.Context, req CompletionRequest) 
 
 	choice := apiResp.Choices[0]
 	resp := CompletionResponse{
-		Content:    derefString(choice.Message.Content),
-		StopReason: choice.FinishReason,
-		TokensUsed: apiResp.Usage.TotalTokens,
+		Content:          derefString(choice.Message.Content),
+		StopReason:       choice.FinishReason,
+		TokensUsed:       apiResp.Usage.TotalTokens,
+		PromptTokens:     apiResp.Usage.PromptTokens,
+		CompletionTokens: apiResp.Usage.CompletionTokens,
 	}
 
 	// If the model made tool calls, convert them
@@ -434,6 +448,7 @@ func (p *LMStudioProvider) BatchEmbed(ctx context.Context, texts []string) ([][]
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
+	p.setAuthHeader(httpReq)
 
 	// Execute the request with retry
 	httpResp, err := p.doWithRetry(httpReq)
@@ -479,6 +494,7 @@ func (p *LMStudioProvider) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
+	p.setAuthHeader(httpReq)
 
 	httpResp, err := p.httpClient.Do(httpReq)
 	if err != nil {

@@ -37,13 +37,16 @@ type Config struct {
 
 // LLMConfig holds LLM provider settings.
 type LLMConfig struct {
-	Endpoint       string  `yaml:"endpoint"`
-	ChatModel      string  `yaml:"chat_model"`
-	EmbeddingModel string  `yaml:"embedding_model"`
-	MaxTokens      int     `yaml:"max_tokens"`
-	Temperature    float64 `yaml:"temperature"`
-	TimeoutSec     int     `yaml:"timeout_sec"`
-	MaxConcurrent  int     `yaml:"max_concurrent"` // max simultaneous LLM requests (0 = default 2)
+	Endpoint             string  `yaml:"endpoint"`
+	ChatModel            string  `yaml:"chat_model"`
+	EmbeddingModel       string  `yaml:"embedding_model"`
+	APIKey               string  `yaml:"-"`                       // from LLM_API_KEY env var only (never serialized to config)
+	InputPricePerMToken  float64 `yaml:"input_price_per_mtoken"`  // custom input price (USD per 1M tokens), 0 = use built-in
+	OutputPricePerMToken float64 `yaml:"output_price_per_mtoken"` // custom output price (USD per 1M tokens), 0 = use built-in
+	MaxTokens            int     `yaml:"max_tokens"`
+	Temperature          float64 `yaml:"temperature"`
+	TimeoutSec           int     `yaml:"timeout_sec"`
+	MaxConcurrent        int     `yaml:"max_concurrent"` // max simultaneous LLM requests (0 = default 2)
 }
 
 // StoreConfig holds storage settings.
@@ -587,6 +590,11 @@ func (c *Config) process(configDir string) error {
 	}
 	if c.Encoding.ContextSemanticCount == 0 {
 		c.Encoding.ContextSemanticCount = 3
+	}
+
+	// LLM API key from environment (env-var-only for security)
+	if envKey := os.Getenv("LLM_API_KEY"); envKey != "" {
+		c.LLM.APIKey = envKey
 	}
 
 	return nil

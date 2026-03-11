@@ -2,15 +2,23 @@
 # All paths support ~ expansion for home directory
 
 # LLM Provider Configuration
+# Supports any OpenAI-compatible API (LM Studio, Google Gemini, etc.)
+# For authenticated providers, set the LLM_API_KEY environment variable.
 llm:
-  # Endpoint URL for the LLM API (e.g., Ollama local endpoint)
-  endpoint: "http://localhost:1234/v1"
+  # Endpoint URL for the LLM API
+  # LM Studio (local):  "http://localhost:1234/v1"
+  # Google Gemini:       "https://generativelanguage.googleapis.com/v1beta/openai"
+  endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
 
-  # Model name for chat/conversation (must match what's loaded in LM Studio)
-  chat_model: "qwen/qwen3.5-9b"
+  # Model name for chat/conversation
+  # LM Studio:  "qwen/qwen3.5-9b"
+  # Gemini:     "gemini-2.5-flash"
+  chat_model: "gemini-3.1-flash-lite-preview"
 
   # Model name for embeddings
-  embedding_model: "text-embedding-embeddinggemma-300m-qat"
+  # LM Studio:  "text-embedding-embeddinggemma-300m-qat"
+  # Gemini:     "text-embedding-004"
+  embedding_model: "gemini-embedding-2-preview"
 
   # Maximum tokens in model responses
   max_tokens: 4096
@@ -21,7 +29,7 @@ llm:
   # Request timeout in seconds (needs headroom for tool-use synthesis)
   timeout_sec: 120
 
-  # Maximum simultaneous LLM requests (prevents overwhelming local models)
+  # Maximum simultaneous LLM requests (local models: 2, cloud APIs: 5+)
   max_concurrent: 2
 
 # Storage Configuration
@@ -53,7 +61,7 @@ perception:
     # Directories to watch for changes
     # Watch the full home directory for comprehensive awareness
     watch_dirs:
-      - "~"
+      - "~/Projects"
 
     # Glob patterns to exclude from perception
     # These use substring matching — any path containing the pattern is excluded.

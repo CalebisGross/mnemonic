@@ -42,10 +42,12 @@ type CompletionRequest struct {
 
 // CompletionResponse is the output of a completion call.
 type CompletionResponse struct {
-	Content    string     `json:"content"`
-	StopReason string     `json:"stop_reason"`
-	TokensUsed int        `json:"tokens_used"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	Content          string     `json:"content"`
+	StopReason       string     `json:"stop_reason"`
+	TokensUsed       int        `json:"tokens_used"`
+	PromptTokens     int        `json:"prompt_tokens"`
+	CompletionTokens int        `json:"completion_tokens"`
+	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
 }
 
 // Tool defines a function the LLM can call during completion.
