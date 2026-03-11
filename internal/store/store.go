@@ -56,6 +56,7 @@ type Memory struct {
 	State        string    `json:"state"`                // "active", "fading", "archived", "merged"
 	GistOf       []string  `json:"gist_of,omitempty"`    // if merged: source memory IDs
 	EpisodeID    string    `json:"episode_id,omitempty"` // link to parent episode
+	Source       string    `json:"source,omitempty"`     // origin: "filesystem", "terminal", "clipboard", "mcp", "consolidation"
 	Project      string    `json:"project,omitempty"`
 	SessionID    string    `json:"session_id,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`

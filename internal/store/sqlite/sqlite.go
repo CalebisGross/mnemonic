@@ -343,7 +343,7 @@ func scanRawMemoryRows(rows *sql.Rows) ([]store.RawMemory, error) {
 }
 
 // memoryColumns is the standard column list for memory queries.
-const memoryColumns = `id, raw_id, timestamp, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, project, session_id, created_at, updated_at`
+const memoryColumns = `id, raw_id, timestamp, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, source, project, session_id, created_at, updated_at`
 
 // scanMemory scans a memory row from the database.
 func scanMemory(row *sql.Row) (store.Memory, error) {
@@ -353,6 +353,7 @@ func scanMemory(row *sql.Row) (store.Memory, error) {
 	var gistOfStr sql.NullString
 	var lastAccessedStr sql.NullString
 	var episodeID sql.NullString
+	var source sql.NullString
 	var project, sessionID sql.NullString
 
 	err := row.Scan(
@@ -369,6 +370,7 @@ func scanMemory(row *sql.Row) (store.Memory, error) {
 		&mem.State,
 		&gistOfStr,
 		&episodeID,
+		&source,
 		&project,
 		&sessionID,
 		&mem.CreatedAt,
@@ -410,6 +412,9 @@ func scanMemory(row *sql.Row) (store.Memory, error) {
 	// Decode episode_id
 	mem.EpisodeID = episodeID.String
 
+	// Decode source
+	mem.Source = source.String
+
 	// Decode project and session_id
 	mem.Project = project.String
 	mem.SessionID = sessionID.String
@@ -437,6 +442,7 @@ func scanMemoryRows(rows *sql.Rows) ([]store.Memory, error) {
 		var gistOfStr sql.NullString
 		var lastAccessedStr sql.NullString
 		var episodeID sql.NullString
+		var source sql.NullString
 		var project, sessionID sql.NullString
 
 		err := rows.Scan(
@@ -453,6 +459,7 @@ func scanMemoryRows(rows *sql.Rows) ([]store.Memory, error) {
 			&mem.State,
 			&gistOfStr,
 			&episodeID,
+			&source,
 			&project,
 			&sessionID,
 			&mem.CreatedAt,
@@ -493,6 +500,9 @@ func scanMemoryRows(rows *sql.Rows) ([]store.Memory, error) {
 
 		// Decode episode_id
 		mem.EpisodeID = episodeID.String
+
+		// Decode source
+		mem.Source = source.String
 
 		// Decode project and session_id
 		mem.Project = project.String
@@ -781,8 +791,8 @@ func (s *SQLiteStore) WriteMemory(ctx context.Context, mem store.Memory) error {
 
 	query := `
 	INSERT INTO memories
-	(id, raw_id, timestamp, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, project, session_id, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	(id, raw_id, timestamp, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, source, project, session_id, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	// Convert empty episode ID to nil so FK constraint allows NULL
@@ -805,6 +815,7 @@ func (s *SQLiteStore) WriteMemory(ctx context.Context, mem store.Memory) error {
 		mem.State,
 		gistOfStr,
 		episodeID,
+		nullableString(mem.Source),
 		nullableString(mem.Project),
 		nullableString(mem.SessionID),
 		mem.CreatedAt.Format(time.RFC3339),
@@ -861,7 +872,7 @@ func (s *SQLiteStore) UpdateMemory(ctx context.Context, mem store.Memory) error 
 	UPDATE memories
 	SET raw_id = ?, timestamp = ?, content = ?, summary = ?, concepts = ?, embedding = ?,
 	    salience = ?, access_count = ?, last_accessed = ?, state = ?, gist_of = ?,
-	    project = ?, session_id = ?, updated_at = ?
+	    source = ?, project = ?, session_id = ?, updated_at = ?
 	WHERE id = ?
 	`
 
@@ -877,6 +888,7 @@ func (s *SQLiteStore) UpdateMemory(ctx context.Context, mem store.Memory) error 
 		mem.LastAccessed.Format(time.RFC3339),
 		mem.State,
 		gistOfStr,
+		nullableString(mem.Source),
 		nullableString(mem.Project),
 		nullableString(mem.SessionID),
 		mem.UpdatedAt.Format(time.RFC3339),
@@ -1384,8 +1396,8 @@ func (s *SQLiteStore) BatchMergeMemories(ctx context.Context, sourceIDs []string
 
 	writeQuery := `
 	INSERT INTO memories
-	(id, raw_id, timestamp, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, project, session_id, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	(id, raw_id, timestamp, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, source, project, session_id, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	// Convert empty episode ID to nil so FK constraint allows NULL
@@ -1408,6 +1420,7 @@ func (s *SQLiteStore) BatchMergeMemories(ctx context.Context, sourceIDs []string
 		gist.State,
 		gistOfStr,
 		gistEpisodeID,
+		nullableString(gist.Source),
 		nullableString(gist.Project),
 		nullableString(gist.SessionID),
 		gist.CreatedAt.Format(time.RFC3339),

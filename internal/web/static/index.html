@@ -760,6 +760,14 @@
         }
         .tl-concept:hover { background: rgba(139, 92, 246, 0.2); }
         .tl-concept.concept-active { background: rgba(6,182,212,0.2); color: var(--accent-cyan); }
+        .tl-source {
+            padding: 1px 7px; border-radius: 8px;
+            font-size: 0.67rem; font-weight: 500;
+            background: rgba(6, 182, 212, 0.1); color: var(--accent-teal);
+            cursor: default; transition: background 0.15s;
+        }
+        .tl-source:hover { background: rgba(6, 182, 212, 0.2); }
+        .tl-source.concept-active { background: rgba(6,182,212,0.25); color: var(--accent-cyan); }
 
         .tl-card-detail {
             display: none; margin-top: 10px; padding-top: 10px;
@@ -1949,9 +1957,12 @@
         var time = relativeTime(item._date);
         var absTime = item._date.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' });
         var concepts = item._concepts || [];
+        var source = item._source || '';
 
+        // Include source in data-concepts so hover-highlight works across source tags
+        var allTags = source ? [source].concat(concepts) : concepts;
         var html = '<div class="tl-card tl-' + kind + '" data-id="' + escapeHtml(item._id) + '" onclick="expandTimelineCard(this)" ';
-        html += 'data-concepts="' + escapeHtml(concepts.join(',')) + '">';
+        html += 'data-concepts="' + escapeHtml(allTags.join(',')) + '">';
         html += '<div class="tl-card-head">';
         html += '<span class="tl-card-type ct-' + kind + '">' + escapeHtml(kind) + '</span>';
         html += '<span class="tl-card-title">' + escapeHtml(item._title) + '</span>';
@@ -1976,8 +1987,11 @@
             html += '</div>';
         }
 
-        if (concepts.length > 0) {
+        if (source || concepts.length > 0) {
             html += '<div class="tl-card-concepts">';
+            if (source) {
+                html += '<span class="tl-source" onmouseenter="highlightTimelineConcept(this.textContent)" onmouseleave="clearTimelineHighlight()">' + escapeHtml(source) + '</span>';
+            }
             concepts.slice(0, 8).forEach(function(c) {
                 html += '<span class="tl-concept" onmouseenter="highlightTimelineConcept(this.textContent)" onmouseleave="clearTimelineHighlight()">' + escapeHtml(c) + '</span>';
             });
@@ -2039,7 +2053,7 @@
                 card.classList.remove('highlighted');
             }
         });
-        document.querySelectorAll('.tl-concept').forEach(function(tag) {
+        document.querySelectorAll('.tl-concept, .tl-source').forEach(function(tag) {
             if (tag.textContent === concept) tag.classList.add('concept-active');
         });
     }
@@ -2048,7 +2062,7 @@
         document.querySelectorAll('.tl-card').forEach(function(card) {
             card.classList.remove('dimmed', 'highlighted');
         });
-        document.querySelectorAll('.tl-concept').forEach(function(tag) {
+        document.querySelectorAll('.tl-concept, .tl-source').forEach(function(tag) {
             tag.classList.remove('concept-active');
         });
     }
@@ -2101,6 +2115,7 @@
                     _title: m.summary,
                     _date: new Date(m.timestamp || m.created_at),
                     _concepts: m.concepts || [],
+                    _source: m.source || '',
                     _tone: '',
                     _salience: m.salience || 0,
                     _fileCount: 0,

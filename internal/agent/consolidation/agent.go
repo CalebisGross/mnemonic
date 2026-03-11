@@ -619,6 +619,7 @@ Respond with ONLY a JSON object:
 		AccessCount:  0,
 		LastAccessed: time.Time{},
 		State:        store.MemoryStateActive,
+		Source:       "consolidation",
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}, nil

@@ -541,6 +541,7 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 		EpisodeID:    getEpisodeIDForRaw(ea, ctx, raw),
+		Source:       raw.Source,
 		Project:      raw.Project,
 		SessionID:    raw.SessionID,
 	}

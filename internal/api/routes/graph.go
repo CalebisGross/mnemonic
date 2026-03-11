@@ -17,6 +17,7 @@ type GraphNode struct {
 	Salience      float32  `json:"salience"`
 	State         string   `json:"state"`
 	Concepts      []string `json:"concepts"`
+	Source        string   `json:"source,omitempty"`
 	EmotionalTone string   `json:"emotional_tone,omitempty"`
 	Significance  string   `json:"significance,omitempty"`
 	Timestamp     string   `json:"timestamp"`
@@ -278,6 +279,7 @@ func HandleGraph(s store.Store, log *slog.Logger) http.HandlerFunc {
 					Salience:  mem.Salience,
 					State:     mem.State,
 					Concepts:  mem.Concepts,
+					Source:    mem.Source,
 					Timestamp: mem.Timestamp.Format(time.RFC3339),
 				}
 

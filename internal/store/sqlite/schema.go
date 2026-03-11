@@ -347,6 +347,17 @@ func InitSchema(db *sql.DB) error {
 		return fmt.Errorf("failed to create idx_episode_project index: %w", err)
 	}
 
+	// Migration 007: Add source column to memories
+	_, err = db.Exec(`ALTER TABLE memories ADD COLUMN source TEXT`)
+	if err != nil && !isAlterTableDuplicateColumn(err) {
+		return fmt.Errorf("failed to add memories.source column: %w", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_memory_source ON memories(source)`); err != nil {
+		return fmt.Errorf("failed to create idx_memory_source index: %w", err)
+	}
+	// Backfill source from raw_memories where possible
+	_, _ = db.Exec(`UPDATE memories SET source = (SELECT raw_memories.source FROM raw_memories WHERE raw_memories.id = memories.raw_id) WHERE source IS NULL AND raw_id IS NOT NULL AND raw_id != ''`)
+
 	// Apply migration 005: System metadata
 	if _, err := db.Exec(migration005); err != nil {
 		return fmt.Errorf("failed to apply migration 005: %w", err)

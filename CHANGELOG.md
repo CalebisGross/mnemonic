@@ -9,6 +9,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 ### Added
 - Gemini API support with API key authentication
 - LLM usage monitoring with dashboard, API, and per-agent tracking
+- Live-updating dashboard with real-time data refresh
+- Multi-theme selector: Midnight, Ember, Nord, Slate, Parchment (persists in localStorage)
+- Memory source tracking — `source` field on encoded memories, backfilled from raw observations, rendered as hoverable tags in timeline
 - Optional bearer token API authentication
 - Embedding index scalability monitoring
 - Embedding drift detection (warns on LLM model changes)
@@ -27,8 +30,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 - Sensitive file filtering in ingest, watcher, and perception
 
 ### Fixed
-- Graph visualization: adaptive forces, fit-to-screen, responsive SVG, label visibility
+- Graph visualization: reworked D3 force layout, adaptive forces, fit-to-screen, responsive SVG, label visibility
 - Dashboard XSS and silent error handling
+- Dashboard badge colors converted from hardcoded `rgba()` to `color-mix()` for theme compatibility
 - Pattern deduplication with embedding-level checks
 - Noisy memory ingestion filtering
 - Windows compilation errors
@@ -38,6 +42,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 ### Changed
 - Standardized exit codes and user-facing error messages
 - Improved recall quality: pattern cleanup, concise synthesis
+- Tuned config defaults for Gemini cloud API (higher concurrency, larger context windows)
 
 ## [0.6.0] - 2025-02-01
 
