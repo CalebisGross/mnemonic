@@ -45,7 +45,7 @@ func HandleGraph(s store.Store, log *slog.Logger) http.HandlerFunc {
 		defer cancel()
 
 		// Parse query params
-		limit := 200
+		limit := 100
 		if l := r.URL.Query().Get("limit"); l != "" {
 			if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
 				limit = parsed
@@ -129,20 +129,23 @@ func HandleGraph(s store.Store, log *slog.Logger) http.HandlerFunc {
 			// --- Edge source 1: Associations between episode member memories ---
 			// Build a map from memory ID -> episode ID for all member memories.
 			memToEpisode := make(map[string]string)
+			var allMemIDs []string
 			for _, ep := range episodes {
 				if !nodeIDs[ep.ID] {
 					continue
 				}
 				for _, mid := range ep.MemoryIDs {
 					memToEpisode[mid] = ep.ID
+					allMemIDs = append(allMemIDs, mid)
 				}
 				for _, rid := range ep.RawMemoryIDs {
 					memToEpisode[rid] = ep.ID
+					allMemIDs = append(allMemIDs, rid)
 				}
 			}
 
-			// Fetch all associations and promote to episode-level edges.
-			associations, assocErr := s.ListAllAssociations(ctx)
+			// Fetch only associations relevant to these memories (not the entire DB).
+			associations, assocErr := s.GetAssociationsForMemoryIDs(ctx, allMemIDs)
 			if assocErr != nil {
 				log.Warn("failed to fetch associations for episode graph", "error", assocErr)
 			} else {
@@ -165,9 +168,7 @@ func HandleGraph(s store.Store, log *slog.Logger) http.HandlerFunc {
 			}
 
 			// --- Edge source 2: Temporal proximity ---
-			// Episodes within 30 minutes of each other get a temporal edge.
 			const temporalWindow = 30 * time.Minute
-			// Build a time-sorted index from nodeIDs-filtered episodes.
 			type epTime struct {
 				id    string
 				start time.Time
@@ -189,7 +190,6 @@ func HandleGraph(s store.Store, log *slog.Logger) http.HandlerFunc {
 					if gap < 0 {
 						gap = 0
 					}
-					// Strength decays linearly from 0.8 (overlap) to 0.2 (30min apart)
 					strength := float32(0.8 - 0.6*(float64(gap)/float64(temporalWindow)))
 					addEdge(GraphEdge{
 						Source:       timeSorted[i].id,
@@ -200,33 +200,34 @@ func HandleGraph(s store.Store, log *slog.Logger) http.HandlerFunc {
 				}
 			}
 
-			// --- Edge source 3: Shared concepts (fallback, lowered to 1+ shared) ---
-			for i := 0; i < len(nodes); i++ {
-				for j := i + 1; j < len(nodes); j++ {
-					conceptMap := make(map[string]bool, len(nodes[i].Concepts))
-					for _, c := range nodes[i].Concepts {
-						conceptMap[c] = true
-					}
-					sharedCount := 0
-					for _, c := range nodes[j].Concepts {
-						if conceptMap[c] {
-							sharedCount++
-						}
-					}
-					if sharedCount >= 1 {
-						total := len(nodes[i].Concepts) + len(nodes[j].Concepts)
-						strength := float32(sharedCount) / float32(total) * 2
-						if strength > 1.0 {
-							strength = 1.0
-						}
-						addEdge(GraphEdge{
-							Source:       nodes[i].ID,
-							Target:       nodes[j].ID,
-							Strength:     strength,
-							RelationType: "similar",
-						})
+			// --- Edge source 3: Shared concepts via inverted index (O(n*c) not O(n²)) ---
+			conceptIdx := make(map[string][]int)
+			for i, n := range nodes {
+				for _, c := range n.Concepts {
+					conceptIdx[c] = append(conceptIdx[c], i)
+				}
+			}
+			type nodePair struct{ a, b int }
+			sharedCounts := make(map[nodePair]int)
+			for _, indices := range conceptIdx {
+				for x := 0; x < len(indices); x++ {
+					for y := x + 1; y < len(indices); y++ {
+						sharedCounts[nodePair{indices[x], indices[y]}]++
 					}
 				}
+			}
+			for pair, count := range sharedCounts {
+				total := len(nodes[pair.a].Concepts) + len(nodes[pair.b].Concepts)
+				strength := float32(count) / float32(total) * 2
+				if strength > 1.0 {
+					strength = 1.0
+				}
+				addEdge(GraphEdge{
+					Source:       nodes[pair.a].ID,
+					Target:       nodes[pair.b].ID,
+					Strength:     strength,
+					RelationType: "similar",
+				})
 			}
 
 			// Collect edges that meet the strength threshold.
@@ -290,18 +291,21 @@ func HandleGraph(s store.Store, log *slog.Logger) http.HandlerFunc {
 				nodes = append(nodes, node)
 			}
 
-			// Get all associations (edges)
-			associations, err := s.ListAllAssociations(ctx)
+			// Get associations scoped to the visible memory IDs.
+			var memIDs []string
+			for id := range nodeIDs {
+				memIDs = append(memIDs, id)
+			}
+			associations, err := s.GetAssociationsForMemoryIDs(ctx, memIDs)
 			if err != nil {
 				log.Error("failed to list associations for graph", "error", err)
 				writeError(w, http.StatusInternalServerError, "failed to list associations", "STORE_ERROR")
 				return
 			}
 
-			// Filter to only edges where both endpoints are in our node set and meet strength threshold
 			var edges []GraphEdge
 			for _, assoc := range associations {
-				if nodeIDs[assoc.SourceID] && nodeIDs[assoc.TargetID] && assoc.Strength >= minStrength {
+				if assoc.Strength >= minStrength {
 					edges = append(edges, GraphEdge{
 						Source:       assoc.SourceID,
 						Target:       assoc.TargetID,

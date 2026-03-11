@@ -345,6 +345,9 @@ type Store interface {
 	ListAllAssociations(ctx context.Context) ([]Association, error)
 	ListAllRawMemories(ctx context.Context) ([]RawMemory, error)
 
+	// --- Scoped association queries ---
+	GetAssociationsForMemoryIDs(ctx context.Context, memoryIDs []string) ([]Association, error)
+
 	// --- Metacognition operations ---
 	WriteMetaObservation(ctx context.Context, obs MetaObservation) error
 	ListMetaObservations(ctx context.Context, observationType string, limit int) ([]MetaObservation, error)

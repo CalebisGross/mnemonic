@@ -2,7 +2,7 @@
 
 BINARY=mnemonic
 BUILD_DIR=bin
-VERSION=0.6.0
+VERSION=0.7.0
 LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION)"
 TAGS=-tags "sqlite_fts5"
 
@@ -105,3 +105,22 @@ install: build
 
 uninstall:
 	./$(BUILD_DIR)/$(BINARY) uninstall
+
+# --- Release ---
+# Usage: make release NEW_VERSION=0.8.0
+release:
+ifndef NEW_VERSION
+	$(error NEW_VERSION is required. Usage: make release NEW_VERSION=0.8.0)
+endif
+	@echo "Releasing v$(NEW_VERSION)..."
+	@sed -i 's/^VERSION=.*/VERSION=$(NEW_VERSION)/' Makefile
+	@echo "Updated Makefile VERSION to $(NEW_VERSION)"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Update CHANGELOG.md with changes for $(NEW_VERSION)"
+	@echo "  2. git add Makefile CHANGELOG.md"
+	@echo "  3. git commit -m 'Release v$(NEW_VERSION)'"
+	@echo "  4. git tag v$(NEW_VERSION)"
+	@echo "  5. git push origin main --tags"
+	@echo ""
+	@echo "Pushing the tag will trigger the GitHub Actions release workflow."

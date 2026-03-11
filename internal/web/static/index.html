@@ -481,58 +481,222 @@
         .strength-bar { width: 80px; height: 4px; background: var(--bg-secondary); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; }
         .strength-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent-teal), var(--accent-green)); }
 
-        /* ── Graph View ── */
-        .graph-view { position: relative; overflow: hidden !important; height: 100%; }
-        .graph-view svg { width: 100%; height: 100%; display: block; }
-        .graph-controls {
-            position: absolute; bottom: 20px; left: 20px;
-            background: var(--bg-secondary); border: 1px solid var(--border-color);
-            border-radius: var(--radius-md); padding: 14px;
-            display: flex; flex-direction: column; gap: 10px; z-index: 10;
+        /* ── Timeline View ── */
+        .timeline-view { padding: 0; flex-direction: column; height: 100%; overflow: hidden !important; }
+        .timeline-view.active { display: flex; }
+        .timeline-header {
+            flex-shrink: 0; padding: 16px 24px 12px;
+            border-bottom: 1px solid var(--border-subtle);
+            background: var(--bg-secondary);
         }
-        .graph-controls label { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-muted); }
-        .graph-controls input[type="range"] { width: 120px; accent-color: var(--accent-cyan); }
-        .graph-controls .range-val { font-size: 0.75rem; color: var(--text-dim); font-family: 'SF Mono', Monaco, monospace; min-width: 32px; }
-        .graph-legend {
-            position: absolute; top: 20px; left: 20px;
-            background: var(--bg-secondary); border: 1px solid var(--border-color);
-            border-radius: var(--radius-md); padding: 12px 14px; z-index: 10; font-size: 0.75rem;
+        .timeline-spark { height: 40px; margin-bottom: 12px; position: relative; }
+        .timeline-spark-empty {
+            height: 40px; display: flex; align-items: center; justify-content: center;
+            font-size: 0.75rem; color: var(--text-dim);
         }
-        .graph-legend h4 { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; color: var(--text-muted); }
-        .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .legend-line { width: 20px; height: 2px; flex-shrink: 0; border-radius: 1px; }
-        .graph-detail {
-            position: absolute; top: 20px; right: 20px;
-            width: clamp(200px, 25%, 360px); max-height: calc(100% - 40px);
-            background: var(--bg-secondary); border: 1px solid var(--border-color);
-            border-radius: var(--radius-md); padding: 16px;
-            z-index: 10; overflow-y: auto; display: none;
+        .timeline-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .timeline-range-tabs { display: flex; gap: 2px; }
+        .timeline-range-tab {
+            padding: 4px 12px; border-radius: var(--radius-sm);
+            font-size: 0.75rem; font-weight: 500;
+            color: var(--text-muted); cursor: pointer;
+            border: none; background: none; transition: all 0.15s;
         }
-        .graph-detail.open { display: block; }
-        .graph-detail h4 { font-size: 0.95rem; margin-bottom: 8px; padding-right: 24px; }
-        .graph-detail-close {
-            position: absolute; top: 10px; right: 10px;
-            background: none; border: none; color: var(--text-muted);
-            cursor: pointer; font-size: 1.1rem;
+        .timeline-range-tab:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+        .timeline-range-tab.active { color: var(--accent-cyan); background: rgba(6, 182, 212, 0.1); }
+        .timeline-search {
+            margin-left: auto; padding: 5px 12px;
+            background: var(--bg-primary); border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm); color: var(--text-primary);
+            font-size: 0.8rem; outline: none; width: 220px;
+            transition: border-color 0.2s;
         }
-        .graph-detail-meta { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px; }
-        .graph-detail-connections { font-size: 0.8rem; list-style: none; }
-        .graph-detail-connections li { padding: 4px 0; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); }
-        .graph-fit-btn {
-            position: absolute; bottom: 20px; right: 20px;
-            padding: 8px 14px; background: var(--bg-secondary);
-            border: 1px solid var(--border-color); border-radius: var(--radius-sm);
-            color: var(--text-muted); font-size: 0.8rem;
-            cursor: pointer; z-index: 10; transition: all 0.2s;
+        .timeline-search:focus { border-color: var(--accent-cyan); }
+        .timeline-search::placeholder { color: var(--text-dim); }
+        .timeline-type-filters { display: flex; gap: 4px; margin-left: 8px; }
+        .timeline-type-btn {
+            padding: 3px 8px; border-radius: 10px;
+            font-size: 0.68rem; font-weight: 500;
+            cursor: pointer; border: 1px solid transparent;
+            transition: all 0.15s; opacity: 0.5; background: none;
         }
-        .graph-fit-btn:hover { border-color: var(--accent-cyan); color: var(--text-primary); }
-        #graphTooltip {
-            position: absolute; pointer-events: none;
-            background: var(--bg-secondary); border: 1px solid var(--border-color);
-            border-radius: var(--radius-sm); padding: 10px 12px;
-            font-size: 0.8rem; color: var(--text-secondary);
-            max-width: 280px; z-index: 1000; display: none; box-shadow: var(--shadow-md);
+        .timeline-type-btn.active { opacity: 1; }
+        .timeline-type-btn[data-type="episode"] { background: rgba(6,182,212,0.12); color: var(--accent-cyan); }
+        .timeline-type-btn[data-type="episode"].active { border-color: rgba(6,182,212,0.3); }
+        .timeline-type-btn[data-type="decision"] { background: rgba(59,130,246,0.12); color: var(--accent-blue); }
+        .timeline-type-btn[data-type="decision"].active { border-color: rgba(59,130,246,0.3); }
+        .timeline-type-btn[data-type="error"] { background: rgba(239,68,68,0.12); color: var(--accent-red); }
+        .timeline-type-btn[data-type="error"].active { border-color: rgba(239,68,68,0.3); }
+        .timeline-type-btn[data-type="insight"] { background: rgba(139,92,246,0.12); color: var(--accent-violet); }
+        .timeline-type-btn[data-type="insight"].active { border-color: rgba(139,92,246,0.3); }
+        .timeline-type-btn[data-type="learning"] { background: rgba(16,185,129,0.12); color: var(--accent-green); }
+        .timeline-type-btn[data-type="learning"].active { border-color: rgba(16,185,129,0.3); }
+        .timeline-type-btn[data-type="general"] { background: rgba(148,163,184,0.08); color: var(--text-muted); }
+        .timeline-type-btn[data-type="general"].active { border-color: rgba(148,163,184,0.2); }
+
+        .timeline-body {
+            flex: 1; overflow-y: auto; overflow-x: hidden;
+            padding: 0 24px 40px;
+        }
+        .timeline-body::-webkit-scrollbar { width: 6px; }
+        .timeline-body::-webkit-scrollbar-track { background: transparent; }
+        .timeline-body::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+
+        .timeline-date-group { margin-top: 24px; }
+        .timeline-date-label {
+            font-size: 0.7rem; font-weight: 600; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 0.06em;
+            padding-bottom: 8px;
+            position: sticky; top: 0; z-index: 5;
+            background: var(--bg-primary);
+            display: flex; align-items: center; gap: 10px;
+        }
+        .timeline-date-label::after {
+            content: ''; flex: 1; height: 1px;
+            background: var(--border-subtle);
+        }
+        .timeline-date-count {
+            font-size: 0.65rem; color: var(--text-dim); font-weight: 400; opacity: 0.6;
+        }
+
+        .tl-card {
+            position: relative;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-left: 3px solid var(--text-dim);
+            border-radius: 2px var(--radius-sm) var(--radius-sm) 2px;
+            padding: 12px 16px;
+            margin: 6px 0 6px 20px;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s, opacity 0.2s;
+        }
+        .tl-card::before {
+            content: '';
+            position: absolute; left: -16px; top: 18px;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--bg-card); border: 2px solid var(--text-dim);
+            z-index: 2;
+        }
+        .tl-card::after {
+            content: '';
+            position: absolute; left: -11px; top: 22px;
+            width: 8px; height: 1px;
+            background: var(--border-subtle);
+        }
+        .tl-card:hover { border-color: var(--border-color); background: var(--bg-tertiary); }
+        .tl-card.dimmed { opacity: 0.25; }
+        .tl-card.highlighted { border-color: var(--accent-cyan); background: rgba(6,182,212,0.04); }
+
+        .tl-card.tl-episode { border-left-color: var(--accent-cyan); }
+        .tl-card.tl-episode::before { border-color: var(--accent-cyan); }
+        .tl-card.tl-decision { border-left-color: var(--accent-blue); }
+        .tl-card.tl-decision::before { border-color: var(--accent-blue); }
+        .tl-card.tl-error { border-left-color: var(--accent-red); }
+        .tl-card.tl-error::before { border-color: var(--accent-red); }
+        .tl-card.tl-insight { border-left-color: var(--accent-violet); }
+        .tl-card.tl-insight::before { border-color: var(--accent-violet); }
+        .tl-card.tl-learning { border-left-color: var(--accent-green); }
+        .tl-card.tl-learning::before { border-color: var(--accent-green); }
+        .tl-card.tl-general { border-left-color: var(--text-dim); }
+
+        .tl-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .tl-card-type {
+            flex-shrink: 0; padding: 2px 8px;
+            border-radius: 4px; font-size: 0.68rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.02em;
+        }
+        .tl-card-type.ct-episode { background: rgba(6,182,212,0.12); color: var(--accent-cyan); }
+        .tl-card-type.ct-decision { background: rgba(59,130,246,0.12); color: var(--accent-blue); }
+        .tl-card-type.ct-error { background: rgba(239,68,68,0.12); color: var(--accent-red); }
+        .tl-card-type.ct-insight { background: rgba(139,92,246,0.12); color: var(--accent-violet); }
+        .tl-card-type.ct-learning { background: rgba(16,185,129,0.12); color: var(--accent-green); }
+        .tl-card-type.ct-general { background: rgba(148,163,184,0.08); color: var(--text-muted); }
+
+        .tl-card-title {
+            font-size: 0.9rem; font-weight: 500; color: var(--text-primary);
+            flex: 1; line-height: 1.4;
+        }
+        .tl-card-time {
+            flex-shrink: 0; font-size: 0.72rem; color: var(--text-dim);
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        }
+        .tl-card-tone {
+            font-size: 0.7rem; padding: 1px 6px;
+            border-radius: 3px; font-weight: 500;
+            background: rgba(139,92,246,0.08); color: var(--accent-violet);
+        }
+        .tl-card-meta {
+            display: flex; align-items: center; gap: 6px;
+            margin-top: 8px; flex-wrap: wrap;
+        }
+        .tl-card-files {
+            font-size: 0.72rem; color: var(--accent-cyan); opacity: 0.8;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+        .tl-card-events { font-size: 0.72rem; color: var(--text-dim); }
+        .tl-card-salience {
+            display: flex; align-items: center; gap: 4px;
+            font-size: 0.68rem; color: var(--text-dim);
+        }
+        .tl-sal-bar {
+            width: 50px; height: 3px;
+            background: var(--bg-secondary); border-radius: 2px; overflow: hidden;
+        }
+        .tl-sal-fill {
+            height: 100%; border-radius: 2px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-teal));
+        }
+        .tl-card-concepts { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+        .tl-concept {
+            padding: 1px 7px; border-radius: 8px;
+            font-size: 0.67rem; font-weight: 500;
+            background: rgba(139, 92, 246, 0.1); color: var(--accent-violet);
+            cursor: default; transition: background 0.15s;
+        }
+        .tl-concept:hover { background: rgba(139, 92, 246, 0.2); }
+        .tl-concept.concept-active { background: rgba(6,182,212,0.2); color: var(--accent-cyan); }
+
+        .tl-card-detail {
+            display: none; margin-top: 10px; padding-top: 10px;
+            border-top: 1px solid var(--border-subtle);
+        }
+        .tl-card-detail.open { display: block; }
+        .tl-detail-row {
+            font-size: 0.78rem; color: var(--text-muted); line-height: 1.6;
+            margin-bottom: 6px;
+        }
+        .tl-detail-label {
+            font-size: 0.68rem; font-weight: 600; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 0.04em;
+            margin-bottom: 2px;
+        }
+        .tl-detail-files {
+            font-size: 0.78rem; color: var(--accent-cyan);
+            font-family: 'SF Mono', Monaco, monospace; line-height: 1.8;
+        }
+        .tl-detail-outcome {
+            display: inline-block; padding: 2px 8px; border-radius: 4px;
+            font-size: 0.72rem; font-weight: 600;
+        }
+        .tl-outcome-success { background: rgba(16,185,129,0.15); color: var(--accent-green); }
+        .tl-outcome-failure { background: rgba(239,68,68,0.15); color: var(--accent-red); }
+        .tl-outcome-blocked { background: rgba(249,115,22,0.15); color: var(--accent-orange); }
+
+        .timeline-rail {
+            position: absolute; left: 23px; top: 0; bottom: 0;
+            width: 1px; background: var(--border-subtle); z-index: 1;
+        }
+        .timeline-loading {
+            text-align: center; padding: 20px;
+            font-size: 0.8rem; color: var(--text-dim);
+        }
+        .timeline-empty {
+            text-align: center; padding: 60px 24px;
+            color: var(--text-dim); font-size: 0.9rem;
+        }
+        .timeline-empty-sub {
+            font-size: 0.8rem; color: var(--text-dim); opacity: 0.6;
+            margin-top: 6px;
         }
 
         /* ── LLM Usage View ── */
@@ -825,11 +989,13 @@
             .explore-view { padding: 12px 16px; }
             .explore-search { width: 140px; }
             .activity-drawer { width: 100vw; max-width: 100vw; }
-            .graph-controls { bottom: 10px; left: 10px; right: 10px; padding: 10px; }
-            .graph-controls label { flex-wrap: wrap; }
-            .graph-controls input[type="range"] { width: 80px; }
-            .graph-legend { top: auto; bottom: 80px; left: 10px; padding: 8px 10px; max-width: calc(100vw - 20px); }
-            .graph-detail { width: calc(100vw - 20px); left: 10px; right: 10px; }
+            .timeline-header { padding: 12px 16px 10px; }
+            .timeline-body { padding: 0 16px 40px; }
+            .timeline-search { width: 140px; }
+            .timeline-type-filters { margin-left: 0; margin-top: 6px; }
+            .tl-card { margin-left: 16px; }
+            .tl-card::before { left: -12px; }
+            .tl-card::after { left: -8px; }
             .agent-grid { grid-template-columns: 1fr; }
             .agent-view { padding: 12px 16px; }
             .agent-header { flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -855,9 +1021,9 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 002-2V8a2 2 0 00-2-2h-7.93a2 2 0 01-1.66-.9l-.82-1.2A2 2 0 007.93 3H4a2 2 0 00-2 2v13c0 1.1.9 2 2 2z"/></svg>
                     <span>Explore</span>
                 </button>
-                <button class="nav-tab" data-view="graph" onclick="switchView('graph')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><line x1="6" y1="9" x2="6" y2="15"/><path d="M6 9a9 9 0 019 9"/></svg>
-                    <span>Graph</span>
+                <button class="nav-tab" data-view="timeline" onclick="switchView('timeline')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><circle cx="12" cy="6" r="2.5"/><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="18" r="2.5"/><line x1="14.5" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="9.5" y2="12"/><line x1="14.5" y1="18" x2="20" y2="18"/></svg>
+                    <span>Timeline</span>
                 </button>
                 <button class="nav-tab" data-view="agent" onclick="switchView('agent')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="4"/><circle cx="9" cy="16" r="1.5"/><circle cx="15" cy="16" r="1.5"/></svg>
@@ -948,40 +1114,31 @@
                 </div>
             </section>
 
-            <!-- Graph View -->
-            <section class="view graph-view" id="view-graph">
-                <svg id="graphSvg" preserveAspectRatio="xMidYMid meet"></svg>
-                <div id="graphTooltip"></div>
-                <div class="graph-legend" id="graphLegend">
-                    <h4>States</h4>
-                    <div class="legend-item"><div class="legend-dot" style="background:var(--accent-green)"></div> Active</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:var(--accent-orange)"></div> Fading</div>
-                    <div class="legend-item"><div class="legend-dot" style="background:var(--text-dim)"></div> Archived</div>
-                    <h4 style="margin-top:8px">Relations</h4>
-                    <div class="legend-item"><div class="legend-line" style="background:var(--text-dim)"></div> similar</div>
-                    <div class="legend-item"><div class="legend-line" style="background:var(--accent-blue)"></div> caused_by</div>
-                    <div class="legend-item"><div class="legend-line" style="background:var(--accent-red)"></div> contradicts</div>
-                    <div class="legend-item"><div class="legend-line" style="background:var(--accent-cyan)"></div> temporal</div>
-                    <div class="legend-item"><div class="legend-line" style="background:var(--accent-green)"></div> reinforces</div>
-                    <div class="legend-item"><div class="legend-line" style="background:var(--accent-violet)"></div> part_of</div>
+            <!-- Timeline View -->
+            <section class="view timeline-view" id="view-timeline">
+                <div class="timeline-header">
+                    <div class="timeline-spark" id="timelineSpark"></div>
+                    <div class="timeline-filters">
+                        <div class="timeline-range-tabs" id="timelineRangeTabs">
+                            <button class="timeline-range-tab" data-range="today" onclick="setTimelineRange('today')">Today</button>
+                            <button class="timeline-range-tab" data-range="week" onclick="setTimelineRange('week')">Week</button>
+                            <button class="timeline-range-tab" data-range="month" onclick="setTimelineRange('month')">Month</button>
+                            <button class="timeline-range-tab active" data-range="all" onclick="setTimelineRange('all')">All</button>
+                        </div>
+                        <div class="timeline-type-filters" id="timelineTypeFilters">
+                            <button class="timeline-type-btn active" data-type="episode" onclick="toggleTimelineType(this)">episodes</button>
+                            <button class="timeline-type-btn active" data-type="decision" onclick="toggleTimelineType(this)">decisions</button>
+                            <button class="timeline-type-btn active" data-type="error" onclick="toggleTimelineType(this)">errors</button>
+                            <button class="timeline-type-btn active" data-type="insight" onclick="toggleTimelineType(this)">insights</button>
+                            <button class="timeline-type-btn active" data-type="learning" onclick="toggleTimelineType(this)">learnings</button>
+                            <button class="timeline-type-btn active" data-type="general" onclick="toggleTimelineType(this)">general</button>
+                        </div>
+                        <input type="text" class="timeline-search" id="timelineSearch" placeholder="Filter timeline..." oninput="filterTimeline()">
+                    </div>
                 </div>
-                <div class="graph-controls" id="graphControls">
-                    <label>View
-                        <select id="graphView" onchange="onGraphFilterChange()" style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:4px;color:var(--text-secondary);font-size:0.75rem;padding:2px 4px;font-family:inherit;outline:none;">
-                            <option value="episodes">Episodes</option>
-                            <option value="memories">Memories</option>
-                        </select>
-                    </label>
-                    <label>Edge strength <input type="range" id="graphStrength" min="0" max="0.8" step="0.05" value="0.20" oninput="onGraphFilterChange()"> <span class="range-val" id="graphStrengthVal">0.20</span></label>
-                    <label>Min salience <input type="range" id="graphSalience" min="0" max="0.8" step="0.05" value="0.10" oninput="onGraphFilterChange()"> <span class="range-val" id="graphSalienceVal">0.10</span></label>
+                <div class="timeline-body" id="timelineBody">
+                    <div class="timeline-loading">Loading timeline...</div>
                 </div>
-                <div class="graph-detail" id="graphDetail">
-                    <button class="graph-detail-close" onclick="closeGraphDetail()">&times;</button>
-                    <h4 id="graphDetailTitle"></h4>
-                    <div class="graph-detail-meta" id="graphDetailMeta"></div>
-                    <ul class="graph-detail-connections" id="graphDetailConns"></ul>
-                </div>
-                <button class="graph-fit-btn" onclick="fitGraph()">Fit to screen</button>
             </section>
 
             <!-- Agent View -->
@@ -1160,12 +1317,7 @@
         unreadEvents: 0,
         drawerOpen: false,
         rememberOpen: false,
-        graphData: null,
-        graphSimulation: null,
-        graphInitialized: false,
-        graphZoom: null,
-        graphSvg: null,
-        graphG: null,
+        timelineInitialized: false,
         previousStats: {},
         ws: null,
         wsReconnectAttempts: 0,
@@ -1203,8 +1355,7 @@
         document.querySelector('.nav-tab[data-view="' + name + '"]').classList.add('active');
         window.location.hash = name;
         if (name === 'explore' && !state.exploreLoaded[state.currentExploreTab]) loadExploreTab(state.currentExploreTab);
-        if (name === 'graph' && !state.graphInitialized) loadGraphData();
-        if (name === 'graph' && state.graphData) setTimeout(resizeGraph, 50);
+        if (name === 'timeline' && !state.timelineInitialized) loadTimelineData(false);
         if (name === 'agent' && !state.agentLoaded) loadAgentData();
         if (name === 'llm' && !state.llmLoaded) loadLLMUsage();
     }
@@ -1220,7 +1371,7 @@
 
     function handleHash() {
         var hash = window.location.hash.replace('#', '');
-        if (['recall', 'explore', 'graph', 'agent', 'llm'].includes(hash)) switchView(hash);
+        if (['recall', 'explore', 'timeline', 'agent', 'llm'].includes(hash)) switchView(hash);
     }
     window.addEventListener('hashchange', handleHash);
 
@@ -1554,195 +1705,375 @@
         cards.forEach(function(card) { card.style.display = card.textContent.toLowerCase().includes(query) ? '' : 'none'; });
     }
 
-    // ── Graph ──
-    var graphDebounce = null;
-    function onGraphFilterChange() {
-        document.getElementById('graphStrengthVal').textContent = document.getElementById('graphStrength').value;
-        document.getElementById('graphSalienceVal').textContent = document.getElementById('graphSalience').value;
-        clearTimeout(graphDebounce);
-        graphDebounce = setTimeout(loadGraphData, 400);
+    // ── Timeline ──
+    var _timelineState = {
+        items: [],
+        range: 'all',
+        types: { episode: true, decision: true, error: true, insight: true, learning: true, general: true },
+        search: '',
+        loading: false,
+        allLoaded: false,
+        episodeOffset: 0,
+        memoryOffset: 0,
+    };
+
+    function setTimelineRange(range) {
+        _timelineState.range = range;
+        document.querySelectorAll('.timeline-range-tab').forEach(function(t) {
+            t.classList.toggle('active', t.getAttribute('data-range') === range);
+        });
+        renderTimelineItems();
     }
 
-    async function loadGraphData() {
-        var minStrength = document.getElementById('graphStrength').value;
-        var minSalience = document.getElementById('graphSalience').value;
+    function toggleTimelineType(btn) {
+        var type = btn.getAttribute('data-type');
+        _timelineState.types[type] = !_timelineState.types[type];
+        btn.classList.toggle('active', _timelineState.types[type]);
+        renderTimelineItems();
+    }
+
+    function filterTimeline() {
+        _timelineState.search = document.getElementById('timelineSearch').value.toLowerCase();
+        renderTimelineItems();
+    }
+
+    function getTimelineRangeCutoff() {
+        var now = new Date();
+        switch (_timelineState.range) {
+            case 'today':
+                var start = new Date(now); start.setHours(0,0,0,0); return start;
+            case 'week':
+                return new Date(now.getTime() - 7 * 86400000);
+            case 'month':
+                return new Date(now.getTime() - 30 * 86400000);
+            default: return null;
+        }
+    }
+
+    function filterTimelineItems() {
+        var cutoff = getTimelineRangeCutoff();
+        var search = _timelineState.search;
+        var types = _timelineState.types;
+        return _timelineState.items.filter(function(item) {
+            if (!types[item._kind]) return false;
+            if (cutoff && item._date < cutoff) return false;
+            if (search) {
+                var haystack = (item._title + ' ' + (item._concepts || []).join(' ')).toLowerCase();
+                if (haystack.indexOf(search) === -1) return false;
+            }
+            return true;
+        });
+    }
+
+    function groupByDate(items) {
+        var groups = [];
+        var currentLabel = '';
+        var today = new Date(); today.setHours(0,0,0,0);
+        var yesterday = new Date(today.getTime() - 86400000);
+        items.forEach(function(item) {
+            var d = new Date(item._date); d.setHours(0,0,0,0);
+            var label;
+            if (d.getTime() === today.getTime()) label = 'Today';
+            else if (d.getTime() === yesterday.getTime()) label = 'Yesterday';
+            else label = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+            if (label !== currentLabel) {
+                groups.push({ label: label, items: [] });
+                currentLabel = label;
+            }
+            groups[groups.length - 1].items.push(item);
+        });
+        return groups;
+    }
+
+    function renderTimelineItems() {
+        var body = document.getElementById('timelineBody');
+        var filtered = filterTimelineItems();
+        if (filtered.length === 0) {
+            body.innerHTML = '<div class="timeline-empty">No items match your filters<div class="timeline-empty-sub">Try adjusting the date range or type filters</div></div>';
+            return;
+        }
+        var groups = groupByDate(filtered);
+        var html = '';
+        groups.forEach(function(group) {
+            html += '<div class="timeline-date-group"><div class="timeline-date-label">' + escapeHtml(group.label);
+            html += ' <span class="timeline-date-count">' + group.items.length + '</span></div>';
+            html += '<div style="position:relative;padding-left:4px"><div class="timeline-rail"></div>';
+            group.items.forEach(function(item) {
+                html += renderTimelineCard(item);
+            });
+            html += '</div></div>';
+        });
+        if (!_timelineState.allLoaded) {
+            html += '<div class="timeline-loading" id="timelineLoadMore">Loading more...</div>';
+        }
+        body.innerHTML = html;
+        setupTimelineScroll();
+    }
+
+    function renderTimelineCard(item) {
+        var kind = item._kind;
+        var salPct = Math.round((item._salience || 0) * 100);
+        var time = relativeTime(item._date);
+        var absTime = item._date.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' });
+        var concepts = item._concepts || [];
+
+        var html = '<div class="tl-card tl-' + kind + '" data-id="' + escapeHtml(item._id) + '" onclick="expandTimelineCard(this)" ';
+        html += 'data-concepts="' + escapeHtml(concepts.join(',')) + '">';
+        html += '<div class="tl-card-head">';
+        html += '<span class="tl-card-type ct-' + kind + '">' + escapeHtml(kind) + '</span>';
+        html += '<span class="tl-card-title">' + escapeHtml(item._title) + '</span>';
+        if (item._tone) {
+            html += '<span class="tl-card-tone">' + escapeHtml(item._tone) + '</span>';
+        }
+        html += '<span class="tl-card-time" title="' + escapeHtml(item._date.toLocaleString()) + '">' + absTime + ' &middot; ' + time + '</span>';
+        html += '</div>';
+
+        var hasMeta = item._fileCount > 0 || item._eventCount > 0 || item._salience > 0;
+        if (hasMeta) {
+            html += '<div class="tl-card-meta">';
+            if (item._fileCount > 0) {
+                html += '<span class="tl-card-files">' + item._fileCount + ' file' + (item._fileCount !== 1 ? 's' : '') + '</span>';
+            }
+            if (item._eventCount > 0) {
+                html += '<span class="tl-card-events">' + item._eventCount + ' event' + (item._eventCount !== 1 ? 's' : '') + '</span>';
+            }
+            if (item._salience > 0) {
+                html += '<span class="tl-card-salience"><span class="tl-sal-bar"><span class="tl-sal-fill" style="width:' + salPct + '%"></span></span> ' + salPct + '%</span>';
+            }
+            html += '</div>';
+        }
+
+        if (concepts.length > 0) {
+            html += '<div class="tl-card-concepts">';
+            concepts.slice(0, 8).forEach(function(c) {
+                html += '<span class="tl-concept" onmouseenter="highlightTimelineConcept(this.textContent)" onmouseleave="clearTimelineHighlight()">' + escapeHtml(c) + '</span>';
+            });
+            html += '</div>';
+        }
+
+        html += '<div class="tl-card-detail">';
+        if (item._type === 'episode') {
+            if (item._raw.outcome) {
+                var oc = item._raw.outcome;
+                var outcomeClass = oc === 'success' ? 'tl-outcome-success' : oc === 'failure' ? 'tl-outcome-failure' : 'tl-outcome-blocked';
+                html += '<div class="tl-detail-row"><span class="tl-detail-outcome ' + outcomeClass + '">' + escapeHtml(oc) + '</span></div>';
+            }
+            if (item._raw.summary) {
+                html += '<div class="tl-detail-row"><div class="tl-detail-label">Summary</div>' + escapeHtml(item._raw.summary) + '</div>';
+            }
+            if (item._raw.narrative) {
+                html += '<div class="tl-detail-row"><div class="tl-detail-label">Narrative</div>' + escapeHtml(item._raw.narrative) + '</div>';
+            }
+            if (item._raw.files_modified && item._raw.files_modified.length > 0) {
+                html += '<div class="tl-detail-row"><div class="tl-detail-label">Files Modified</div><div class="tl-detail-files">';
+                item._raw.files_modified.forEach(function(f) { html += escapeHtml(f) + '<br>'; });
+                html += '</div></div>';
+            }
+            var start = item._raw.start_time ? new Date(item._raw.start_time).toLocaleString() : '';
+            var end = item._raw.end_time ? new Date(item._raw.end_time).toLocaleString() : '';
+            if (start || end) {
+                html += '<div class="tl-detail-row"><div class="tl-detail-label">Duration</div>' + escapeHtml(start) + ' &mdash; ' + escapeHtml(end) + '</div>';
+            }
+        } else {
+            if (item._raw.content && item._raw.content !== item._raw.summary) {
+                html += '<div class="tl-detail-row"><div class="tl-detail-label">Content</div>' + escapeHtml(item._raw.content) + '</div>';
+            }
+            if (item._raw.source) {
+                html += '<div class="tl-detail-row"><div class="tl-detail-label">Source</div>' + escapeHtml(item._raw.source) + '</div>';
+            }
+            if (item._raw.episode_id) {
+                html += '<div class="tl-detail-row" style="font-size:0.72rem;color:var(--accent-cyan)">Part of an episode</div>';
+            }
+        }
+        html += '</div></div>';
+        return html;
+    }
+
+    function expandTimelineCard(card) {
+        var detail = card.querySelector('.tl-card-detail');
+        if (detail) detail.classList.toggle('open');
+    }
+
+    function highlightTimelineConcept(concept) {
+        var cards = document.querySelectorAll('.tl-card');
+        cards.forEach(function(card) {
+            var cardConcepts = (card.getAttribute('data-concepts') || '').split(',');
+            if (cardConcepts.indexOf(concept) !== -1) {
+                card.classList.add('highlighted');
+                card.classList.remove('dimmed');
+            } else {
+                card.classList.add('dimmed');
+                card.classList.remove('highlighted');
+            }
+        });
+        document.querySelectorAll('.tl-concept').forEach(function(tag) {
+            if (tag.textContent === concept) tag.classList.add('concept-active');
+        });
+    }
+
+    function clearTimelineHighlight() {
+        document.querySelectorAll('.tl-card').forEach(function(card) {
+            card.classList.remove('dimmed', 'highlighted');
+        });
+        document.querySelectorAll('.tl-concept').forEach(function(tag) {
+            tag.classList.remove('concept-active');
+        });
+    }
+
+    async function loadTimelineData(append) {
+        if (_timelineState.loading) return;
+        _timelineState.loading = true;
         try {
-            var graphView = document.getElementById('graphView').value;
-            var resp = await apiFetch(CONFIG.API_BASE + '/graph?limit=200&min_strength=' + minStrength + '&min_salience=' + minSalience + '&view=' + graphView);
-            var data = await resp.json();
-            state.graphData = data;
-            renderGraph(data);
-            state.graphInitialized = true;
-        } catch (e) { console.error('Failed to load graph:', e); showToast('Failed to load graph', 'error'); }
+            var epLimit = 50;
+            var memLimit = 50;
+            if (!append) {
+                _timelineState.items = [];
+                _timelineState.episodeOffset = 0;
+                _timelineState.memoryOffset = 0;
+                _timelineState.allLoaded = false;
+            }
+            var epUrl = CONFIG.API_BASE + '/episodes?state=closed&limit=' + epLimit + '&offset=' + _timelineState.episodeOffset;
+            var memUrl = CONFIG.API_BASE + '/memories?state=active&limit=' + memLimit + '&offset=' + _timelineState.memoryOffset;
+            var results = await Promise.all([
+                apiFetch(epUrl).then(function(r) { return r.json(); }),
+                apiFetch(memUrl).then(function(r) { return r.json(); })
+            ]);
+            var episodes = results[0].episodes || [];
+            var memories = results[1].memories || [];
+
+            episodes.forEach(function(ep) {
+                if (!ep.title || !ep.title.trim()) return;
+                _timelineState.items.push({
+                    _id: ep.id,
+                    _type: 'episode',
+                    _kind: 'episode',
+                    _title: ep.title,
+                    _date: new Date(ep.start_time || ep.end_time),
+                    _concepts: ep.concepts || [],
+                    _tone: ep.emotional_tone || '',
+                    _salience: 0,
+                    _fileCount: (ep.files_modified || []).length,
+                    _eventCount: (ep.raw_memory_ids || []).length,
+                    _raw: ep,
+                });
+            });
+            memories.forEach(function(m) {
+                if (!m.summary || !m.summary.trim()) return;
+                var kind = m.type || m.memory_type || 'general';
+                if (!_timelineState.types.hasOwnProperty(kind)) kind = 'general';
+                _timelineState.items.push({
+                    _id: m.id,
+                    _type: 'memory',
+                    _kind: kind,
+                    _title: m.summary,
+                    _date: new Date(m.timestamp || m.created_at),
+                    _concepts: m.concepts || [],
+                    _tone: '',
+                    _salience: m.salience || 0,
+                    _fileCount: 0,
+                    _eventCount: 0,
+                    _raw: m,
+                });
+            });
+
+            _timelineState.items.sort(function(a, b) { return b._date.getTime() - a._date.getTime(); });
+
+            var seen = {};
+            _timelineState.items = _timelineState.items.filter(function(item) {
+                if (seen[item._id]) return false;
+                seen[item._id] = true;
+                return true;
+            });
+
+            _timelineState.episodeOffset += episodes.length;
+            _timelineState.memoryOffset += memories.length;
+            if (episodes.length < epLimit && memories.length < memLimit) {
+                _timelineState.allLoaded = true;
+            }
+
+            renderTimelineItems();
+            renderTimelineSparkline();
+            state.timelineInitialized = true;
+        } catch (e) {
+            console.error('Failed to load timeline:', e);
+            showToast('Failed to load timeline', 'error');
+        }
+        _timelineState.loading = false;
     }
 
-    function renderGraph(data) {
-        var container = document.getElementById('view-graph');
-        var svg = d3.select('#graphSvg');
-        svg.selectAll('*').remove();
-        var width = container.clientWidth;
-        var height = container.clientHeight;
-        svg.attr('viewBox', '0 0 ' + width + ' ' + height);
-        var nodes = (data.nodes || []).map(function(n) { return Object.assign({}, n); });
-        var edges = (data.edges || []).map(function(e) { return Object.assign({}, e); });
+    function setupTimelineScroll() {
+        var body = document.getElementById('timelineBody');
+        body.onscroll = function() {
+            if (_timelineState.allLoaded || _timelineState.loading) return;
+            if (body.scrollTop + body.clientHeight >= body.scrollHeight - 200) {
+                loadTimelineData(true);
+            }
+        };
+    }
 
-        if (nodes.length === 0) {
-            svg.append('text').attr('x', width / 2).attr('y', height / 2)
-                .attr('text-anchor', 'middle').attr('fill', '#64748b').attr('font-size', '1rem')
-                .text('No graph data yet');
+    function renderTimelineSparkline() {
+        var container = document.getElementById('timelineSpark');
+        var items = _timelineState.items;
+        if (items.length === 0) {
+            container.innerHTML = '<div class="timeline-spark-empty">No activity data</div>';
             return;
         }
 
-        var nodeMap = new Map(nodes.map(function(n) { return [n.id, n]; }));
-        var validEdges = edges.filter(function(e) { return nodeMap.has(e.source) && nodeMap.has(e.target); });
-        var g = svg.append('g');
-        var zoom = d3.zoom().scaleExtent([0.2, 5]).on('zoom', function(event) { g.attr('transform', event.transform); });
-        svg.call(zoom);
-        state.graphZoom = zoom; state.graphSvg = svg; state.graphG = g;
-
-        var stateColor = { active: '#10b981', fading: '#f97316', archived: '#64748b' };
-        var relColor = { similar: '#64748b', caused_by: '#3b82f6', contradicts: '#ef4444', temporal: '#06b6d4', reinforces: '#10b981', part_of: '#8b5cf6' };
-        var relDash = { similar: '', caused_by: '6,3', contradicts: '3,3', temporal: '8,4', reinforces: '', part_of: '4,2' };
-
-        // Adaptive force parameters based on node count
-        var n = nodes.length;
-        var chargeStrength = Math.max(-500, Math.min(-80, -300 * (30 / Math.max(n, 1))));
-        var linkDistance = Math.max(40, Math.min(160, 60 + n * 0.5));
-        var centerStrength = n < 20 ? 0.1 : 0.05;
-
-        var simulation = d3.forceSimulation(nodes)
-            .force('link', d3.forceLink(validEdges).id(function(d) { return d.id; }).distance(linkDistance))
-            .force('charge', d3.forceManyBody().strength(chargeStrength))
-            .force('center', d3.forceCenter(width / 2, height / 2).strength(centerStrength))
-            .force('collision', d3.forceCollide().radius(function(d) { return Math.max(8, (d.salience || 0.5) * 30) + 4; }));
-        state.graphSimulation = simulation;
-
-        var link = g.append('g').selectAll('line').data(validEdges).join('line')
-            .attr('stroke', function(d) { return relColor[d.relation_type] || '#64748b'; })
-            .attr('stroke-width', function(d) { return 1.5 + (d.strength || 0.5) * 2; })
-            .attr('stroke-opacity', function(d) { return Math.max(0.3, (d.strength || 0.5) * 0.8); })
-            .attr('stroke-dasharray', function(d) { return relDash[d.relation_type] || ''; });
-
-        var node = g.append('g').selectAll('circle').data(nodes).join('circle')
-            .attr('r', function(d) { return Math.max(8, Math.min(24, (d.salience || 0.5) * 40)); })
-            .attr('fill', function(d) { return stateColor[d.state] || '#64748b'; })
-            .attr('stroke', 'rgba(0,0,0,0.3)').attr('stroke-width', 1.5)
-            .style('cursor', 'pointer')
-            .call(d3.drag()
-                .on('start', function(event, d) { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-                .on('drag', function(event, d) { d.fx = event.x; d.fy = event.y; })
-                .on('end', function(event, d) { if (!event.active) simulation.alphaTarget(0); })
-            );
-
-        var label = g.append('g').selectAll('text').data(nodes).join('text')
-            .text(function(d) { return (d.summary || '').slice(0, 30); })
-            .attr('font-size', 10).attr('fill', '#cbd5e1')
-            .attr('dx', function(d) { return Math.max(8, (d.salience || 0.5) * 40) + 4; }).attr('dy', 4)
-            .style('opacity', function(d) { return (d.salience || 0) > 0.2 ? 0.9 : 0.4; })
-            .style('pointer-events', 'none');
-
-        var tooltip = document.getElementById('graphTooltip');
-        node.on('mouseover', function(event, d) {
-            tooltip.style.display = 'block';
-            tooltip.innerHTML = '<strong>' + escapeHtml((d.summary || '').slice(0, 60)) + '</strong><br><span style="color:var(--text-dim)">Salience: ' + (d.salience || 0).toFixed(2) + ' | State: ' + escapeHtml(d.state || '?') + '</span>' + (d.concepts ? '<br><span style="color:var(--accent-violet)">' + escapeHtml((d.concepts || []).slice(0, 4).join(', ')) + '</span>' : '');
-            tooltip.style.left = (event.pageX + 12) + 'px';
-            tooltip.style.top = (event.pageY - 10) + 'px';
-            var connectedIds = new Set(); connectedIds.add(d.id);
-            validEdges.forEach(function(e) {
-                var src = typeof e.source === 'object' ? e.source.id : e.source;
-                var tgt = typeof e.target === 'object' ? e.target.id : e.target;
-                if (src === d.id) connectedIds.add(tgt);
-                if (tgt === d.id) connectedIds.add(src);
-            });
-            node.style('opacity', function(n) { return connectedIds.has(n.id) ? 1 : 0.15; });
-            link.style('opacity', function(e) {
-                var src = typeof e.source === 'object' ? e.source.id : e.source;
-                var tgt = typeof e.target === 'object' ? e.target.id : e.target;
-                return (src === d.id || tgt === d.id) ? 0.8 : 0.05;
-            });
-            label.style('opacity', function(n) { return connectedIds.has(n.id) ? 1 : 0; });
-        })
-        .on('mousemove', function(event) { tooltip.style.left = (event.pageX + 12) + 'px'; tooltip.style.top = (event.pageY - 10) + 'px'; })
-        .on('mouseout', function() {
-            tooltip.style.display = 'none';
-            node.style('opacity', 1);
-            link.style('opacity', function(d) { return Math.max(0.3, (d.strength || 0.5) * 0.8); });
-            label.style('opacity', function(d) { return (d.salience || 0) > 0.2 ? 0.9 : 0.4; });
-        })
-        .on('click', function(event, d) { event.stopPropagation(); showGraphDetail(d, validEdges, nodeMap); });
-
-        svg.on('click', function() { closeGraphDetail(); });
-        node.on('dblclick', function(event, d) { d.fx = null; d.fy = null; simulation.alphaTarget(0.1).restart(); setTimeout(function() { simulation.alphaTarget(0); }, 500); });
-
-        simulation.on('tick', function() {
-            link.attr('x1', function(d) { return d.source.x; }).attr('y1', function(d) { return d.source.y; })
-                .attr('x2', function(d) { return d.target.x; }).attr('y2', function(d) { return d.target.y; });
-            node.attr('cx', function(d) { return d.x; }).attr('cy', function(d) { return d.y; });
-            label.attr('x', function(d) { return d.x; }).attr('y', function(d) { return d.y; });
-        });
-    }
-
-    function showGraphDetail(d, edges, nodeMap) {
-        var detail = document.getElementById('graphDetail');
-        detail.classList.add('open');
-        document.getElementById('graphDetailTitle').textContent = (d.summary || '').slice(0, 80);
-        var meta = '<div>State: ' + escapeHtml(d.state || '?') + ' &bull; Salience: ' + (d.salience || 0).toFixed(2) + '</div>';
-        if (d.concepts) meta += '<div style="margin-top:4px;color:var(--accent-violet)">' + escapeHtml((d.concepts || []).join(', ')) + '</div>';
-        if (d.emotional_tone) meta += '<div style="margin-top:4px">Tone: ' + escapeHtml(d.emotional_tone) + '</div>';
-        document.getElementById('graphDetailMeta').innerHTML = meta;
-        var conns = [];
-        edges.forEach(function(e) {
-            var src = typeof e.source === 'object' ? e.source.id : e.source;
-            var tgt = typeof e.target === 'object' ? e.target.id : e.target;
-            if (src === d.id) { var t = nodeMap.get(tgt); if (t) conns.push({ summary: t.summary, type: e.relation_type, strength: e.strength }); }
-            else if (tgt === d.id) { var s = nodeMap.get(src); if (s) conns.push({ summary: s.summary, type: e.relation_type, strength: e.strength }); }
-        });
-        document.getElementById('graphDetailConns').innerHTML = conns.length === 0 ? '<li style="color:var(--text-dim)">No connections</li>' : conns.map(function(c) { return '<li><span style="color:var(--accent-cyan)">' + escapeHtml(c.type) + '</span> &#8594; ' + escapeHtml((c.summary || '').slice(0, 50)) + ' <span style="color:var(--text-dim)">(' + (c.strength || 0).toFixed(2) + ')</span></li>'; }).join('');
-    }
-
-    function closeGraphDetail() { document.getElementById('graphDetail').classList.remove('open'); }
-
-    function fitGraph() {
-        if (!state.graphSvg || !state.graphZoom || !state.graphSimulation) return;
-        var container = document.getElementById('view-graph');
-        var width = container.clientWidth;
-        var height = container.clientHeight;
-        var nodes = state.graphSimulation.nodes();
-        if (nodes.length === 0) return;
-
-        var padding = 60;
-        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        nodes.forEach(function(d) {
-            if (d.x < minX) minX = d.x;
-            if (d.y < minY) minY = d.y;
-            if (d.x > maxX) maxX = d.x;
-            if (d.y > maxY) maxY = d.y;
-        });
-
-        var bw = maxX - minX || 1;
-        var bh = maxY - minY || 1;
-        var scale = Math.min((width - padding * 2) / bw, (height - padding * 2) / bh, 2);
-        var cx = (minX + maxX) / 2;
-        var cy = (minY + maxY) / 2;
-        var tx = width / 2 - cx * scale;
-        var ty = height / 2 - cy * scale;
-
-        state.graphSvg.transition().duration(500).call(
-            state.graphZoom.transform,
-            d3.zoomIdentity.translate(tx, ty).scale(scale)
-        );
-    }
-
-    function resizeGraph() {
-        if (!state.graphSvg) { if (state.graphData) renderGraph(state.graphData); return; }
-        var container = document.getElementById('view-graph');
-        var width = container.clientWidth;
-        var height = container.clientHeight;
-        state.graphSvg.attr('viewBox', '0 0 ' + width + ' ' + height);
-        if (state.graphSimulation) {
-            state.graphSimulation.force('center', d3.forceCenter(width / 2, height / 2));
-            state.graphSimulation.alpha(0.1).restart();
+        var now = new Date();
+        var dayMs = 86400000;
+        var buckets = [];
+        for (var i = 29; i >= 0; i--) {
+            var dayStart = new Date(now.getTime() - i * dayMs);
+            dayStart.setHours(0, 0, 0, 0);
+            buckets.push({ date: dayStart, count: 0 });
         }
+        items.forEach(function(item) {
+            var d = new Date(item._date);
+            d.setHours(0, 0, 0, 0);
+            var diff = Math.floor((now.getTime() - d.getTime()) / dayMs);
+            if (diff >= 0 && diff < 30) {
+                buckets[29 - diff].count++;
+            }
+        });
+
+        var maxCount = Math.max.apply(null, buckets.map(function(b) { return b.count; }));
+        if (maxCount === 0) maxCount = 1;
+
+        container.innerHTML = '';
+        var w = container.clientWidth;
+        var h = 40;
+
+        var svg = d3.select(container).append('svg')
+            .attr('width', w).attr('height', h)
+            .style('display', 'block');
+
+        var x = d3.scaleBand()
+            .domain(buckets.map(function(d, i) { return i; }))
+            .range([0, w])
+            .padding(0.3);
+
+        var y = d3.scaleLinear()
+            .domain([0, maxCount])
+            .range([h - 2, 4]);
+
+        svg.selectAll('rect')
+            .data(buckets)
+            .enter().append('rect')
+            .attr('x', function(d, i) { return x(i); })
+            .attr('y', function(d) { return y(d.count); })
+            .attr('width', x.bandwidth())
+            .attr('height', function(d) { return h - 2 - y(d.count); })
+            .attr('rx', 1)
+            .attr('fill', function(d) { return d.count > 0 ? 'var(--accent-cyan)' : 'var(--border-subtle)'; })
+            .attr('opacity', function(d) { return d.count > 0 ? 0.3 + 0.7 * (d.count / maxCount) : 0.3; });
+
+        svg.append('rect')
+            .attr('x', x(29))
+            .attr('y', 0)
+            .attr('width', x.bandwidth())
+            .attr('height', h)
+            .attr('fill', 'var(--accent-cyan)')
+            .attr('opacity', 0.06);
     }
 
     // ── Activity Drawer ──
@@ -1778,6 +2109,44 @@
     }
 
     // ── Insights ──
+    function formatInsightDetail(obsType, details) {
+        if (!details || Object.keys(details).length === 0) return '';
+        switch (obsType) {
+            case 'source_balance': {
+                var counts = details.source_counts || {};
+                var parts = Object.entries(counts).sort(function(a,b) { return b[1] - a[1]; }).map(function(kv) { return kv[0] + ': ' + kv[1].toLocaleString(); });
+                return (details.dominant_source || '?') + ' dominates at ' + ((details.dominant_ratio || 0) * 100).toFixed(1) + '% (' + parts.join(', ') + ')';
+            }
+            case 'autonomous_action': {
+                var action = (details.action || '').replace(/_/g, ' ');
+                if (details.trigger) return action + ' (trigger: ' + details.trigger.replace(/_/g, ' ') + ')';
+                if (details.count) return action + ' (' + details.count + ' memories)';
+                return action;
+            }
+            case 'quality_audit': {
+                var issues = [];
+                if (details.no_embedding) issues.push(details.no_embedding + ' missing embeddings');
+                if (details.no_compression) issues.push(details.no_compression + ' uncompressed');
+                if (details.short_summary) issues.push(details.short_summary + ' short summaries');
+                if (details.long_summary) issues.push(details.long_summary + ' long summaries');
+                return issues.length > 0 ? issues.join(', ') : 'All checks passed';
+            }
+            case 'recall_effectiveness': {
+                var active = details.total_active || 0;
+                var dead = details.dead_count || 0;
+                var ratio = ((details.dead_ratio || 0) * 100).toFixed(0);
+                return dead + ' of ' + active + ' memories inactive (' + ratio + '% dead ratio)';
+            }
+            default: {
+                return Object.entries(details).map(function(kv) {
+                    var v = kv[1];
+                    if (v && typeof v === 'object') v = JSON.stringify(v);
+                    return kv[0].replace(/_/g, ' ') + ': ' + v;
+                }).join(' \u00b7 ');
+            }
+        }
+    }
+
     async function loadInsights() {
         try {
             var resp = await apiFetch(CONFIG.API_BASE + '/insights');
@@ -1785,11 +2154,18 @@
             var observations = data.observations || [];
             var container = document.getElementById('insightsContainer');
             if (observations.length === 0) { container.innerHTML = '<div style="padding:8px;font-size:0.8rem;color:var(--text-dim)">No insights yet</div>'; return; }
+            // Deduplicate: keep only the most recent of each observation type
+            var seenTypes = {};
+            observations = observations.filter(function(obs) {
+                var t = obs.observation_type || '';
+                if (seenTypes[t]) return false;
+                seenTypes[t] = true;
+                return true;
+            });
             container.innerHTML = observations.slice(0, 10).map(function(obs) {
                 var sevClass = obs.severity === 'critical' ? 'critical' : obs.severity === 'warning' ? 'warning' : '';
-                var details = obs.details || {};
-                var detailStr = Object.entries(details).map(function(kv) { return kv[0] + ': ' + kv[1]; }).join(' &bull; ');
-                return '<div class="insight-item ' + sevClass + '"><div class="insight-type">' + escapeHtml(obs.observation_type || '') + '</div><div class="insight-detail">' + escapeHtml(detailStr) + '</div></div>';
+                var detailStr = formatInsightDetail(obs.observation_type, obs.details);
+                return '<div class="insight-item ' + sevClass + '"><div class="insight-type">' + escapeHtml(obs.observation_type || '').replace(/_/g, ' ') + '</div><div class="insight-detail">' + escapeHtml(detailStr) + '</div></div>';
             }).join('');
         } catch (e) { console.error('Failed to load insights:', e); showToast('Failed to load insights', 'error'); }
     }
@@ -1840,7 +2216,7 @@
                 var desc = '';
                 switch (type) {
                     case 'raw_memory_created': desc = 'New memory from ' + (payload.source || '?'); break;
-                    case 'memory_encoded': desc = 'Encoded: ' + (payload.summary || '').slice(0, 60); break;
+                    case 'memory_encoded': desc = 'Encoded: ' + (payload.summary || '').slice(0, 60); state.exploreLoaded.memories = false; break;
                     case 'memory_accessed': desc = 'Accessed ' + (payload.memory_ids || []).length + ' memories'; break;
                     case 'query_executed': desc = 'Query: "' + (payload.query_text || '').slice(0, 40) + '" (' + (payload.results_returned || 0) + ' results)'; break;
                     case 'consolidation_started': desc = 'Consolidation cycle started'; break;
@@ -1852,7 +2228,19 @@
                     default: desc = type.replace(/_/g, ' ');
                 }
                 addEvent(type, desc, msg.timestamp || new Date().toISOString());
-                if (['memory_encoded', 'consolidation_completed', 'dream_cycle_completed'].includes(type) && state.currentView === 'graph') loadGraphData();
+                if (['memory_encoded', 'consolidation_completed', 'dream_cycle_completed'].includes(type) && state.currentView === 'timeline') {
+                    clearTimeout(state._timelineLiveReload);
+                    state._timelineLiveReload = setTimeout(function() { loadTimelineData(false); }, 5000);
+                }
+                // Live-refresh: reload the active explore tab if its data was just invalidated
+                if (state.currentView === 'explore') {
+                    var tab = state.currentExploreTab;
+                    if (!state.exploreLoaded[tab]) loadExploreTab(tab);
+                }
+                // Refresh nav stats on memory-changing events
+                if (['memory_encoded', 'raw_memory_created', 'consolidation_completed'].includes(type)) loadStats();
+                // Refresh LLM usage if viewing that tab
+                if (state.currentView === 'llm') loadLLMUsage();
             } catch (e) { console.error('Failed to parse WebSocket message:', e); }
         };
         ws.onclose = function() {
@@ -1971,10 +2359,10 @@
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') { if (e.key === 'Escape') document.activeElement.blur(); return; }
         switch (e.key) {
             case '/': e.preventDefault(); switchView('recall'); document.getElementById('recallInput').focus(); break;
-            case 'Escape': if (state.drawerOpen) toggleDrawer(); closeGraphDetail(); break;
+            case 'Escape': if (state.drawerOpen) toggleDrawer(); break;
             case '1': switchView('recall'); break;
             case '2': switchView('explore'); break;
-            case '3': switchView('graph'); break;
+            case '3': switchView('timeline'); break;
             case '4': switchView('agent'); break;
             case '5': switchView('llm'); break;
         }
