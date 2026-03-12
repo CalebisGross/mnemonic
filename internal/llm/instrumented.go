@@ -94,13 +94,14 @@ func (p *InstrumentedProvider) Embed(ctx context.Context, text string) ([]float3
 	}
 
 	rec := LLMUsageRecord{
-		Timestamp:   start,
-		Operation:   "embed",
-		Caller:      p.caller,
-		Model:       p.model,
-		TotalTokens: estTokens,
-		LatencyMs:   latency,
-		Success:     err == nil,
+		Timestamp:    start,
+		Operation:    "embed",
+		Caller:       p.caller,
+		Model:        p.model,
+		PromptTokens: estTokens,
+		TotalTokens:  estTokens,
+		LatencyMs:    latency,
+		Success:      err == nil,
 	}
 	if err != nil {
 		rec.ErrorMessage = err.Error()
@@ -130,13 +131,14 @@ func (p *InstrumentedProvider) BatchEmbed(ctx context.Context, texts []string) (
 	}
 
 	rec := LLMUsageRecord{
-		Timestamp:   start,
-		Operation:   "batch_embed",
-		Caller:      p.caller,
-		Model:       p.model,
-		TotalTokens: estTokens,
-		LatencyMs:   latency,
-		Success:     err == nil,
+		Timestamp:    start,
+		Operation:    "batch_embed",
+		Caller:       p.caller,
+		Model:        p.model,
+		PromptTokens: estTokens,
+		TotalTokens:  estTokens,
+		LatencyMs:    latency,
+		Success:      err == nil,
 	}
 	if err != nil {
 		rec.ErrorMessage = err.Error()
