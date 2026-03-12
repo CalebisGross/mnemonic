@@ -594,11 +594,18 @@
             border-bottom: 1px solid var(--border-subtle);
             background: var(--bg-secondary);
         }
-        .timeline-spark { height: 40px; margin-bottom: 12px; position: relative; }
+        .timeline-spark { height: 40px; margin-bottom: 12px; position: relative; cursor: default; }
         .timeline-spark-empty {
             height: 40px; display: flex; align-items: center; justify-content: center;
             font-size: 0.75rem; color: var(--text-dim);
         }
+        .spark-tooltip {
+            position: absolute; top: 44px; background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
+            padding: 3px 8px; font-size: 0.7rem; color: var(--text-primary);
+            pointer-events: none; white-space: nowrap; display: none; z-index: 20;
+        }
+        .timeline-spark.day-active { cursor: pointer; }
         .timeline-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .timeline-range-tabs { display: flex; gap: 2px; }
         .timeline-range-tab {
@@ -818,7 +825,7 @@
         .llm-header-title { font-size: 1.2rem; font-weight: 700; }
         .llm-header-meta { display: flex; align-items: center; gap: 12px; }
         .llm-updated { font-size: 0.75rem; color: var(--text-dim); }
-        .llm-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+        .llm-cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 20px; }
         .llm-card {
             background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);
             padding: 16px; text-align: center;
@@ -840,6 +847,30 @@
         .llm-status-err { color: var(--accent-red); }
         .llm-bar { fill: var(--accent-cyan); rx: 2; }
         .llm-bar-label { fill: var(--text-dim); font-size: 10px; font-family: 'SF Mono', Monaco, monospace; }
+        .llm-card-sub { font-size: 0.7rem; color: var(--text-dim); margin-top: 4px; font-family: 'SF Mono', Monaco, monospace; }
+        .llm-range-tabs { display: flex; gap: 2px; }
+        .llm-range-tab { padding: 3px 10px; border-radius: var(--radius-sm); border: 1px solid transparent; font-size: 0.75rem; color: var(--text-dim); cursor: pointer; background: none; transition: all 0.15s; }
+        .llm-range-tab:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+        .llm-range-tab.active { color: var(--accent-cyan); background: rgba(6,182,212,0.1); border-color: rgba(6,182,212,0.2); }
+        .llm-chart-wrap { position: relative; }
+        .llm-chart-legend { display: flex; gap: 14px; }
+        .llm-legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.7rem; color: var(--text-dim); }
+        .llm-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+        .llm-chart-tooltip { position: absolute; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 0.72rem; color: var(--text-primary); pointer-events: none; display: none; z-index: 20; white-space: nowrap; line-height: 1.7; }
+        .llm-log-row-err td { background: rgba(239,68,68,0.04); }
+        .llm-header-sub { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+        .llm-completion-val { color: var(--accent-violet) !important; }
+
+        /* ── SDK Agent View ── */
+        .sdk-section { margin-bottom: 16px; }
+        .sdk-section-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim); margin-bottom: 8px; }
+        .sdk-stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .sdk-stat-cards-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+        .sdk-api-equiv .stat-number { color: var(--text-muted) !important; font-size: 1rem !important; }
+        .sdk-api-equiv .stat-sub { color: var(--accent-orange); }
+        .sdk-evo-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .sdk-cost-chart-wrap { position: relative; }
+        .sdk-cost-tooltip { position: absolute; top: 4px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 0.72rem; color: var(--text-primary); pointer-events: none; display: none; z-index: 20; white-space: nowrap; }
 
         /* ── Activity Drawer ── */
         .activity-backdrop {
@@ -1140,7 +1171,7 @@
                 </button>
                 <button class="nav-tab" data-view="agent" onclick="switchView('agent')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="4"/><circle cx="9" cy="16" r="1.5"/><circle cx="15" cy="16" r="1.5"/></svg>
-                    <span>Agent</span>
+                    <span>SDK</span>
                 </button>
                 <button class="nav-tab" data-view="llm" onclick="switchView('llm')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
@@ -1265,7 +1296,8 @@
             <section class="view" id="view-agent">
                 <div class="agent-view">
                     <div class="agent-header">
-                        <div class="agent-header-title">Agent Dashboard</div>
+                        <div class="agent-header-title">SDK Agent Sessions</div>
+                        <div class="llm-header-sub">Claude.ai &middot; OAuth &middot; self-evolving</div>
                         <div class="agent-header-meta">
                             <span class="agent-updated" id="agentUpdated"></span>
                             <button class="agent-refresh-btn" id="agentRefreshBtn" onclick="refreshAgentData()">
@@ -1274,8 +1306,20 @@
                             </button>
                         </div>
                     </div>
-                    <div class="agent-stats-row" id="agentStatsRow"></div>
-                    <div class="agent-memory-bar" id="agentMemoryBar"></div>
+                    <div id="agentStatsRow"></div>
+                    <div class="llm-panel" style="margin-bottom:16px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                            <div class="llm-panel-title" style="margin-bottom:0">Task Activity (30d)</div>
+                        </div>
+                        <div class="sdk-cost-chart-wrap">
+                            <div id="sdkCostChart" style="height:140px"></div>
+                            <div class="sdk-cost-tooltip" id="sdkCostTooltip"></div>
+                        </div>
+                    </div>
+                    <div class="sdk-section">
+                        <div class="sdk-section-label">Memory System &middot; daemon</div>
+                        <div class="agent-memory-bar" id="agentMemoryBar"></div>
+                    </div>
                     <div class="agent-grid">
                         <div class="agent-panel" id="agentTimeline">
                             <div class="agent-panel-header">
@@ -1364,7 +1408,14 @@
                 <div class="llm-view">
                     <div class="llm-header">
                         <div class="llm-header-title">LLM Usage</div>
+                        <div class="llm-header-sub">Memory engine &middot; local model</div>
                         <div class="llm-header-meta">
+                            <div class="llm-range-tabs" id="llmRangeTabs">
+                                <button class="llm-range-tab" data-range="1h" onclick="setLLMRange('1h')">1h</button>
+                                <button class="llm-range-tab" data-range="6h" onclick="setLLMRange('6h')">6h</button>
+                                <button class="llm-range-tab active" data-range="24h" onclick="setLLMRange('24h')">24h</button>
+                                <button class="llm-range-tab" data-range="168h" onclick="setLLMRange('168h')">7d</button>
+                            </div>
                             <span class="llm-updated" id="llmUpdated"></span>
                             <button class="agent-refresh-btn" onclick="loadLLMUsage()">
                                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
@@ -1374,30 +1425,47 @@
                     </div>
                     <div class="llm-cards" id="llmCards">
                         <div class="llm-card"><div class="llm-card-label">Requests</div><div class="llm-card-value" id="llmRequests">-</div></div>
-                        <div class="llm-card"><div class="llm-card-label">Tokens</div><div class="llm-card-value" id="llmTokens">-</div></div>
+                        <div class="llm-card"><div class="llm-card-label">Tokens</div><div class="llm-card-value" id="llmTokens">-</div><div class="llm-card-sub" id="llmTokenSplit"></div></div>
                         <div class="llm-card"><div class="llm-card-label">Est. Cost</div><div class="llm-card-value" id="llmCost">-</div></div>
                         <div class="llm-card"><div class="llm-card-label">Avg Latency</div><div class="llm-card-value" id="llmLatency">-</div></div>
                         <div class="llm-card"><div class="llm-card-label">Errors</div><div class="llm-card-value" id="llmErrors">-</div></div>
+                        <div class="llm-card"><div class="llm-card-label">Completion %</div><div class="llm-card-value llm-completion-val" id="llmCompletionPct">-</div><div class="llm-card-sub">out&nbsp;/&nbsp;total tokens</div></div>
                     </div>
-                    <div class="llm-grid">
+                    <div class="llm-panel" style="margin-bottom:16px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                            <div class="llm-panel-title" style="margin-bottom:0" id="llmChartTitle">Token Usage (24h)</div>
+                            <div class="llm-chart-legend">
+                                <div class="llm-legend-item"><div class="llm-legend-dot" style="background:var(--accent-cyan)"></div>Prompt</div>
+                                <div class="llm-legend-item"><div class="llm-legend-dot" style="background:var(--accent-violet)"></div>Completion</div>
+                            </div>
+                        </div>
+                        <div class="llm-chart-wrap">
+                            <div id="llmChart" style="height:200px"></div>
+                            <div class="llm-chart-tooltip" id="llmChartTooltip"></div>
+                        </div>
+                    </div>
+                    <div class="llm-grid" style="margin-bottom:16px">
                         <div class="llm-panel">
                             <div class="llm-panel-title">Usage by Agent</div>
                             <table class="llm-table" id="llmAgentTable">
-                                <thead><tr><th>Agent</th><th>Requests</th><th>Tokens</th></tr></thead>
-                                <tbody id="llmAgentBody"><tr><td colspan="3" class="llm-empty">No data yet</td></tr></tbody>
+                                <thead><tr><th>Agent</th><th>Requests</th><th>Tokens</th><th>Cost</th><th>Avg Latency</th></tr></thead>
+                                <tbody id="llmAgentBody"><tr><td colspan="5" class="llm-empty">No data yet</td></tr></tbody>
                             </table>
                         </div>
                         <div class="llm-panel">
-                            <div class="llm-panel-title">Token Usage (24h)</div>
-                            <div id="llmChart" style="height:200px"></div>
+                            <div class="llm-panel-title">By Operation</div>
+                            <table class="llm-table" id="llmOpsTable">
+                                <thead><tr><th>Operation</th><th>Calls</th><th>Tokens</th><th>p50</th><th>p95</th></tr></thead>
+                                <tbody id="llmOpsBody"><tr><td colspan="5" class="llm-empty">No data yet</td></tr></tbody>
+                            </table>
                         </div>
                     </div>
-                    <div class="llm-panel" style="margin-top:16px">
+                    <div class="llm-panel">
                         <div class="llm-panel-title">Recent Requests</div>
                         <div class="llm-log-scroll">
                             <table class="llm-table" id="llmLogTable">
-                                <thead><tr><th>Time</th><th>Agent</th><th>Operation</th><th>Tokens</th><th>Latency</th><th>Status</th></tr></thead>
-                                <tbody id="llmLogBody"><tr><td colspan="6" class="llm-empty">No data yet</td></tr></tbody>
+                                <thead><tr><th>Time</th><th>Agent</th><th>Operation</th><th>Model</th><th>In / Out</th><th>Latency</th><th>Status</th></tr></thead>
+                                <tbody id="llmLogBody"><tr><td colspan="7" class="llm-empty">No data yet</td></tr></tbody>
                             </table>
                         </div>
                     </div>
@@ -1856,13 +1924,17 @@
         allLoaded: false,
         episodeOffset: 0,
         memoryOffset: 0,
+        dayFilter: null, // Date object — when set, show only items from that day
     };
 
     function setTimelineRange(range) {
         _timelineState.range = range;
+        _timelineState.dayFilter = null;
+        document.querySelector('#timelineSpark').classList.remove('day-active');
         document.querySelectorAll('.timeline-range-tab').forEach(function(t) {
             t.classList.toggle('active', t.getAttribute('data-range') === range);
         });
+        renderTimelineSparkline();
         renderTimelineItems();
     }
 
@@ -1895,9 +1967,16 @@
         var cutoff = getTimelineRangeCutoff();
         var search = _timelineState.search;
         var types = _timelineState.types;
+        var dayFilter = _timelineState.dayFilter;
         return _timelineState.items.filter(function(item) {
             if (!types[item._kind]) return false;
-            if (cutoff && item._date < cutoff) return false;
+            if (dayFilter) {
+                var d = new Date(item._date);
+                d.setHours(0, 0, 0, 0);
+                if (d.getTime() !== dayFilter.getTime()) return false;
+            } else if (cutoff && item._date < cutoff) {
+                return false;
+            }
             if (search) {
                 var haystack = (item._title + ' ' + (item._concepts || []).join(' ')).toLowerCase();
                 if (haystack.indexOf(search) === -1) return false;
@@ -2173,7 +2252,7 @@
         for (var i = 29; i >= 0; i--) {
             var dayStart = new Date(now.getTime() - i * dayMs);
             dayStart.setHours(0, 0, 0, 0);
-            buckets.push({ date: dayStart, count: 0 });
+            buckets.push({ date: dayStart, count: 0, idx: 29 - i });
         }
         items.forEach(function(item) {
             var d = new Date(item._date);
@@ -2191,6 +2270,11 @@
         var w = container.clientWidth;
         var h = 40;
 
+        // Tooltip element
+        var tooltip = document.createElement('div');
+        tooltip.className = 'spark-tooltip';
+        container.appendChild(tooltip);
+
         var svg = d3.select(container).append('svg')
             .attr('width', w).attr('height', h)
             .style('display', 'block');
@@ -2204,24 +2288,77 @@
             .domain([0, maxCount])
             .range([h - 2, 4]);
 
-        svg.selectAll('rect')
+        var dayFilter = _timelineState.dayFilter;
+
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        function fmtDate(d) {
+            return months[d.getMonth()] + ' ' + d.getDate();
+        }
+
+        // Hit-area rects (full height, transparent) for easy hover/click
+        svg.selectAll('.spark-hit')
             .data(buckets)
             .enter().append('rect')
-            .attr('x', function(d, i) { return x(i); })
-            .attr('y', function(d) { return y(d.count); })
-            .attr('width', x.bandwidth())
-            .attr('height', function(d) { return h - 2 - y(d.count); })
-            .attr('rx', 1)
-            .attr('fill', function(d) { return d.count > 0 ? 'var(--accent-cyan)' : 'var(--border-subtle)'; })
-            .attr('opacity', function(d) { return d.count > 0 ? 0.3 + 0.7 * (d.count / maxCount) : 0.3; });
-
-        svg.append('rect')
-            .attr('x', x(29))
+            .attr('class', 'spark-hit')
+            .attr('x', function(d, i) { return x(i) - x.bandwidth() * 0.15; })
             .attr('y', 0)
-            .attr('width', x.bandwidth())
+            .attr('width', function() { return x.bandwidth() * 1.3; })
             .attr('height', h)
-            .attr('fill', 'var(--accent-cyan)')
-            .attr('opacity', 0.06);
+            .attr('fill', 'transparent')
+            .style('cursor', function(d) { return d.count > 0 ? 'pointer' : 'default'; })
+            .on('mouseover', function(event, d) {
+                if (d.count === 0) return;
+                var label = fmtDate(d.date) + ' \u00B7 ' + d.count + ' memor' + (d.count === 1 ? 'y' : 'ies');
+                tooltip.textContent = label;
+                tooltip.style.display = 'block';
+                var bx = x(d.idx) + x.bandwidth() / 2;
+                tooltip.style.left = Math.min(bx - tooltip.offsetWidth / 2, w - tooltip.offsetWidth - 4) + 'px';
+            })
+            .on('mouseout', function() {
+                tooltip.style.display = 'none';
+            })
+            .on('click', function(event, d) {
+                if (d.count === 0) return;
+                var isActive = dayFilter && dayFilter.getTime() === d.date.getTime();
+                if (isActive) {
+                    _timelineState.dayFilter = null;
+                    dayFilter = null;
+                    container.classList.remove('day-active');
+                } else {
+                    _timelineState.dayFilter = d.date;
+                    dayFilter = d.date;
+                    container.classList.add('day-active');
+                }
+                tooltip.style.display = 'none';
+                renderTimelineSparkline();
+                renderTimelineItems();
+            });
+
+        // Bar rects (visual only)
+        svg.selectAll('.spark-bar')
+            .data(buckets)
+            .enter().append('rect')
+            .attr('class', 'spark-bar')
+            .attr('x', function(d, i) { return x(i); })
+            .attr('y', function(d) { return d.count > 0 ? y(d.count) : h - 2; })
+            .attr('width', x.bandwidth())
+            .attr('height', function(d) { return d.count > 0 ? h - 2 - y(d.count) : 2; })
+            .attr('rx', 1)
+            .style('pointer-events', 'none')
+            .attr('fill', function(d) {
+                if (dayFilter && dayFilter.getTime() === d.date.getTime()) return 'var(--accent-cyan)';
+                return d.count > 0 ? 'var(--accent-cyan)' : 'var(--border-subtle)';
+            })
+            .attr('opacity', function(d) {
+                if (dayFilter) {
+                    if (dayFilter.getTime() === d.date.getTime()) return 1;
+                    return d.count > 0 ? 0.2 : 0.15;
+                }
+                // today is the last bucket (idx 29)
+                var isToday = d.idx === 29;
+                if (d.count > 0) return isToday ? 1 : 0.3 + 0.7 * (d.count / maxCount);
+                return isToday ? 0.25 : 0.15;
+            });
     }
 
     // ── Activity Drawer ──
@@ -2411,94 +2548,238 @@
     }
 
     // ── LLM Usage ──
+    var _llmRange = '24h';
+
+    function setLLMRange(range) {
+        _llmRange = range;
+        document.querySelectorAll('.llm-range-tab').forEach(function(t) {
+            t.classList.toggle('active', t.getAttribute('data-range') === range);
+        });
+        var titles = { '1h': 'Token Usage (1h)', '6h': 'Token Usage (6h)', '24h': 'Token Usage (24h)', '168h': 'Token Usage (7d)' };
+        document.getElementById('llmChartTitle').textContent = titles[range] || 'Token Usage';
+        loadLLMUsage();
+    }
+
     async function loadLLMUsage() {
         try {
-            var resp = await apiFetch(CONFIG.API_BASE + '/llm/usage?since=24h&limit=100');
+            var limit = _llmRange === '168h' ? 500 : 200;
+            var resp = await apiFetch(CONFIG.API_BASE + '/llm/usage?since=' + _llmRange + '&limit=' + limit);
             var data = await resp.json();
             state.llmLoaded = true;
 
             var s = data.summary || {};
             document.getElementById('llmRequests').textContent = (s.total_requests || 0).toLocaleString();
             document.getElementById('llmTokens').textContent = (s.total_tokens || 0).toLocaleString();
+
+            // Token split sub-label + Completion %
+            var prompt = s.prompt_tokens || 0;
+            var completion = s.completion_tokens || 0;
+            var splitEl = document.getElementById('llmTokenSplit');
+            splitEl.textContent = (prompt > 0 || completion > 0) ? prompt.toLocaleString() + ' in · ' + completion.toLocaleString() + ' out' : '';
+            var total = prompt + completion;
+            document.getElementById('llmCompletionPct').textContent = total > 0 ? (completion / total * 100).toFixed(1) + '%' : '-';
+
             document.getElementById('llmCost').textContent = '$' + (data.estimated_cost_usd || 0).toFixed(4);
             document.getElementById('llmLatency').textContent = (s.avg_latency_ms || 0).toFixed(0) + 'ms';
-            document.getElementById('llmErrors').textContent = s.error_count || 0;
+
+            var errEl = document.getElementById('llmErrors');
+            errEl.textContent = s.error_count || 0;
+            errEl.style.color = (s.error_count || 0) > 0 ? 'var(--accent-red)' : '';
+
             document.getElementById('llmUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
             document.getElementById('navTokenCount').textContent = (s.total_tokens || 0).toLocaleString();
+
+            var log = data.log || [];
+
+            // Build per-agent extras (cost + avg latency) from log
+            var agentExtras = {};
+            log.forEach(function(r) {
+                var a = r.caller || 'unknown';
+                if (!agentExtras[a]) agentExtras[a] = { latencySum: 0, count: 0, cost: 0 };
+                agentExtras[a].latencySum += (r.latency_ms || 0);
+                agentExtras[a].count++;
+                agentExtras[a].cost += (r.estimated_cost_usd || 0);
+            });
 
             // Agent table
             var agentBody = document.getElementById('llmAgentBody');
             var agents = s.by_agent || {};
             var agentKeys = Object.keys(agents).sort(function(a, b) { return (agents[b].total_tokens || 0) - (agents[a].total_tokens || 0); });
             if (agentKeys.length === 0) {
-                agentBody.innerHTML = '<tr><td colspan="3" class="llm-empty">No agent data yet</td></tr>';
+                agentBody.innerHTML = '<tr><td colspan="5" class="llm-empty">No agent data yet</td></tr>';
             } else {
                 agentBody.innerHTML = agentKeys.map(function(k) {
                     var a = agents[k];
-                    return '<tr><td><strong>' + escapeHtml(k) + '</strong></td><td>' + (a.requests || 0) + '</td><td>' + (a.total_tokens || 0).toLocaleString() + '</td></tr>';
+                    var ext = agentExtras[k] || {};
+                    var cost = ext.cost ? '$' + ext.cost.toFixed(4) : '-';
+                    var avgLat = ext.count ? (ext.latencySum / ext.count).toFixed(0) + 'ms' : '-';
+                    return '<tr><td><strong>' + escapeHtml(k) + '</strong></td><td>' + (a.requests || 0) + '</td><td>' + (a.total_tokens || 0).toLocaleString() + '</td><td>' + cost + '</td><td>' + avgLat + '</td></tr>';
+                }).join('');
+            }
+
+            // Operations table (computed from log) with p50/p95
+            var opStats = {};
+            log.forEach(function(r) {
+                var op = r.operation || 'unknown';
+                if (!opStats[op]) opStats[op] = { count: 0, tokens: 0, latencies: [] };
+                opStats[op].count++;
+                opStats[op].tokens += (r.prompt_tokens || 0) + (r.completion_tokens || 0);
+                opStats[op].latencies.push(r.latency_ms || 0);
+            });
+            var opsBody = document.getElementById('llmOpsBody');
+            var opKeys = Object.keys(opStats).sort(function(a, b) { return opStats[b].count - opStats[a].count; });
+            if (opKeys.length === 0) {
+                opsBody.innerHTML = '<tr><td colspan="6" class="llm-empty">No data yet</td></tr>';
+            } else {
+                opsBody.innerHTML = opKeys.map(function(op) {
+                    var os = opStats[op];
+                    var sorted = os.latencies.slice().sort(function(a, b) { return a - b; });
+                    var p50 = sorted[Math.floor(sorted.length * 0.5)] || 0;
+                    var p95 = sorted[Math.floor(sorted.length * 0.95)] || 0;
+                    return '<tr><td>' + escapeHtml(op) + '</td><td>' + os.count + '</td><td>' + os.tokens.toLocaleString() + '</td><td>' + p50 + 'ms</td><td>' + p95 + 'ms</td></tr>';
                 }).join('');
             }
 
             // Request log
             var logBody = document.getElementById('llmLogBody');
-            var log = data.log || [];
             if (log.length === 0) {
-                logBody.innerHTML = '<tr><td colspan="6" class="llm-empty">No requests recorded yet</td></tr>';
+                logBody.innerHTML = '<tr><td colspan="7" class="llm-empty">No requests recorded yet</td></tr>';
             } else {
                 logBody.innerHTML = log.map(function(r) {
                     var t = r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : '-';
-                    var tokens = (r.prompt_tokens || 0) + (r.completion_tokens || 0);
                     var statusCls = r.success ? 'llm-status-ok' : 'llm-status-err';
                     var statusTxt = r.success ? 'OK' : 'ERR';
-                    return '<tr><td>' + t + '</td><td>' + escapeHtml(r.caller || '-') + '</td><td>' + escapeHtml(r.operation || '-') + '</td><td>' + tokens.toLocaleString() + '</td><td>' + (r.latency_ms || 0) + 'ms</td><td class="' + statusCls + '">' + statusTxt + '</td></tr>';
+                    var rowCls = r.success ? '' : ' class="llm-log-row-err"';
+                    var inOut = (r.prompt_tokens || 0).toLocaleString() + ' / ' + (r.completion_tokens || 0).toLocaleString();
+                    var model = escapeHtml((r.model || '-').replace('local-model', 'local'));
+                    return '<tr' + rowCls + '><td>' + t + '</td><td>' + escapeHtml(r.caller || '-') + '</td><td>' + escapeHtml(r.operation || '-') + '</td><td>' + model + '</td><td>' + inOut + '</td><td>' + (r.latency_ms || 0) + 'ms</td><td class="' + statusCls + '">' + statusTxt + '</td></tr>';
                 }).join('');
             }
 
-            // Token chart (bar chart by hour)
-            renderLLMChart(log);
+            renderLLMChart(log, _llmRange);
         } catch (e) {
             document.getElementById('llmRequests').textContent = 'ERR';
         }
     }
 
-    function renderLLMChart(log) {
+    function renderLLMChart(log, range) {
         var container = document.getElementById('llmChart');
+        var tooltip = document.getElementById('llmChartTooltip');
         container.innerHTML = '';
         if (!log || log.length === 0) { container.innerHTML = '<div class="llm-empty">No data for chart</div>'; return; }
 
-        var hourBuckets = {};
+        // Determine bucket size and count from range
+        var now = new Date();
+        var bucketMs, bucketCount, labelFmt, labelEvery;
+        if (range === '1h') {
+            bucketMs = 5 * 60 * 1000; bucketCount = 12;
+            labelFmt = function(d) { return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); };
+            labelEvery = 3;
+        } else if (range === '6h') {
+            bucketMs = 30 * 60 * 1000; bucketCount = 12;
+            labelFmt = function(d) { return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); };
+            labelEvery = 2;
+        } else if (range === '168h') {
+            bucketMs = 24 * 60 * 60 * 1000; bucketCount = 7;
+            var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            labelFmt = function(d) { return days[d.getDay()]; };
+            labelEvery = 1;
+        } else { // 24h default
+            bucketMs = 60 * 60 * 1000; bucketCount = 24;
+            labelFmt = function(d) { return String(d.getHours()).padStart(2,'0') + ':00'; };
+            labelEvery = 4;
+        }
+
+        var rangeStart = new Date(now.getTime() - bucketCount * bucketMs);
+        var buckets = [];
+        for (var i = 0; i < bucketCount; i++) {
+            var bStart = new Date(rangeStart.getTime() + i * bucketMs);
+            buckets.push({ idx: i, start: bStart, label: labelFmt(bStart), prompt: 0, completion: 0, requests: 0, errors: 0 });
+        }
         log.forEach(function(r) {
             if (!r.timestamp) return;
-            var d = new Date(r.timestamp);
-            var key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':00';
-            hourBuckets[key] = (hourBuckets[key] || 0) + (r.prompt_tokens || 0) + (r.completion_tokens || 0);
+            var offset = new Date(r.timestamp).getTime() - rangeStart.getTime();
+            if (offset < 0) return;
+            var idx = Math.floor(offset / bucketMs);
+            if (idx >= 0 && idx < bucketCount) {
+                buckets[idx].prompt += (r.prompt_tokens || 0);
+                buckets[idx].completion += (r.completion_tokens || 0);
+                buckets[idx].requests++;
+                if (!r.success) buckets[idx].errors++;
+            }
         });
-
-        var bucketKeys = Object.keys(hourBuckets).sort();
-        var bucketData = bucketKeys.map(function(k) { return { hour: k.split(' ')[1], tokens: hourBuckets[k] }; });
 
         var w = container.clientWidth || 400;
         var h = 200;
-        var margin = { top: 10, right: 10, bottom: 30, left: 50 };
+        var margin = { top: 10, right: 10, bottom: 28, left: 50 };
         var iw = w - margin.left - margin.right;
         var ih = h - margin.top - margin.bottom;
 
         var svg = d3.select(container).append('svg').attr('width', w).attr('height', h);
         var g = svg.append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
 
-        var x = d3.scaleBand().domain(bucketData.map(function(d) { return d.hour; })).range([0, iw]).padding(0.2);
-        var y = d3.scaleLinear().domain([0, d3.max(bucketData, function(d) { return d.tokens; }) || 1]).nice().range([ih, 0]);
+        var maxTotal = d3.max(buckets, function(d) { return d.prompt + d.completion; }) || 1;
+        var x = d3.scaleBand().domain(buckets.map(function(d) { return d.idx; })).range([0, iw]).padding(0.25);
+        var y = d3.scaleLinear().domain([0, maxTotal]).nice().range([ih, 0]);
 
-        g.append('g').attr('transform', 'translate(0,' + ih + ')').call(d3.axisBottom(x)).selectAll('text').attr('fill', 'var(--text-dim)').style('font-size', '10px');
-        g.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(d3.format('.2s'))).selectAll('text').attr('fill', 'var(--text-dim)').style('font-size', '10px');
+        g.append('g').attr('transform', 'translate(0,' + ih + ')')
+            .call(d3.axisBottom(x)
+                .tickValues(buckets.map(function(d) { return d.idx; }).filter(function(i) { return i % labelEvery === 0; }))
+                .tickFormat(function(i) { return buckets[i].label; }))
+            .selectAll('text').attr('fill', 'var(--text-dim)').style('font-size', '10px');
+        g.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(d3.format('.2s')))
+            .selectAll('text').attr('fill', 'var(--text-dim)').style('font-size', '10px');
         g.selectAll('.domain, .tick line').attr('stroke', 'var(--border-subtle)');
 
-        g.selectAll('.llm-bar').data(bucketData).enter().append('rect')
-            .attr('class', 'llm-bar')
-            .attr('x', function(d) { return x(d.hour); })
-            .attr('y', function(d) { return y(d.tokens); })
+        // Full bar (prompt, cyan) with rounded top
+        g.selectAll('.llm-bar-prompt').data(buckets).enter().append('rect')
+            .attr('class', 'llm-bar-prompt')
+            .attr('x', function(d) { return x(d.idx); })
+            .attr('y', function(d) { return (d.prompt + d.completion) > 0 ? y(d.prompt + d.completion) : ih; })
             .attr('width', x.bandwidth())
-            .attr('height', function(d) { return ih - y(d.tokens); });
+            .attr('height', function(d) { return (d.prompt + d.completion) > 0 ? ih - y(d.prompt + d.completion) : 0; })
+            .attr('rx', 2).attr('fill', 'var(--accent-cyan)').attr('opacity', 0.8);
+
+        // Completion overlay (violet, no radius — sits at bottom of bar)
+        g.selectAll('.llm-bar-completion').data(buckets).enter().append('rect')
+            .attr('class', 'llm-bar-completion')
+            .attr('x', function(d) { return x(d.idx); })
+            .attr('y', function(d) { return d.completion > 0 ? y(d.completion) : ih; })
+            .attr('width', x.bandwidth())
+            .attr('height', function(d) { return d.completion > 0 ? ih - y(d.completion) : 0; })
+            .attr('fill', 'var(--accent-violet)').attr('opacity', 0.8);
+
+        // Transparent hit areas for tooltip
+        g.selectAll('.llm-hit').data(buckets).enter().append('rect')
+            .attr('class', 'llm-hit')
+            .attr('x', function(d) { return x(d.idx) - x.bandwidth() * 0.1; })
+            .attr('y', 0).attr('width', function() { return x.bandwidth() * 1.2; }).attr('height', ih)
+            .attr('fill', 'transparent')
+            .on('mouseover', function(event, d) {
+                if (d.requests === 0) return;
+                var errLine = d.errors > 0 ? '<br><span style="color:var(--accent-red)">' + d.errors + ' error' + (d.errors === 1 ? '' : 's') + '</span>' : '';
+                tooltip.innerHTML = '<strong>' + d.label + '</strong><br>' +
+                    d.requests + ' request' + (d.requests === 1 ? '' : 's') + '<br>' +
+                    '<span style="color:var(--accent-cyan)">' + d.prompt.toLocaleString() + '</span> prompt · ' +
+                    '<span style="color:var(--accent-violet)">' + d.completion.toLocaleString() + '</span> completion' + errLine;
+                tooltip.style.display = 'block';
+                var barX = margin.left + x(d.idx) + x.bandwidth() / 2;
+                var ttLeft = barX + 10;
+                if (ttLeft + 180 > w) ttLeft = barX - 190;
+                tooltip.style.left = ttLeft + 'px';
+                tooltip.style.top = (margin.top + 2) + 'px';
+            })
+            .on('mouseout', function() { tooltip.style.display = 'none'; });
+
+        // Error markers — red dot above bars with failed requests
+        g.selectAll('.llm-err-mark').data(buckets.filter(function(d) { return d.errors > 0; }))
+            .enter().append('circle')
+            .attr('class', 'llm-err-mark')
+            .attr('cx', function(d) { return x(d.idx) + x.bandwidth() / 2; })
+            .attr('cy', function(d) { return y(d.prompt + d.completion) - 5; })
+            .attr('r', 3)
+            .attr('fill', 'var(--accent-red)')
+            .style('pointer-events', 'none');
     }
 
     // ── Keyboard Shortcuts ──
@@ -2578,6 +2859,7 @@
         // Update timestamp
         document.getElementById('agentUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         renderAgentStats(d.evolution, d.sessions);
+        renderSDKCostChart(d.sessions.sessions || []);
         renderAgentMemoryBar(d.system);
         renderAgentPrinciples(d.evolution.principles);
         renderAgentStrategies(d.evolution.strategies);
@@ -2593,20 +2875,117 @@
         if (state.agentData && state.agentData.changelog && state.agentData.changelog.entries && state.agentData.changelog.entries.length > 0) {
             lastEvo = state.agentData.changelog.entries[0].date || '';
         }
-        var stats = [
-            { n: evo.principles.length, l: 'Principles', sub: lastEvo ? 'Last: ' + lastEvo : '' },
-            { n: Object.keys(evo.strategies).length, l: 'Strategies', sub: '' },
-            { n: patchCount, l: 'Patches', sub: '' },
-            { n: sess.stats.session_count, l: 'Sessions', sub: '' },
-            { n: sess.stats.total_tasks, l: 'Tasks Run', sub: '' },
-            { n: sess.stats.avg_turns ? sess.stats.avg_turns.toFixed(1) : '0', l: 'Avg Turns', sub: '' },
-            { n: '$' + avgCost.toFixed(2), l: 'Avg Cost/Task', sub: '' },
-            { n: '$' + (sess.stats.total_cost_usd || 0).toFixed(2), l: 'Total Cost', sub: '' },
+
+        var totalTurns = 0;
+        (sess.sessions || []).forEach(function(s) { (s.tasks || []).forEach(function(t) { totalTurns += (t.turns || 0); }); });
+        var totalApiEquiv = sess.stats.total_cost_usd || 0;
+        var taskCards = [
+            { n: sess.stats.session_count, l: 'Sessions' },
+            { n: sess.stats.total_tasks, l: 'Tasks Run' },
+            { n: totalTurns.toLocaleString(), l: 'Total Turns', sub: 'subscription · not billed' },
+            { n: sess.stats.avg_turns ? sess.stats.avg_turns.toFixed(1) : '0', l: 'Avg Turns / Task' },
+            { n: '$' + totalApiEquiv.toFixed(4), l: 'API Equiv.', sub: 'if billed per token', cls: 'sdk-api-equiv' },
         ];
-        document.getElementById('agentStatsRow').innerHTML = stats.map(function(s) {
-            return '<div class="agent-stat-card"><div class="stat-number">' + s.n + '</div><div class="stat-label">' + s.l + '</div>' +
-                (s.sub ? '<div class="stat-sub">' + escapeHtml(s.sub) + '</div>' : '') + '</div>';
-        }).join('');
+        var evoCards = [
+            { n: evo.principles.length, l: 'Principles', sub: lastEvo ? 'Last: ' + lastEvo : '' },
+            { n: Object.keys(evo.strategies).length, l: 'Strategies' },
+            { n: patchCount, l: 'Prompt Patches' },
+        ];
+
+        function cardHtml(cards, gridClass) {
+            return '<div class="' + gridClass + '">' + cards.map(function(s) {
+                return '<div class="agent-stat-card' + (s.cls ? ' ' + s.cls : '') + '"><div class="stat-number">' + s.n + '</div><div class="stat-label">' + s.l + '</div>' +
+                    (s.sub ? '<div class="stat-sub">' + escapeHtml(s.sub) + '</div>' : '') + '</div>';
+            }).join('') + '</div>';
+        }
+
+        document.getElementById('agentStatsRow').innerHTML =
+            '<div class="sdk-section">' +
+                '<div class="sdk-section-label">Task Activity</div>' +
+                cardHtml(taskCards, 'sdk-stat-cards-5') +
+            '</div>' +
+            '<div class="sdk-section">' +
+                '<div class="sdk-section-label">Evolution State</div>' +
+                cardHtml(evoCards, 'sdk-evo-cards') +
+            '</div>';
+    }
+
+    function renderSDKCostChart(sessions) {
+        var container = document.getElementById('sdkCostChart');
+        var tooltip = document.getElementById('sdkCostTooltip');
+        container.innerHTML = '';
+        if (!sessions || sessions.length === 0) {
+            container.innerHTML = '<div class="llm-empty">No sessions yet</div>';
+            return;
+        }
+
+        var now = new Date();
+        var dayMs = 86400000;
+        var buckets = [];
+        for (var i = 29; i >= 0; i--) {
+            var d = new Date(now.getTime() - i * dayMs);
+            d.setHours(0, 0, 0, 0);
+            buckets.push({ idx: 29 - i, date: d, tasks: 0, turns: 0 });
+        }
+        sessions.forEach(function(s) {
+            (s.tasks || []).forEach(function(t) {
+                if (!t.started) return;
+                var td = new Date(t.started);
+                td.setHours(0, 0, 0, 0);
+                var diff = Math.floor((now.getTime() - td.getTime()) / dayMs);
+                if (diff >= 0 && diff < 30) {
+                    buckets[29 - diff].tasks++;
+                    buckets[29 - diff].turns += (t.turns || 0);
+                }
+            });
+        });
+
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var maxTasks = Math.max.apply(null, buckets.map(function(b) { return b.tasks; })) || 1;
+        var w = container.clientWidth || 400;
+        var h = 140;
+        var margin = { top: 8, right: 10, bottom: 24, left: 36 };
+        var iw = w - margin.left - margin.right;
+        var ih = h - margin.top - margin.bottom;
+
+        var svg = d3.select(container).append('svg').attr('width', w).attr('height', h);
+        var g = svg.append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+
+        var x = d3.scaleBand().domain(buckets.map(function(b) { return b.idx; })).range([0, iw]).padding(0.3);
+        var y = d3.scaleLinear().domain([0, maxTasks]).nice().range([ih, 0]);
+
+        g.append('g').attr('transform', 'translate(0,' + ih + ')')
+            .call(d3.axisBottom(x)
+                .tickValues(buckets.filter(function(b) { return b.idx % 7 === 0; }).map(function(b) { return b.idx; }))
+                .tickFormat(function(i) { var d = buckets[i].date; return months[d.getMonth()] + ' ' + d.getDate(); }))
+            .selectAll('text').attr('fill', 'var(--text-dim)').style('font-size', '10px');
+        g.append('g').call(d3.axisLeft(y).ticks(Math.min(maxTasks, 4)).tickFormat(d3.format('d')))
+            .selectAll('text').attr('fill', 'var(--text-dim)').style('font-size', '10px');
+        g.selectAll('.domain, .tick line').attr('stroke', 'var(--border-subtle)');
+
+        g.selectAll('.sdk-bar').data(buckets).enter().append('rect')
+            .attr('class', 'sdk-bar')
+            .attr('x', function(b) { return x(b.idx); })
+            .attr('y', function(b) { return b.tasks > 0 ? y(b.tasks) : ih; })
+            .attr('width', x.bandwidth())
+            .attr('height', function(b) { return b.tasks > 0 ? ih - y(b.tasks) : 0; })
+            .attr('rx', 2).attr('fill', 'var(--accent-green)').attr('opacity', 0.8)
+            .style('pointer-events', 'none');
+
+        g.selectAll('.sdk-hit').data(buckets).enter().append('rect')
+            .attr('x', function(b) { return x(b.idx) - x.bandwidth() * 0.1; })
+            .attr('y', 0).attr('width', function() { return x.bandwidth() * 1.2; }).attr('height', ih)
+            .attr('fill', 'transparent')
+            .on('mouseover', function(event, b) {
+                if (b.tasks === 0) return;
+                tooltip.textContent = months[b.date.getMonth()] + ' ' + b.date.getDate() + ' · ' + b.tasks + ' task' + (b.tasks === 1 ? '' : 's') + ' · ' + b.turns + ' turns';
+                tooltip.style.display = 'block';
+                var bx = margin.left + x(b.idx) + x.bandwidth() / 2;
+                var ttLeft = bx + 8;
+                if (ttLeft + 200 > w) ttLeft = bx - 210;
+                tooltip.style.left = ttLeft + 'px';
+            })
+            .on('mouseout', function() { tooltip.style.display = 'none'; });
     }
 
     function renderAgentMemoryBar(sys) {
@@ -2916,8 +3295,10 @@
             case 'error':
                 agentChat.busy = false;
                 agentChat.currentBubble = null;
-                appendChatBubble('assistant', 'Error: ' + (msg.message || 'Unknown error'));
-                setChatStatus('connected', 'Ready (error)');
+                var errMsg = msg.message || 'Unknown error';
+                var isSetupError = /not authenticated|not logged in|cli not found/i.test(errMsg);
+                appendChatBubble('assistant', isSetupError ? errMsg : 'Error: ' + errMsg);
+                setChatStatus(isSetupError ? 'disconnected' : 'connected', isSetupError ? 'Setup required' : 'Ready (error)');
                 document.getElementById('chatSendBtn').disabled = false;
                 document.getElementById('chatInput').disabled = false;
                 scrollChatBottom();

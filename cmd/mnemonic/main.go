@@ -1011,10 +1011,14 @@ func startAgentWebServer(cfg *config.Config, log *slog.Logger) *exec.Cmd {
 	// SDK directory: evolution_dir is sdk/agent/evolution, so sdk/ is two levels up.
 	sdkDir := filepath.Dir(filepath.Dir(cfg.AgentSDK.EvolutionDir))
 
-	// Determine python binary: prefer explicit config, then uv, then python3.
+	// Determine python binary: prefer explicit config, then venv Python (has
+	// all SDK deps installed), then uv, then system python3.
 	pythonBin := cfg.AgentSDK.PythonBin
 	if pythonBin == "" {
-		if uvPath, err := exec.LookPath("uv"); err == nil {
+		venvPython := filepath.Join(sdkDir, ".venv", "bin", "python3")
+		if _, err := os.Stat(venvPython); err == nil {
+			pythonBin = venvPython
+		} else if uvPath, err := exec.LookPath("uv"); err == nil {
 			pythonBin = uvPath
 		} else if py3, err := exec.LookPath("python3"); err == nil {
 			pythonBin = py3
@@ -1240,6 +1244,7 @@ func serveCommand(configPath string) {
 			EnableLLMClassification: cfg.Encoding.EnableLLMClassification,
 			CoachingFile:            cfg.Coaching.CoachingFile,
 			ExcludePatterns:         cfg.Perception.Filesystem.ExcludePatterns,
+			ConceptVocabulary:       cfg.Encoding.ConceptVocabulary,
 		})
 		if err := encoder.Start(rootCtx, bus); err != nil {
 			log.Error("failed to start encoding agent", "error", err)

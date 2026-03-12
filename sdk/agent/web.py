@@ -22,7 +22,7 @@ from starlette.applications import Starlette
 from starlette.routing import WebSocketRoute
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from claude_agent_sdk import ClaudeSDKClient
+from claude_agent_sdk import CLINotFoundError, ClaudeSDKClient, ProcessError
 
 from agent.config import DEFAULT_EVOLVE_INTERVAL, DEFAULT_PERMISSION_MODE, Config
 from agent.conversation_store import ConversationStore
@@ -32,6 +32,17 @@ from agent.session import TaskMetrics, _orchestrate_task, _run_evolution, stream
 logger = logging.getLogger(__name__)
 
 WS_IDLE_TIMEOUT = 300  # seconds
+
+_AUTH_KEYWORDS = (
+    "not logged in", "login", "auth", "oauth",
+    "unauthorized", "credential", "not authenticated",
+)
+
+
+def _is_auth_error(exc: ProcessError) -> bool:
+    """Return True if a ProcessError looks like a Claude CLI authentication failure."""
+    text = " ".join(filter(None, [exc.stderr, str(exc)])).lower()
+    return any(kw in text for kw in _AUTH_KEYWORDS)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -161,6 +172,43 @@ class WebSocketSession:
                     break
         except WebSocketDisconnect:
             logger.info("WebSocket disconnected: session %s", self._session_id)
+        except CLINotFoundError as exc:
+            logger.error("Claude CLI not found in session %s: %s", self._session_id, exc)
+            try:
+                await _send(self._ws, {
+                    "type": "error",
+                    "message": (
+                        "Claude CLI not found. Install it with:\n\n"
+                        "```\nnpm install -g @anthropic-ai/claude-code\n```"
+                    ),
+                })
+                await self._ws.close()
+            except Exception:
+                pass
+        except ProcessError as exc:
+            if _is_auth_error(exc):
+                logger.error("Claude CLI auth error in session %s: %s", self._session_id, exc)
+                try:
+                    await _send(self._ws, {
+                        "type": "error",
+                        "message": (
+                            "Claude CLI is not authenticated. "
+                            "Run `claude` in your terminal to log in, then reload this page."
+                        ),
+                    })
+                    await self._ws.close()
+                except Exception:
+                    pass
+            else:
+                logger.exception("Fatal ProcessError in WebSocket handler: %s", self._session_id)
+                try:
+                    await _send(self._ws, {
+                        "type": "error",
+                        "message": "Internal server error — session terminated.",
+                    })
+                    await self._ws.close()
+                except Exception:
+                    pass
         except Exception:
             logger.exception("Fatal error in WebSocket handler: %s", self._session_id)
             try:

@@ -171,7 +171,7 @@ Open `http://127.0.0.1:9999` for the embedded web UI:
 - **Recall** — Query tester: try searches, see retrieval scores and synthesized responses
 - **Explore** — Browse episodes, memories, patterns, and abstractions in sub-tabs
 - **Graph** — D3.js visualization of memory associations
-- **Agent** — SDK evolution dashboard: principles, strategies, session timeline, chat (requires `agent_sdk.enabled: true`)
+- **Agent** — SDK evolution dashboard: principles, strategies, session timeline, chat (requires `agent_sdk.enabled: true` and Claude CLI authenticated — run `claude` once to log in)
 - **Activity drawer** — Slide-out panel with live event feed and metacognition insights
 
 ## Project Structure
