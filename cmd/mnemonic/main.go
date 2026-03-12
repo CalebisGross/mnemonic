@@ -1697,6 +1697,7 @@ func rememberCommand(configPath, text string) {
 		EnableLLMClassification: cfg.Encoding.EnableLLMClassification,
 		CoachingFile:            cfg.Coaching.CoachingFile,
 		ExcludePatterns:         cfg.Perception.Filesystem.ExcludePatterns,
+		ConceptVocabulary:       cfg.Encoding.ConceptVocabulary,
 	})
 	if err := encoder.Start(encodeCtx, bus); err != nil {
 		fmt.Fprintf(os.Stderr, "Error starting encoder: %v\n", err)
@@ -2388,6 +2389,7 @@ func mcpCommand(configPath string) {
 		EnableLLMClassification: cfg.Encoding.EnableLLMClassification,
 		CoachingFile:            cfg.Coaching.CoachingFile,
 		ExcludePatterns:         cfg.Perception.Filesystem.ExcludePatterns,
+		ConceptVocabulary:       cfg.Encoding.ConceptVocabulary,
 	})
 	if err := encoder.Start(ctx, bus); err != nil {
 		log.Error("failed to start encoding agent for MCP", "error", err)
