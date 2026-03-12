@@ -119,17 +119,18 @@ type HeuristicsConfig struct {
 
 // EncodingConfig holds encoding settings.
 type EncodingConfig struct {
-	Enabled                  bool `yaml:"enabled"`
-	UseLLM                   bool `yaml:"use_llm"`
-	MaxLLMQueueSize          int  `yaml:"max_llm_queue_size"`
-	MaxConcepts              int  `yaml:"max_concepts"`
-	FindSimilarLimit         int  `yaml:"find_similar_limit"`
-	EnableContextualEncoding bool `yaml:"enable_contextual_encoding"`
-	ContextLookbackCount     int  `yaml:"context_lookback_count"`
-	ContextSemanticCount     int  `yaml:"context_semantic_count"`
-	MaxConcurrentEncodings   int  `yaml:"max_concurrent_encodings"`
-	EnableLLMClassification  bool `yaml:"enable_llm_classification"`
-	CompletionMaxTokens      int  `yaml:"completion_max_tokens"`
+	Enabled                  bool     `yaml:"enabled"`
+	UseLLM                   bool     `yaml:"use_llm"`
+	MaxLLMQueueSize          int      `yaml:"max_llm_queue_size"`
+	MaxConcepts              int      `yaml:"max_concepts"`
+	FindSimilarLimit         int      `yaml:"find_similar_limit"`
+	EnableContextualEncoding bool     `yaml:"enable_contextual_encoding"`
+	ContextLookbackCount     int      `yaml:"context_lookback_count"`
+	ContextSemanticCount     int      `yaml:"context_semantic_count"`
+	MaxConcurrentEncodings   int      `yaml:"max_concurrent_encodings"`
+	EnableLLMClassification  bool     `yaml:"enable_llm_classification"`
+	CompletionMaxTokens      int      `yaml:"completion_max_tokens"`
+	ConceptVocabulary        []string `yaml:"concept_vocabulary"`
 }
 
 // ConsolidationConfig holds consolidation settings.

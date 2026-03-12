@@ -232,6 +232,64 @@ encoding:
   # Maximum tokens for encoding LLM completions (higher = more room for structured JSON output)
   completion_max_tokens: 1024
 
+  # Controlled vocabulary for concept extraction.
+  # The LLM is instructed to prefer these exact terms so similar memories share matching tags.
+  # Add domain-specific terms for your workflow. Remove terms you don't care about.
+  # Leave empty to allow fully free-form concept generation.
+  concept_vocabulary:
+    - go
+    - python
+    - javascript
+    - typescript
+    - sql
+    - bash
+    - html
+    - css
+    - docker
+    - git
+    - linux
+    - macos
+    - systemd
+    - build
+    - ci
+    - deployment
+    - debugging
+    - testing
+    - refactoring
+    - configuration
+    - migration
+    - documentation
+    - review
+    - api
+    - database
+    - filesystem
+    - networking
+    - security
+    - authentication
+    - performance
+    - logging
+    - ui
+    - cli
+    - memory
+    - encoding
+    - retrieval
+    - embedding
+    - agent
+    - llm
+    - daemon
+    - mcp
+    - watcher
+    - decision
+    - error
+    - fix
+    - insight
+    - learning
+    - planning
+    - research
+    - dependency
+    - schema
+    - config
+
 # Consolidation Configuration
 consolidation:
   # Enable memory consolidation

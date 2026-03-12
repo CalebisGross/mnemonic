@@ -58,6 +58,26 @@ type EncodingConfig struct {
 	EnableLLMClassification bool     // if true, use LLM to reclassify "similar" associations in background
 	CoachingFile            string   // path to coaching.yaml; empty = no coaching
 	ExcludePatterns         []string // paths matching these patterns are skipped (defense-in-depth)
+	ConceptVocabulary       []string // controlled vocabulary for concept extraction; empty = free-form
+}
+
+// DefaultConceptVocabulary is the default controlled vocabulary for concept extraction.
+// The LLM is instructed to prefer these terms so similar memories share matching tags.
+var DefaultConceptVocabulary = []string{
+	// Languages & runtimes
+	"go", "python", "javascript", "typescript", "sql", "bash", "html", "css",
+	// Infrastructure & tooling
+	"docker", "git", "linux", "macos", "systemd", "build", "ci", "deployment",
+	// Dev activities
+	"debugging", "testing", "refactoring", "configuration", "migration", "documentation", "review",
+	// Code domains
+	"api", "database", "filesystem", "networking", "security", "authentication",
+	"performance", "logging", "ui", "cli",
+	// Memory system
+	"memory", "encoding", "retrieval", "embedding", "agent", "llm", "daemon", "mcp", "watcher",
+	// Project context
+	"decision", "error", "fix", "insight", "learning", "planning", "research",
+	"dependency", "schema", "config",
 }
 
 // DefaultConfig returns sensible defaults for encoding configuration.
@@ -72,6 +92,7 @@ func DefaultConfig() EncodingConfig {
 		CompletionTemperature:   0.3,
 		MaxConcurrentEncodings:  1,
 		EnableLLMClassification: false,
+		ConceptVocabulary:       DefaultConceptVocabulary,
 	}
 }
 
@@ -793,7 +814,7 @@ func (ea *EncodingAgent) compressAndExtractConcepts(ctx context.Context, raw sto
 	relatedCtx := ea.getRelatedContext(ctx, raw)
 
 	// Build the LLM prompt
-	prompt := buildCompressionPrompt(truncatedContent, raw.Source, raw.Type, episodeCtx, relatedCtx, ea.coachingInstructions)
+	prompt := buildCompressionPrompt(truncatedContent, raw.Source, raw.Type, episodeCtx, relatedCtx, ea.coachingInstructions, ea.config.ConceptVocabulary)
 
 	req := llm.CompletionRequest{
 		Messages: []llm.Message{
@@ -852,7 +873,7 @@ func (ea *EncodingAgent) compressAndExtractConcepts(ctx context.Context, raw sto
 // NOTE: The prompt deliberately avoids showing a JSON template because the local LLM model
 // echoes template placeholder text verbatim into the output fields. Structured output
 // (response_format with json_schema) enforces the JSON structure instead.
-func buildCompressionPrompt(content, source, memType, episodeCtx, relatedCtx, coachingInstructions string) string {
+func buildCompressionPrompt(content, source, memType, episodeCtx, relatedCtx, coachingInstructions string, conceptVocabulary []string) string {
 	var b strings.Builder
 
 	if source == "ingest" {
@@ -863,7 +884,7 @@ Fill in every JSON field based on the actual file content below:
 - summary: The file's purpose in under 100 characters.
 - content: A compressed description of what the file contains and how it works.
 - narrative: The file's role in the project architecture and why it matters.
-- concepts: 3-5 keywords describing the file's domain.
+- concepts: 3-5 keywords describing the file's domain. PREFER exact terms from the vocabulary list below; only use new terms if no vocabulary term fits.
 - structured_concepts: Extract topics, entities, actions, and causal relationships from the file.
 - significance: One of routine, notable, important, or critical.
 - emotional_tone: neutral.
@@ -879,7 +900,7 @@ Fill in every JSON field based on the actual event content below:
 - summary: What happened and why it matters in under 100 characters.
 - content: The key details someone would need to understand this event later.
 - narrative: The story of what happened including context and meaning.
-- concepts: 3-5 keywords about the event.
+- concepts: 3-5 keywords about the event. PREFER exact terms from the vocabulary list below; only use new terms if no vocabulary term fits.
 - structured_concepts: Extract topics, entities, actions, and causal relationships from the event.
 - significance: One of routine, notable, important, or critical.
 - emotional_tone: One of neutral, satisfying, frustrating, exciting, or concerning.
@@ -887,6 +908,12 @@ Fill in every JSON field based on the actual event content below:
 - salience: 0.7+ for decisions/errors/insights, 0.5 for notable activity, 0.3 for routine file saves.
 
 `)
+	}
+
+	if len(conceptVocabulary) > 0 {
+		b.WriteString("CONCEPT VOCABULARY (prefer these exact terms for concepts): ")
+		b.WriteString(strings.Join(conceptVocabulary, ", "))
+		b.WriteString("\n\n")
 	}
 
 	if episodeCtx != "" {

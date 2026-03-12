@@ -174,6 +174,64 @@ See [Backup & Restore](backup-restore.md) for the full disaster recovery procedu
    mnemonic --config /path/to/config.yaml serve
    ```
 
+## Agent Chat won't connect
+
+**Symptom:** The Agent Chat panel shows "Connection error", "Failed to connect", or tasks fail immediately with "Internal server error" or "Setup required".
+
+### Claude CLI not authenticated
+
+The agent chat runs via the Claude Agent SDK, which spawns the `claude` CLI as a subprocess and uses your Claude subscription via OAuth. If you haven't logged in on this machine, tasks will fail.
+
+**Fix:**
+```bash
+claude   # opens OAuth flow in your browser; credentials are saved to ~/.claude/
+```
+
+After authenticating, reload the dashboard. No daemon restart needed — the Python WebSocket server picks up the stored credentials automatically.
+
+### Claude CLI not installed
+
+If you see "Claude CLI not found":
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### Agent Chat panel not visible
+
+The agent chat requires `agent_sdk.enabled: true` and a valid `evolution_dir` in `config.yaml`:
+```yaml
+agent_sdk:
+  enabled: true
+  evolution_dir: "./sdk/agent/evolution"
+  web_port: 9998
+```
+
+Restart the daemon after changing config.
+
+### Python WebSocket server not starting
+
+The agent WebSocket server (port 9998) is a Python subprocess. The daemon looks for a Python binary in this order:
+
+1. `agent_sdk.python_bin` in config (if set)
+2. `sdk/.venv/bin/python3` — the project venv, preferred when it exists
+3. `uv` in PATH
+4. `python3` in PATH
+
+If the server isn't starting, check whether it started in the daemon log:
+```bash
+journalctl --user -u mnemonic -n 50 | grep -i agent
+```
+
+Or run in foreground to see Python output directly:
+```bash
+mnemonic serve
+```
+
+If you see an import error (`ModuleNotFoundError`), the venv is missing or not installed. Set up the venv from the `sdk/` directory:
+```bash
+cd sdk && python3 -m venv .venv && source .venv/bin/activate && pip install -e .
+```
+
 ## Permission errors
 
 **Symptom:** Exit code 5 at startup.
