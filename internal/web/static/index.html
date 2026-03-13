@@ -1038,6 +1038,11 @@
         .changelog-date { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
         .changelog-title { font-size: 0.88rem; color: var(--text-primary); font-weight: 500; margin: 2px 0; }
         .changelog-rationale { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.35; }
+        .changelog-rationale ul { margin: 4px 0; padding-left: 18px; }
+        .changelog-rationale li { margin: 2px 0; }
+        .changelog-rationale p { margin: 4px 0; }
+        .changelog-rationale code { background: var(--bg-tertiary); padding: 1px 4px; border-radius: 3px; font-size: 0.85em; }
+        .changelog-rationale strong { color: var(--text-primary); }
 
         .session-group { margin-bottom: 14px; }
         .session-group:last-child { margin-bottom: 0; }
@@ -2830,6 +2835,31 @@
 
     // ── Utilities ──
     function escapeHtml(str) { if (!str) return ''; var div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+    function simpleMarkdown(str) {
+        if (!str) return '';
+        var lines = str.split('\n');
+        var html = '';
+        var inList = false;
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            var isBullet = /^[-*]\s/.test(line);
+            if (isBullet) {
+                if (!inList) { html += '<ul>'; inList = true; }
+                var content = escapeHtml(line.replace(/^[-*]\s+/, ''));
+                content = content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
+                html += '<li>' + content + '</li>';
+            } else {
+                if (inList) { html += '</ul>'; inList = false; }
+                var content = escapeHtml(line);
+                content = content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
+                if (content) html += '<p style="margin:4px 0">' + content + '</p>';
+            }
+        }
+        if (inList) html += '</ul>';
+        return html;
+    }
     function toggleToolDetail(e) {
         var pill = e.currentTarget;
         var toolId = pill.getAttribute('data-tool-use-id');
@@ -3126,7 +3156,7 @@
             return '<div class="changelog-entry">' +
                 '<div class="changelog-date">' + escapeHtml(e.date) + '</div>' +
                 '<div class="changelog-title">' + escapeHtml(e.title) + '</div>' +
-                (e.rationale ? '<div class="changelog-rationale">' + escapeHtml(e.rationale) + '</div>' : '') +
+                (e.rationale ? '<div class="changelog-rationale">' + simpleMarkdown(e.rationale) + '</div>' : '') +
                 '</div>';
         }).join('');
     }

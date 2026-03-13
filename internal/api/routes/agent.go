@@ -165,13 +165,11 @@ func HandleAgentChangelog(evolutionDir string, log *slog.Logger) http.HandlerFun
 					Title: strings.TrimSpace(title),
 				}
 			} else if currentEntry != nil && trimmed != "" {
-				// Accumulate rationale text
-				text := strings.TrimPrefix(trimmed, "- ")
-				text = strings.TrimPrefix(text, "* ")
+				// Accumulate rationale text, preserving line structure
 				if currentEntry.Rationale != "" {
-					currentEntry.Rationale += " "
+					currentEntry.Rationale += "\n"
 				}
-				currentEntry.Rationale += text
+				currentEntry.Rationale += trimmed
 			}
 		}
 		if currentEntry != nil {
