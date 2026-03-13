@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/appsprout/mnemonic/internal/agent/agentutil"
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
@@ -290,12 +290,12 @@ func (ea *EpisodingAgent) closeEpisode(ctx context.Context, ep *store.Episode) e
 			raw.Source,
 			raw.Type,
 			filePath,
-			truncateForPrompt(raw.Content, 2000),
+			agentutil.Truncate(raw.Content, 2000),
 		)
 		eventTexts = append(eventTexts, text)
 
 		// Build timeline entry
-		brief := truncateForPrompt(raw.Content, 80)
+		brief := agentutil.Truncate(raw.Content, 80)
 		entry := store.EventEntry{
 			RawMemoryID: raw.ID,
 			Timestamp:   raw.Timestamp,
@@ -432,14 +432,6 @@ Respond with ONLY a JSON object (no prose, no fences):
 	return nil
 }
 
-// truncateForPrompt truncates a string to maxLen characters.
-func truncateForPrompt(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
-
 // episodeSynthesis is the LLM response structure.
 type episodeSynthesis struct {
 	Title         string   `json:"title"`
@@ -454,7 +446,7 @@ type episodeSynthesis struct {
 // parseEpisodeSynthesis extracts JSON from LLM response.
 func parseEpisodeSynthesis(response string) episodeSynthesis {
 	var result episodeSynthesis
-	jsonStr := extractJSON(response)
+	jsonStr := agentutil.ExtractJSON(response)
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		return episodeSynthesis{
 			Title:         "Untitled session",
@@ -491,59 +483,3 @@ func parseEpisodeSynthesis(response string) episodeSynthesis {
 	return result
 }
 
-// extractJSON finds the best JSON object in a string.
-// It strips code fences and looks for the largest valid JSON block containing a "title" key.
-func extractJSON(s string) string {
-	// Strip markdown code fences (```json ... ``` or ```python ... ```)
-	cleaned := s
-	for {
-		fenceStart := strings.Index(cleaned, "```")
-		if fenceStart == -1 {
-			break
-		}
-		fenceEnd := strings.Index(cleaned[fenceStart+3:], "```")
-		if fenceEnd == -1 {
-			// No closing fence — just strip everything before the first {
-			cleaned = cleaned[fenceStart+3:]
-			break
-		}
-		// Extract content between fences
-		inner := cleaned[fenceStart+3 : fenceStart+3+fenceEnd]
-		// Skip the language tag on the first line
-		if nl := strings.Index(inner, "\n"); nl != -1 {
-			inner = inner[nl+1:]
-		}
-		cleaned = cleaned[:fenceStart] + inner + cleaned[fenceStart+3+fenceEnd+3:]
-	}
-
-	// Find all top-level JSON objects and pick the one that looks like our schema
-	var best string
-	for i := 0; i < len(cleaned); i++ {
-		if cleaned[i] != '{' {
-			continue
-		}
-		depth := 0
-		for j := i; j < len(cleaned); j++ {
-			if cleaned[j] == '{' {
-				depth++
-			} else if cleaned[j] == '}' {
-				depth--
-				if depth == 0 {
-					candidate := cleaned[i : j+1]
-					// Prefer the candidate that contains "title" (our expected schema)
-					if strings.Contains(candidate, `"title"`) {
-						return candidate
-					}
-					if best == "" || len(candidate) > len(best) {
-						best = candidate
-					}
-					break
-				}
-			}
-		}
-	}
-	if best != "" {
-		return best
-	}
-	return s
-}

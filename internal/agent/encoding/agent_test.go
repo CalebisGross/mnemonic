@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/appsprout/mnemonic/internal/agent/agentutil"
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
@@ -439,9 +440,9 @@ func TestTruncateContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := truncateContent(tt.content, tt.maxChars)
+			got := agentutil.Truncate(tt.content, tt.maxChars)
 			if got != tt.expected {
-				t.Errorf("truncateContent(%q, %d) = %q, want %q", tt.content, tt.maxChars, got, tt.expected)
+				t.Errorf("Truncate(%q, %d) = %q, want %q", tt.content, tt.maxChars, got, tt.expected)
 			}
 		})
 	}
@@ -528,9 +529,9 @@ func TestExtractJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractJSON(tt.input)
+			got := agentutil.ExtractJSON(tt.input)
 			if got != tt.expected {
-				t.Errorf("extractJSON(%q) = %q, want %q", tt.input, got, tt.expected)
+				t.Errorf("ExtractJSON(%q) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
 	}

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/appsprout/mnemonic/internal/agent/agentutil"
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
@@ -482,7 +483,7 @@ Only share a principle if it genuinely unifies these patterns in an insightful w
 		return nil, fmt.Errorf("LLM principle synthesis failed: %w", err)
 	}
 
-	jsonStr := extractJSON(resp.Content)
+	jsonStr := agentutil.ExtractJSON(resp.Content)
 	var result principleResponse
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		return nil, fmt.Errorf("failed to parse principle response: %w", err)
@@ -502,7 +503,7 @@ Only share a principle if it genuinely unifies these patterns in an insightful w
 
 	concepts := result.Concepts
 	if len(concepts) == 0 {
-		concepts = deduplicateConcepts(allConcepts)
+		concepts = agentutil.DeduplicateConcepts(allConcepts)
 	}
 
 	confidence := float32(result.Confidence)
@@ -586,7 +587,7 @@ This is the highest level of abstraction — only share an axiom if it's genuine
 		return nil, fmt.Errorf("LLM axiom synthesis failed: %w", err)
 	}
 
-	jsonStr := extractJSON(resp.Content)
+	jsonStr := agentutil.ExtractJSON(resp.Content)
 	var result axiomResponse
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		return nil, fmt.Errorf("failed to parse axiom response: %w", err)
@@ -606,7 +607,7 @@ This is the highest level of abstraction — only share an axiom if it's genuine
 
 	concepts := result.Concepts
 	if len(concepts) == 0 {
-		concepts = deduplicateConcepts(allConcepts)
+		concepts = agentutil.DeduplicateConcepts(allConcepts)
 	}
 
 	confidence := float32(result.Confidence)
@@ -651,7 +652,7 @@ func clusterPatterns(patterns []store.Pattern, threshold float32) [][]store.Patt
 			if used[j] || len(patterns[j].Embedding) == 0 {
 				continue
 			}
-			if cosineSimilarity(patterns[i].Embedding, patterns[j].Embedding) >= threshold {
+			if agentutil.CosineSimilarity(patterns[i].Embedding, patterns[j].Embedding) >= threshold {
 				cluster = append(cluster, patterns[j])
 				used[j] = true
 			}
@@ -685,7 +686,7 @@ func clusterAbstractions(abstractions []store.Abstraction, threshold float32) []
 			if used[j] || len(abstractions[j].Embedding) == 0 {
 				continue
 			}
-			if cosineSimilarity(abstractions[i].Embedding, abstractions[j].Embedding) >= threshold {
+			if agentutil.CosineSimilarity(abstractions[i].Embedding, abstractions[j].Embedding) >= threshold {
 				cluster = append(cluster, abstractions[j])
 				used[j] = true
 			}
@@ -702,7 +703,7 @@ func clusterAbstractions(abstractions []store.Abstraction, threshold float32) []
 // findSimilarAbstraction returns the first existing abstraction with embedding similarity >= threshold, or nil.
 func findSimilarAbstraction(existing []store.Abstraction, embedding []float32, threshold float32) *store.Abstraction {
 	for i, abs := range existing {
-		if len(abs.Embedding) > 0 && abs.State == "active" && cosineSimilarity(abs.Embedding, embedding) >= threshold {
+		if len(abs.Embedding) > 0 && abs.State == "active" && agentutil.CosineSimilarity(abs.Embedding, embedding) >= threshold {
 			return &existing[i]
 		}
 	}
@@ -716,37 +717,6 @@ func min32(a, b float32) float32 {
 	return b
 }
 
-// cosineSimilarity computes cosine similarity between two vectors.
-func cosineSimilarity(a, b []float32) float32 {
-	if len(a) != len(b) || len(a) == 0 {
-		return 0
-	}
-
-	var dotProduct, normA, normB float32
-	for i := range a {
-		dotProduct += a[i] * b[i]
-		normA += a[i] * a[i]
-		normB += b[i] * b[i]
-	}
-
-	if normA == 0 || normB == 0 {
-		return 0
-	}
-
-	return dotProduct / (sqrt32(normA) * sqrt32(normB))
-}
-
-func sqrt32(x float32) float32 {
-	if x <= 0 {
-		return 0
-	}
-	// Newton's method for float32 square root
-	guess := x / 2
-	for i := 0; i < 10; i++ {
-		guess = (guess + x/guess) / 2
-	}
-	return guess
-}
 
 // averagePatternEmbedding computes the element-wise average of pattern embeddings.
 func averagePatternEmbedding(patterns []store.Pattern) []float32 {
@@ -756,7 +726,7 @@ func averagePatternEmbedding(patterns []store.Pattern) []float32 {
 			withEmb = append(withEmb, p.Embedding)
 		}
 	}
-	return averageVectors(withEmb)
+	return agentutil.AverageVectors(withEmb)
 }
 
 // averageAbstractionEmbedding computes the element-wise average of abstraction embeddings.
@@ -767,62 +737,6 @@ func averageAbstractionEmbedding(abstractions []store.Abstraction) []float32 {
 			withEmb = append(withEmb, a.Embedding)
 		}
 	}
-	return averageVectors(withEmb)
+	return agentutil.AverageVectors(withEmb)
 }
 
-func averageVectors(vecs [][]float32) []float32 {
-	if len(vecs) == 0 {
-		return nil
-	}
-	dim := len(vecs[0])
-	avg := make([]float32, dim)
-	for _, v := range vecs {
-		if len(v) != dim {
-			continue
-		}
-		for i, val := range v {
-			avg[i] += val
-		}
-	}
-	n := float32(len(vecs))
-	for i := range avg {
-		avg[i] /= n
-	}
-	return avg
-}
-
-// extractJSON extracts JSON from LLM response, handling markdown fences.
-func extractJSON(s string) string {
-	if idx := strings.Index(s, "```json"); idx != -1 {
-		start := idx + 7
-		if end := strings.Index(s[start:], "```"); end != -1 {
-			return strings.TrimSpace(s[start : start+end])
-		}
-	}
-	if idx := strings.Index(s, "```"); idx != -1 {
-		start := idx + 3
-		if end := strings.Index(s[start:], "```"); end != -1 {
-			return strings.TrimSpace(s[start : start+end])
-		}
-	}
-	if idx := strings.Index(s, "{"); idx != -1 {
-		if end := strings.LastIndex(s, "}"); end > idx {
-			return s[idx : end+1]
-		}
-	}
-	return s
-}
-
-// deduplicateConcepts returns unique concepts, case-insensitive.
-func deduplicateConcepts(concepts []string) []string {
-	seen := make(map[string]bool)
-	var result []string
-	for _, c := range concepts {
-		lower := strings.ToLower(c)
-		if !seen[lower] {
-			seen[lower] = true
-			result = append(result, c)
-		}
-	}
-	return result
-}

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/appsprout/mnemonic/internal/agent/agentutil"
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
@@ -548,9 +549,9 @@ func TestCosineSimilarity(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := cosineSimilarity(tc.a, tc.b)
+			result := agentutil.CosineSimilarity(tc.a, tc.b)
 			if !almostEqual(result, tc.expected, tc.tol) {
-				t.Errorf("cosineSimilarity(%v, %v) = %f, want %f (tol %f)", tc.a, tc.b, result, tc.expected, tc.tol)
+				t.Errorf("agentutil.CosineSimilarity(%v, %v) = %f, want %f (tol %f)", tc.a, tc.b, result, tc.expected, tc.tol)
 			}
 		})
 	}
@@ -1419,77 +1420,11 @@ func TestExtractJSONFromResponse(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := extractJSONFromResponse(tc.input)
+			result := agentutil.ExtractJSON(tc.input)
 			if result != tc.expected {
-				t.Errorf("extractJSONFromResponse(%q) = %q, want %q", tc.input, result, tc.expected)
+				t.Errorf("agentutil.ExtractJSON(%q) = %q, want %q", tc.input, result, tc.expected)
 			}
 		})
 	}
 }
 
-func TestParseJSON(t *testing.T) {
-	t.Run("valid JSON parses correctly", func(t *testing.T) {
-		var result struct {
-			Summary string `json:"summary"`
-			Content string `json:"content"`
-		}
-		err := parseJSON(`{"summary":"hello","content":"world"}`, &result)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if result.Summary != "hello" {
-			t.Errorf("expected summary %q, got %q", "hello", result.Summary)
-		}
-		if result.Content != "world" {
-			t.Errorf("expected content %q, got %q", "world", result.Content)
-		}
-	})
-
-	t.Run("invalid JSON returns error", func(t *testing.T) {
-		var result struct {
-			Summary string `json:"summary"`
-		}
-		err := parseJSON(`not json`, &result)
-		if err == nil {
-			t.Fatal("expected error for invalid JSON, got nil")
-		}
-	})
-
-	t.Run("empty JSON object parses to zero values", func(t *testing.T) {
-		var result struct {
-			Summary string `json:"summary"`
-			Count   int    `json:"count"`
-		}
-		err := parseJSON(`{}`, &result)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if result.Summary != "" {
-			t.Errorf("expected empty summary, got %q", result.Summary)
-		}
-		if result.Count != 0 {
-			t.Errorf("expected count 0, got %d", result.Count)
-		}
-	})
-
-	t.Run("extra fields are ignored", func(t *testing.T) {
-		var result struct {
-			Summary string `json:"summary"`
-		}
-		err := parseJSON(`{"summary":"test","extra":"field","num":42}`, &result)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if result.Summary != "test" {
-			t.Errorf("expected summary %q, got %q", "test", result.Summary)
-		}
-	})
-
-	t.Run("empty string returns error", func(t *testing.T) {
-		var result struct{}
-		err := parseJSON("", &result)
-		if err == nil {
-			t.Fatal("expected error for empty string, got nil")
-		}
-	})
-}

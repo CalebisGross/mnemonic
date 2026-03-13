@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/appsprout/mnemonic/internal/agent/agentutil"
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
@@ -498,7 +499,7 @@ func (ca *ConsolidationAgent) findClusters(memories []store.Memory) [][]store.Me
 				continue
 			}
 
-			sim := cosineSimilarity(seed.Embedding, candidate.Embedding)
+			sim := agentutil.CosineSimilarity(seed.Embedding, candidate.Embedding)
 			if sim >= similarityThreshold {
 				cluster = append(cluster, candidate)
 				used[candidate.ID] = true
@@ -592,12 +593,12 @@ Respond with ONLY a JSON object:
 		return store.Memory{}, fmt.Errorf("LLM unavailable for gist creation: %w", err)
 	} else {
 		// Try to parse JSON from response
-		jsonStr := extractJSONFromResponse(resp.Content)
+		jsonStr := agentutil.ExtractJSON(resp.Content)
 		var parsed struct {
 			Summary string `json:"summary"`
 			Content string `json:"content"`
 		}
-		if err := parseJSON(jsonStr, &parsed); err != nil {
+		if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
 			ca.log.Warn("failed to parse gist JSON, skipping merge", "error", err)
 			return store.Memory{}, fmt.Errorf("failed to parse gist response: %w", err)
 		} else {
@@ -785,7 +786,7 @@ func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, cluste
 					if len(ep.Embedding) == 0 {
 						continue
 					}
-					embSim := cosineSimilarity(pattern.Embedding, ep.Embedding)
+					embSim := agentutil.CosineSimilarity(pattern.Embedding, ep.Embedding)
 					titleSim := normalizedTitleSimilarity(pattern.Title, ep.Title)
 					if isDuplicate(pattern.Title, ep.Title, pattern.Embedding, ep.Embedding, 0.6, 0.80) {
 						for _, mem := range cluster {
@@ -867,7 +868,7 @@ func (ca *ConsolidationAgent) findConceptClusters(memories []store.Memory) [][]s
 				used[candidate.ID] = true
 			} else if overlap >= 1 && len(seed.Embedding) > 0 && len(candidate.Embedding) > 0 {
 				// Weak concept signal — require embedding confirmation
-				sim := cosineSimilarity(seed.Embedding, candidate.Embedding)
+				sim := agentutil.CosineSimilarity(seed.Embedding, candidate.Embedding)
 				if sim >= 0.6 {
 					cluster = append(cluster, candidate)
 					used[candidate.ID] = true
@@ -968,7 +969,7 @@ func (ca *ConsolidationAgent) findMatchingPattern(ctx context.Context, cluster [
 
 	// Check if the top match is close enough (0.70 threshold)
 	if len(patterns[0].Embedding) > 0 {
-		sim := cosineSimilarity(avgEmb, patterns[0].Embedding)
+		sim := agentutil.CosineSimilarity(avgEmb, patterns[0].Embedding)
 		if sim >= 0.70 {
 			return &patterns[0], nil
 		}
@@ -1066,7 +1067,7 @@ If these memories are just coincidentally similar but don't reveal a real patter
 	}
 
 	// Extract and parse JSON
-	jsonStr := extractJSON(resp.Content)
+	jsonStr := agentutil.ExtractJSON(resp.Content)
 	var result patternResponse
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		return nil, fmt.Errorf("failed to parse pattern response: %w", err)
@@ -1126,27 +1127,6 @@ If these memories are just coincidentally similar but don't reveal a real patter
 	}
 
 	return pattern, nil
-}
-
-// extractJSON tries to find and extract a JSON object from a string.
-func extractJSON(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) > 0 && s[0] == '{' {
-		return s
-	}
-	if idx := strings.Index(s, "```json"); idx != -1 {
-		start := idx + 7
-		end := strings.Index(s[start:], "```")
-		if end != -1 {
-			return strings.TrimSpace(s[start : start+end])
-		}
-	}
-	first := strings.Index(s, "{")
-	last := strings.LastIndex(s, "}")
-	if first != -1 && last > first {
-		return s[first : last+1]
-	}
-	return s
 }
 
 // containsString checks if a slice contains a string.
@@ -1214,22 +1194,6 @@ func (ca *ConsolidationAgent) logReport(report *CycleReport) {
 	)
 }
 
-// cosineSimilarity computes cosine similarity between two embedding vectors.
-func cosineSimilarity(a, b []float32) float32 {
-	if len(a) != len(b) || len(a) == 0 {
-		return 0
-	}
-	var dot, normA, normB float32
-	for i := range a {
-		dot += a[i] * b[i]
-		normA += a[i] * a[i]
-		normB += b[i] * b[i]
-	}
-	if normA == 0 || normB == 0 {
-		return 0
-	}
-	return dot / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB))))
-}
 
 // isDuplicate returns true if two items are near-duplicates based on title Jaccard and embedding cosine.
 // For short titles (<=4 words in either), requires BOTH signals to exceed thresholds to avoid false positives.
@@ -1237,7 +1201,7 @@ func isDuplicate(titleA, titleB string, embA, embB []float32, titleThresh, embTh
 	titleSim := normalizedTitleSimilarity(titleA, titleB)
 	var embSim float32
 	if len(embA) > 0 && len(embB) > 0 {
-		embSim = cosineSimilarity(embA, embB)
+		embSim = agentutil.CosineSimilarity(embA, embB)
 	}
 	wordsA := len(strings.Fields(titleA))
 	wordsB := len(strings.Fields(titleB))
@@ -1312,7 +1276,7 @@ func (ca *ConsolidationAgent) dedupAbstractions(ctx context.Context) (int, error
 				titleSim := normalizedTitleSimilarity(abstractions[i].Title, abstractions[j].Title)
 				var embSim float32
 				if len(abstractions[i].Embedding) > 0 && len(abstractions[j].Embedding) > 0 {
-					embSim = cosineSimilarity(abstractions[i].Embedding, abstractions[j].Embedding)
+					embSim = agentutil.CosineSimilarity(abstractions[i].Embedding, abstractions[j].Embedding)
 				}
 
 				if isDuplicate(abstractions[i].Title, abstractions[j].Title, abstractions[i].Embedding, abstractions[j].Embedding, 0.6, 0.75) {

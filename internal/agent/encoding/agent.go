@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 
+	"github.com/appsprout/mnemonic/internal/agent/agentutil"
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
@@ -527,7 +528,7 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 	ea.log.Debug("compression completed", "raw_id", raw.ID, "summary_length", len(compression.Summary))
 
 	// Step 3: Generate embedding (truncate to avoid exceeding model context)
-	embeddingText := truncateContent(compression.Summary+" "+compression.Content, maxEmbeddingChars)
+	embeddingText := agentutil.Truncate(compression.Summary+" "+compression.Content, maxEmbeddingChars)
 	embedding, err := ea.llmProvider.Embed(ctx, embeddingText)
 	if err != nil {
 		ea.log.Warn("failed to generate embedding", "raw_id", raw.ID, "error", err)
@@ -712,19 +713,6 @@ const maxLLMContentChars = 8000
 // Roughly ~500 tokens, well under the 2048 token limit of small embedding models.
 const maxEmbeddingChars = 4000
 
-// truncateContent truncates a string to maxChars characters, adding "..." if truncated.
-// Uses rune-aware slicing to avoid splitting multi-byte UTF-8 characters.
-func truncateContent(content string, maxChars int) string {
-	if len(content) <= maxChars {
-		// Fast path: byte length fits, so rune count fits too.
-		return content
-	}
-	runes := []rune(content)
-	if len(runes) <= maxChars {
-		return content
-	}
-	return string(runes[:maxChars]) + "..."
-}
 
 // stripHTMLTags removes HTML/XML tags and collapses whitespace to extract readable text.
 // This lets the LLM focus on actual content rather than markup.
@@ -780,77 +768,6 @@ func looksLikeMarkup(content string) bool {
 	return false
 }
 
-// extractJSON tries to find and extract a JSON object from a string that may contain
-// surrounding prose. Small models often wrap JSON output in explanatory text.
-func extractJSON(s string) string {
-	// First, try the raw string as-is
-	s = strings.TrimSpace(s)
-	if len(s) > 0 && s[0] == '{' {
-		return s
-	}
-
-	// Look for JSON between ```json ... ``` fences
-	if idx := strings.Index(s, "```json"); idx != -1 {
-		start := idx + 7
-		end := strings.Index(s[start:], "```")
-		if end != -1 {
-			return strings.TrimSpace(s[start : start+end])
-		}
-	}
-
-	// Look for JSON between ``` ... ``` fences
-	if idx := strings.Index(s, "```"); idx != -1 {
-		start := idx + 3
-		// Skip optional newline after ```
-		if start < len(s) && s[start] == '\n' {
-			start++
-		}
-		end := strings.Index(s[start:], "```")
-		if end != -1 {
-			candidate := strings.TrimSpace(s[start : start+end])
-			if len(candidate) > 0 && candidate[0] == '{' {
-				return candidate
-			}
-		}
-	}
-
-	// Find the first '{' and its matching '}' using brace counting
-	first := strings.Index(s, "{")
-	if first != -1 {
-		depth := 0
-		inString := false
-		escaped := false
-		for i := first; i < len(s); i++ {
-			if escaped {
-				escaped = false
-				continue
-			}
-			ch := s[i]
-			if ch == '\\' && inString {
-				escaped = true
-				continue
-			}
-			if ch == '"' {
-				inString = !inString
-				continue
-			}
-			if inString {
-				continue
-			}
-			if ch == '{' {
-				depth++
-			} else if ch == '}' {
-				depth--
-				if depth == 0 {
-					return s[first : i+1]
-				}
-			}
-		}
-		// Unbalanced — fall through
-	}
-
-	return s
-}
 
 // compressAndExtractConcepts calls the LLM to compress and extract concepts from a raw memory.
 // Falls back to heuristic compression if the LLM call fails or returns unparseable output.
@@ -864,7 +781,7 @@ func (ea *EncodingAgent) compressAndExtractConcepts(ctx context.Context, raw sto
 		}
 	}
 
-	truncatedContent := truncateContent(processedContent, maxLLMContentChars)
+	truncatedContent := agentutil.Truncate(processedContent, maxLLMContentChars)
 
 	// Gather contextual information for richer encoding
 	episodeCtx := ea.getEpisodeContext(ctx, raw)
@@ -896,16 +813,16 @@ func (ea *EncodingAgent) compressAndExtractConcepts(ctx context.Context, raw sto
 	}
 
 	// Extract and parse JSON from LLM response
-	jsonStr := extractJSON(resp.Content)
+	jsonStr := agentutil.ExtractJSON(resp.Content)
 	var result compressionResponse
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		slog.Debug("LLM response failed JSON parse", "raw_response", truncateContent(resp.Content, 500), "stop_reason", resp.StopReason, "tokens_used", resp.TokensUsed)
+		slog.Debug("LLM response failed JSON parse", "raw_response", agentutil.Truncate(resp.Content, 500), "stop_reason", resp.StopReason, "tokens_used", resp.TokensUsed)
 		return nil, fmt.Errorf("failed to parse LLM compression response: %w", err)
 	}
 
 	// Validate and fix fields
 	if result.Summary == "" {
-		result.Summary = truncateContent(processedContent, 100)
+		result.Summary = agentutil.Truncate(processedContent, 100)
 	}
 	if r := []rune(result.Summary); len(r) > 100 {
 		result.Summary = string(r[:100])
@@ -1069,7 +986,7 @@ func (ea *EncodingAgent) fallbackCompression(raw store.RawMemory) *compressionRe
 	return &compressionResponse{
 		Gist:               truncateString(summary, 60),
 		Summary:            summary,
-		Content:            truncateContent(raw.Content, maxLLMContentChars),
+		Content:            agentutil.Truncate(raw.Content, maxLLMContentChars),
 		Narrative:          "",
 		Concepts:           concepts,
 		StructuredConcepts: nil,
@@ -1296,8 +1213,8 @@ Memory B: %s
 
 Respond with ONLY a JSON object — pick the relationship that best captures the connection:
 {"relation_type":"similar|caused_by|part_of|contradicts|temporal|reinforces"}`,
-		truncateContent(summary1, 100),
-		truncateContent(summary2, 100),
+		agentutil.Truncate(summary1, 100),
+		agentutil.Truncate(summary2, 100),
 	)
 
 	req := llm.CompletionRequest{
@@ -1323,7 +1240,7 @@ Respond with ONLY a JSON object — pick the relationship that best captures the
 		return ""
 	}
 
-	jsonStr := extractJSON(resp.Content)
+	jsonStr := agentutil.ExtractJSON(resp.Content)
 	var result classificationResponse
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		ea.log.Debug("failed to parse classification response", "response", resp.Content)

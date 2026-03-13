@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/appsprout/mnemonic/internal/agent/agentutil"
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
@@ -611,7 +612,7 @@ Only share an insight if it's genuinely illuminating — something that makes yo
 		return nil, fmt.Errorf("LLM insight generation failed: %w", err)
 	}
 
-	jsonStr := extractInsightJSON(resp.Content)
+	jsonStr := agentutil.ExtractJSON(resp.Content)
 	var result insightResponse
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		return nil, fmt.Errorf("failed to parse insight response: %w", err)
@@ -627,7 +628,7 @@ Only share an insight if it's genuinely illuminating — something that makes yo
 	// Deduplicate concepts
 	concepts := result.Concepts
 	if len(concepts) == 0 {
-		concepts = deduplicateConcepts(allConcepts)
+		concepts = agentutil.DeduplicateConcepts(allConcepts)
 	}
 
 	confidence := float32(result.Confidence)
@@ -654,71 +655,12 @@ Only share an insight if it's genuinely illuminating — something that makes yo
 
 // averageMemoryEmbedding computes the element-wise average of memory embeddings.
 func averageMemoryEmbedding(memories []store.Memory) []float32 {
-	if len(memories) == 0 {
-		return nil
-	}
-
-	var withEmb []store.Memory
+	var vecs [][]float32
 	for _, m := range memories {
 		if len(m.Embedding) > 0 {
-			withEmb = append(withEmb, m)
+			vecs = append(vecs, m.Embedding)
 		}
 	}
-	if len(withEmb) == 0 {
-		return nil
-	}
-
-	dim := len(withEmb[0].Embedding)
-	avg := make([]float32, dim)
-	for _, m := range withEmb {
-		if len(m.Embedding) != dim {
-			continue
-		}
-		for i, v := range m.Embedding {
-			avg[i] += v
-		}
-	}
-	n := float32(len(withEmb))
-	for i := range avg {
-		avg[i] /= n
-	}
-	return avg
+	return agentutil.AverageVectors(vecs)
 }
 
-// extractInsightJSON extracts JSON from LLM response, handling markdown fences and prose.
-func extractInsightJSON(s string) string {
-	// Try to find JSON in markdown code fences
-	if idx := strings.Index(s, "```json"); idx != -1 {
-		start := idx + 7
-		if end := strings.Index(s[start:], "```"); end != -1 {
-			return strings.TrimSpace(s[start : start+end])
-		}
-	}
-	if idx := strings.Index(s, "```"); idx != -1 {
-		start := idx + 3
-		if end := strings.Index(s[start:], "```"); end != -1 {
-			return strings.TrimSpace(s[start : start+end])
-		}
-	}
-	// Try to find raw JSON object
-	if idx := strings.Index(s, "{"); idx != -1 {
-		if end := strings.LastIndex(s, "}"); end > idx {
-			return s[idx : end+1]
-		}
-	}
-	return s
-}
-
-// deduplicateConcepts returns unique concepts (case-insensitive), preserving first occurrence's casing.
-func deduplicateConcepts(concepts []string) []string {
-	seen := make(map[string]bool)
-	var result []string
-	for _, c := range concepts {
-		lower := strings.ToLower(c)
-		if !seen[lower] {
-			seen[lower] = true
-			result = append(result, c)
-		}
-	}
-	return result
-}
