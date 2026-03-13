@@ -3,7 +3,6 @@ package routes
 import (
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/appsprout/mnemonic/internal/llm"
@@ -45,12 +44,7 @@ func HandleLLMUsage(s store.Store, log *slog.Logger) http.HandlerFunc {
 		since := time.Now().Add(-sinceDur)
 
 		// Parse "limit"
-		limit := 50
-		if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-			if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
-				limit = parsed
-			}
-		}
+		limit := parseIntParam(r, "limit", 50, 1, 1000)
 
 		// Get summary
 		summary, err := s.GetLLMUsageSummary(r.Context(), since)

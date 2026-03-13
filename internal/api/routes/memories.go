@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -181,25 +180,8 @@ func HandleListMemories(s store.Store, log *slog.Logger) http.HandlerFunc {
 			state = "active"
 		}
 
-		limit := 50
-		if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-			if v, err := strconv.Atoi(limitStr); err == nil {
-				limit = v
-			}
-			if limit < 1 || limit > 1000 {
-				limit = 50
-			}
-		}
-
-		offset := 0
-		if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
-			if v, err := strconv.Atoi(offsetStr); err == nil {
-				offset = v
-			}
-			if offset < 0 {
-				offset = 0
-			}
-		}
+		limit := parseIntParam(r, "limit", 50, 1, 1000)
+		offset := parseIntParam(r, "offset", 0, 0, 100000)
 
 		log.Debug("listing memories", "state", state, "limit", limit, "offset", offset)
 
@@ -283,19 +265,4 @@ func HandleGetMemory(s store.Store, log *slog.Logger) http.HandlerFunc {
 	}
 }
 
-// writeError writes a standard error response.
-func writeError(w http.ResponseWriter, statusCode int, message string, code string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"error": message,
-		"code":  code,
-	})
-}
 
-// writeJSON writes a JSON response with the given status code.
-func writeJSON(w http.ResponseWriter, statusCode int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	_ = json.NewEncoder(w).Encode(data)
-}

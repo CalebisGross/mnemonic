@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/appsprout/mnemonic/internal/store"
@@ -16,17 +15,8 @@ import (
 func HandleListEpisodes(s store.Store, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		state := r.URL.Query().Get("state")
-		limitStr := r.URL.Query().Get("limit")
-		offsetStr := r.URL.Query().Get("offset")
-
-		limit := 50
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 200 {
-			limit = l
-		}
-		offset := 0
-		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
-			offset = o
-		}
+		limit := parseIntParam(r, "limit", 50, 1, 200)
+		offset := parseIntParam(r, "offset", 0, 0, 100000)
 
 		log.Debug("listing episodes", "state", state, "limit", limit, "offset", offset)
 
