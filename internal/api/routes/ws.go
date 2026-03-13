@@ -30,8 +30,9 @@ type wsConn struct {
 	log             *slog.Logger
 }
 
-// allowedWSOrigins is the set of origins allowed to open WebSocket connections.
-var allowedWSOrigins = map[string]bool{
+// AllowedOrigins is the set of origins allowed for CORS and WebSocket connections.
+// Used by both the CORS middleware in server.go and the WebSocket upgrader here.
+var AllowedOrigins = map[string]bool{
 	"http://localhost:3000": true,
 	"http://localhost:8080": true,
 	"http://127.0.0.1:3000": true,
@@ -49,7 +50,7 @@ var upgrader = websocket.Upgrader{
 		if origin == "" {
 			return true // Allow requests with no origin (e.g., CLI tools)
 		}
-		return allowedWSOrigins[origin]
+		return AllowedOrigins[origin]
 	},
 }
 

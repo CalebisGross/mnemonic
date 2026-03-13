@@ -133,15 +133,6 @@ func (s *Server) registerRoutes() {
 	}
 }
 
-// allowedCORSOrigins is the set of origins allowed for CORS requests.
-var allowedCORSOrigins = map[string]bool{
-	"http://localhost:3000": true,
-	"http://localhost:8080": true,
-	"http://127.0.0.1:3000": true,
-	"http://127.0.0.1:8080": true,
-	"http://localhost:9999": true,
-	"http://127.0.0.1:9999": true,
-}
 
 // middleware applies global middleware to the request handler.
 func (s *Server) middleware(next http.Handler) http.Handler {
@@ -158,7 +149,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		// Access-Control-Allow-Origin only supports a single origin value,
 		// so we check the request Origin against an allowlist.
 		origin := r.Header.Get("Origin")
-		if allowedCORSOrigins[origin] {
+		if routes.AllowedOrigins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 		}
