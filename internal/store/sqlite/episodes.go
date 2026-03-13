@@ -143,15 +143,15 @@ func (s *SQLiteStore) CloseEpisode(ctx context.Context, id string) error {
 	return nil
 }
 
-// scanEpisode scans a single row into an Episode.
-func scanEpisode(row *sql.Row) (store.Episode, error) {
+// scanEpisodeFrom scans a single Episode from any scanner.
+func scanEpisodeFrom(s scanner) (store.Episode, error) {
 	var ep store.Episode
 	var startStr, endStr, createdStr, updatedStr string
 	var rawIDsStr, memIDsStr string
 	var title, summary, narrative, emotionalTone, outcome sql.NullString
 	var conceptsStr, filesStr, timelineStr sql.NullString
 
-	err := row.Scan(
+	err := s.Scan(
 		&ep.ID, &title, &startStr, &endStr, &ep.DurationSec,
 		&rawIDsStr, &memIDsStr, &summary, &narrative,
 		&ep.Salience, &emotionalTone, &outcome, &ep.State,
@@ -159,10 +159,7 @@ func scanEpisode(row *sql.Row) (store.Episode, error) {
 		&conceptsStr, &filesStr, &timelineStr,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return ep, fmt.Errorf("episode: %w", store.ErrNotFound)
-		}
-		return ep, fmt.Errorf("failed to scan episode: %w", err)
+		return ep, err
 	}
 
 	ep.Title = title.String
@@ -185,41 +182,23 @@ func scanEpisode(row *sql.Row) (store.Episode, error) {
 	return ep, nil
 }
 
+// scanEpisode scans a single row into an Episode.
+func scanEpisode(row *sql.Row) (store.Episode, error) {
+	ep, err := scanEpisodeFrom(row)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ep, fmt.Errorf("episode: %w", store.ErrNotFound)
+		}
+		return ep, fmt.Errorf("failed to scan episode: %w", err)
+	}
+	return ep, nil
+}
+
 // scanEpisodeRow scans from sql.Rows (for list queries).
 func scanEpisodeRow(rows *sql.Rows) (store.Episode, error) {
-	var ep store.Episode
-	var startStr, endStr, createdStr, updatedStr string
-	var rawIDsStr, memIDsStr string
-	var title, summary, narrative, emotionalTone, outcome sql.NullString
-	var conceptsStr, filesStr, timelineStr sql.NullString
-
-	err := rows.Scan(
-		&ep.ID, &title, &startStr, &endStr, &ep.DurationSec,
-		&rawIDsStr, &memIDsStr, &summary, &narrative,
-		&ep.Salience, &emotionalTone, &outcome, &ep.State,
-		&createdStr, &updatedStr,
-		&conceptsStr, &filesStr, &timelineStr,
-	)
+	ep, err := scanEpisodeFrom(rows)
 	if err != nil {
 		return ep, fmt.Errorf("failed to scan episode row: %w", err)
 	}
-
-	ep.Title = title.String
-	ep.Summary = summary.String
-	ep.Narrative = narrative.String
-	ep.EmotionalTone = emotionalTone.String
-	ep.Outcome = outcome.String
-	ep.StartTime, _ = time.Parse(time.RFC3339, startStr)
-	ep.EndTime, _ = time.Parse(time.RFC3339, endStr)
-	ep.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
-	ep.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
-	ep.RawMemoryIDs, _ = decodeStringSlice(rawIDsStr)
-	ep.MemoryIDs, _ = decodeStringSlice(memIDsStr)
-	ep.Concepts, _ = decodeStringSlice(conceptsStr.String)
-	ep.FilesModified, _ = decodeStringSlice(filesStr.String)
-	if timelineStr.Valid && timelineStr.String != "" {
-		_ = json.Unmarshal([]byte(timelineStr.String), &ep.EventTimeline)
-	}
-
 	return ep, nil
 }

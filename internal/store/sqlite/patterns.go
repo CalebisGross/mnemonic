@@ -176,14 +176,14 @@ func nullableTime(t time.Time) interface{} {
 	return t.Format(time.RFC3339)
 }
 
-// scanPattern scans a single pattern row.
-func scanPattern(row *sql.Row) (store.Pattern, error) {
+// scanPatternFrom scans a single Pattern from any scanner.
+func scanPatternFrom(s scanner) (store.Pattern, error) {
 	var p store.Pattern
 	var evidenceIDsStr, conceptsStr sql.NullString
 	var embeddingBlob []byte
 	var project, lastAccessedStr sql.NullString
 
-	err := row.Scan(
+	err := s.Scan(
 		&p.ID,
 		&p.PatternType,
 		&p.Title,
@@ -200,10 +200,7 @@ func scanPattern(row *sql.Row) (store.Pattern, error) {
 		&p.UpdatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return p, fmt.Errorf("pattern: %w", store.ErrNotFound)
-		}
-		return p, fmt.Errorf("failed to scan pattern: %w", err)
+		return p, err
 	}
 
 	p.Project = project.String
@@ -219,47 +216,28 @@ func scanPattern(row *sql.Row) (store.Pattern, error) {
 	return p, nil
 }
 
+// scanPattern scans a single pattern row.
+func scanPattern(row *sql.Row) (store.Pattern, error) {
+	p, err := scanPatternFrom(row)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return p, fmt.Errorf("pattern: %w", store.ErrNotFound)
+		}
+		return p, fmt.Errorf("failed to scan pattern: %w", err)
+	}
+	return p, nil
+}
+
 // scanPatternRows scans multiple pattern rows.
 func scanPatternRows(rows *sql.Rows) ([]store.Pattern, error) {
 	defer rows.Close()
 	var patterns []store.Pattern
 
 	for rows.Next() {
-		var p store.Pattern
-		var evidenceIDsStr, conceptsStr sql.NullString
-		var embeddingBlob []byte
-		var project, lastAccessedStr sql.NullString
-
-		err := rows.Scan(
-			&p.ID,
-			&p.PatternType,
-			&p.Title,
-			&p.Description,
-			&evidenceIDsStr,
-			&p.Strength,
-			&project,
-			&conceptsStr,
-			&embeddingBlob,
-			&p.AccessCount,
-			&lastAccessedStr,
-			&p.State,
-			&p.CreatedAt,
-			&p.UpdatedAt,
-		)
+		p, err := scanPatternFrom(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan pattern row: %w", err)
 		}
-
-		p.Project = project.String
-		p.EvidenceIDs, _ = decodeStringSlice(evidenceIDsStr.String)
-		p.Concepts, _ = decodeStringSlice(conceptsStr.String)
-		if len(embeddingBlob) > 0 {
-			p.Embedding = decodeEmbedding(embeddingBlob)
-		}
-		if lastAccessedStr.Valid && lastAccessedStr.String != "" {
-			p.LastAccessed, _ = time.Parse(time.RFC3339, lastAccessedStr.String)
-		}
-
 		patterns = append(patterns, p)
 	}
 

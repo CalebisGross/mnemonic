@@ -168,13 +168,13 @@ func (s *SQLiteStore) SearchAbstractionsByEmbedding(ctx context.Context, embeddi
 	return abstractions, nil
 }
 
-// scanAbstraction scans a single abstraction row.
-func scanAbstraction(row *sql.Row) (store.Abstraction, error) {
+// scanAbstractionFrom scans a single Abstraction from any scanner.
+func scanAbstractionFrom(s scanner) (store.Abstraction, error) {
 	var a store.Abstraction
 	var parentID, sourcePatternIDsStr, sourceMemoryIDsStr, conceptsStr sql.NullString
 	var embeddingBlob []byte
 
-	err := row.Scan(
+	err := s.Scan(
 		&a.ID,
 		&a.Level,
 		&a.Title,
@@ -191,10 +191,7 @@ func scanAbstraction(row *sql.Row) (store.Abstraction, error) {
 		&a.UpdatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return a, fmt.Errorf("abstraction: %w", store.ErrNotFound)
-		}
-		return a, fmt.Errorf("failed to scan abstraction: %w", err)
+		return a, err
 	}
 
 	a.ParentID = parentID.String
@@ -208,44 +205,28 @@ func scanAbstraction(row *sql.Row) (store.Abstraction, error) {
 	return a, nil
 }
 
+// scanAbstraction scans a single abstraction row.
+func scanAbstraction(row *sql.Row) (store.Abstraction, error) {
+	a, err := scanAbstractionFrom(row)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return a, fmt.Errorf("abstraction: %w", store.ErrNotFound)
+		}
+		return a, fmt.Errorf("failed to scan abstraction: %w", err)
+	}
+	return a, nil
+}
+
 // scanAbstractionRows scans multiple abstraction rows.
 func scanAbstractionRows(rows *sql.Rows) ([]store.Abstraction, error) {
 	defer rows.Close()
 	var abstractions []store.Abstraction
 
 	for rows.Next() {
-		var a store.Abstraction
-		var parentID, sourcePatternIDsStr, sourceMemoryIDsStr, conceptsStr sql.NullString
-		var embeddingBlob []byte
-
-		err := rows.Scan(
-			&a.ID,
-			&a.Level,
-			&a.Title,
-			&a.Description,
-			&parentID,
-			&sourcePatternIDsStr,
-			&sourceMemoryIDsStr,
-			&a.Confidence,
-			&conceptsStr,
-			&embeddingBlob,
-			&a.AccessCount,
-			&a.State,
-			&a.CreatedAt,
-			&a.UpdatedAt,
-		)
+		a, err := scanAbstractionFrom(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan abstraction row: %w", err)
 		}
-
-		a.ParentID = parentID.String
-		a.SourcePatternIDs, _ = decodeStringSlice(sourcePatternIDsStr.String)
-		a.SourceMemoryIDs, _ = decodeStringSlice(sourceMemoryIDsStr.String)
-		a.Concepts, _ = decodeStringSlice(conceptsStr.String)
-		if len(embeddingBlob) > 0 {
-			a.Embedding = decodeEmbedding(embeddingBlob)
-		}
-
 		abstractions = append(abstractions, a)
 	}
 
