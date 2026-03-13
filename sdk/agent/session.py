@@ -21,7 +21,9 @@ from claude_agent_sdk import (
     SystemMessage,
     TextBlock,
     ThinkingBlock,
+    ToolResultBlock,
     ToolUseBlock,
+    UserMessage,
 )
 
 from agent.config import Config
@@ -35,6 +37,7 @@ from agent.prompts import EVOLVE_PROMPT, POST_TASK_PROMPT, PRE_TASK_PROMPT
 class TaskMetrics:
     cost_usd: float = 0.0
     turns: int = 0
+    session_id: str = ""
 
 
 # --- Shared streaming ---
@@ -47,7 +50,8 @@ async def stream_events(
     Event types:
       ("text", str) — assistant text content
       ("thinking", str) — thinking summary (truncated to 300 chars)
-      ("tool_use", (name, input_str)) — tool invocation
+      ("tool_use", (name, input_str, tool_use_id)) — tool invocation
+      ("tool_result", (tool_use_id, content_str, is_error)) — tool result
       ("system", (subtype, data_str)) — system message
       ("done", (cost_usd, turns)) — final result metrics
     """
@@ -59,13 +63,34 @@ async def stream_events(
                 elif isinstance(block, ThinkingBlock):
                     yield ("thinking", (block.thinking or "")[:300])
                 elif isinstance(block, ToolUseBlock):
-                    yield ("tool_use", (block.name, str(block.input)))
+                    yield ("tool_use", (block.name, str(block.input), block.id))
+        elif isinstance(msg, UserMessage):
+            # Tool results come as UserMessage with ToolResultBlock content
+            if isinstance(msg.content, list):
+                for block in msg.content:
+                    if isinstance(block, ToolResultBlock):
+                        content_str = ""
+                        if isinstance(block.content, str):
+                            content_str = block.content
+                        elif isinstance(block.content, list):
+                            # Extract text from content blocks
+                            parts = []
+                            for item in block.content:
+                                if isinstance(item, dict) and item.get("type") == "text":
+                                    parts.append(item.get("text", ""))
+                            content_str = "\n".join(parts)
+                        yield ("tool_result", (
+                            block.tool_use_id,
+                            content_str,
+                            bool(block.is_error),
+                        ))
         elif isinstance(msg, SystemMessage):
             yield ("system", (msg.subtype, str(msg.data)))
         elif isinstance(msg, ResultMessage):
             cost = getattr(msg, "total_cost_usd", 0.0) or 0.0
             turns = getattr(msg, "num_turns", 0) or 0
-            yield ("done", (cost, turns))
+            sid = getattr(msg, "session_id", "") or ""
+            yield ("done", (cost, turns, sid))
             return
 
 
@@ -81,13 +106,13 @@ async def _stream_responses(
         elif event_type == "thinking" and verbose:
             logger.debug("[thinking] %s...", data[:200])
         elif event_type == "tool_use" and verbose:
-            name, inp = data
+            name, inp, _tid = data
             logger.debug("[tool] %s(%s)", name, _truncate(inp, 120))
         elif event_type == "system" and verbose:
             subtype, d = data
             logger.debug("[system] %s: %s", subtype, _truncate(d, 200))
         elif event_type == "done":
-            metrics.cost_usd, metrics.turns = data
+            metrics.cost_usd, metrics.turns, metrics.session_id = data
             if verbose:
                 parts = []
                 if metrics.turns:
@@ -235,6 +260,8 @@ async def _orchestrate_task(
         m = await side_stream_fn(client)
         total.cost_usd += m.cost_usd
         total.turns += m.turns
+        if m.session_id:
+            total.session_id = m.session_id
 
     # === MAIN TASK ===
     if on_phase:
@@ -243,6 +270,8 @@ async def _orchestrate_task(
     m = await main_stream_fn(client)
     total.cost_usd += m.cost_usd
     total.turns += m.turns
+    if m.session_id:
+        total.session_id = m.session_id
 
     # === POST-TASK: automatic reflection ===
     if not cfg.no_reflect:
@@ -252,6 +281,8 @@ async def _orchestrate_task(
         m = await side_stream_fn(client)
         total.cost_usd += m.cost_usd
         total.turns += m.turns
+        if m.session_id:
+            total.session_id = m.session_id
 
     # === Record telemetry ===
     evolved = (task_count + 1) % cfg.evolve_interval == 0

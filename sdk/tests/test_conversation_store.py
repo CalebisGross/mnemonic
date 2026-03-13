@@ -8,9 +8,7 @@ import unittest
 from pathlib import Path
 
 from agent.conversation_store import (
-    ASSISTANT_TRUNCATE,
     MAX_CONVERSATIONS,
-    MAX_SUMMARY_CHARS,
     ConversationStore,
 )
 
@@ -137,45 +135,86 @@ class TestConversationStore(unittest.TestCase):
     def test_delete_nonexistent_does_not_raise(self):
         self.store.delete_conversation("no-such-id")
 
-    # ── build_continuation_summary ───────────────────────────────────
+    # ── session_id ─────────────────────────────────────────────────
 
-    def test_continuation_summary_returns_none_for_missing(self):
-        self.assertIsNone(self.store.build_continuation_summary("no-such"))
-
-    def test_continuation_summary_includes_messages(self):
+    def test_set_and_get_session_id(self):
         conv = self.store.new_conversation("m")
-        self.store.append_message(conv["id"], {"role": "user", "content": "fix bug"})
-        self.store.append_message(conv["id"], {"role": "assistant", "content": "done"})
-        summary = self.store.build_continuation_summary(conv["id"])
-        self.assertIn("User: fix bug", summary)
-        self.assertIn("Assistant: done", summary)
-        self.assertIn("continuing this conversation", summary)
+        self.store.set_session_id(conv["id"], "sess-abc123")
+        self.assertEqual(self.store.get_session_id(conv["id"]), "sess-abc123")
 
-    def test_continuation_summary_truncates_long_assistant(self):
-        conv = self.store.new_conversation("m")
-        long_response = "x" * (ASSISTANT_TRUNCATE + 100)
-        self.store.append_message(conv["id"], {"role": "assistant", "content": long_response})
-        summary = self.store.build_continuation_summary(conv["id"])
-        self.assertIn("x" * ASSISTANT_TRUNCATE + "...", summary)
-        self.assertNotIn("x" * (ASSISTANT_TRUNCATE + 1), summary)
+    def test_get_session_id_returns_none_for_missing_conv(self):
+        self.assertIsNone(self.store.get_session_id("no-such"))
 
-    def test_continuation_summary_caps_total_length(self):
+    def test_get_session_id_returns_none_for_old_conv(self):
+        """Old conversations without session_id should return None."""
         conv = self.store.new_conversation("m")
-        # Add many messages to exceed MAX_SUMMARY_CHARS
-        for i in range(100):
-            self.store.append_message(conv["id"], {
-                "role": "user",
-                "content": f"message {i} " + "x" * 100,
-            })
-        summary = self.store.build_continuation_summary(conv["id"])
-        self.assertLessEqual(len(summary), MAX_SUMMARY_CHARS + 500)  # allow for header/footer
-        self.assertIn("earlier messages trimmed", summary)
+        self.assertIsNone(self.store.get_session_id(conv["id"]))
 
-    def test_continuation_summary_includes_tool_use(self):
+    def test_set_session_id_overwrites(self):
         conv = self.store.new_conversation("m")
-        self.store.append_message(conv["id"], {"role": "tool_use", "name": "Read"})
-        summary = self.store.build_continuation_summary(conv["id"])
-        self.assertIn("[Tool: Read]", summary)
+        self.store.set_session_id(conv["id"], "sess-1")
+        self.store.set_session_id(conv["id"], "sess-2")
+        self.assertEqual(self.store.get_session_id(conv["id"]), "sess-2")
+
+    # ── upsert_assistant_message ──────────────────────────────────
+
+    def test_upsert_creates_new_streaming_message(self):
+        conv = self.store.new_conversation("m")
+        self.store.upsert_assistant_message(conv["id"], "Hello", "2026-01-01T00:00:00Z")
+        loaded = self.store.get_conversation(conv["id"])
+        self.assertEqual(len(loaded["messages"]), 1)
+        msg = loaded["messages"][0]
+        self.assertEqual(msg["role"], "assistant")
+        self.assertEqual(msg["content"], "Hello")
+        self.assertTrue(msg["streaming"])
+
+    def test_upsert_updates_existing_streaming_message(self):
+        conv = self.store.new_conversation("m")
+        self.store.upsert_assistant_message(conv["id"], "Hello", "2026-01-01T00:00:00Z")
+        self.store.upsert_assistant_message(conv["id"], "Hello world", "2026-01-01T00:00:01Z")
+        loaded = self.store.get_conversation(conv["id"])
+        # Should still be one message, updated in place
+        self.assertEqual(len(loaded["messages"]), 1)
+        self.assertEqual(loaded["messages"][0]["content"], "Hello world")
+
+    def test_upsert_does_not_touch_finalized_message(self):
+        conv = self.store.new_conversation("m")
+        self.store.append_message(conv["id"], {
+            "role": "assistant", "content": "finalized",
+        })
+        # New upsert should create a second message, not modify the first
+        self.store.upsert_assistant_message(conv["id"], "new text", "2026-01-01T00:00:00Z")
+        loaded = self.store.get_conversation(conv["id"])
+        self.assertEqual(len(loaded["messages"]), 2)
+        self.assertEqual(loaded["messages"][0]["content"], "finalized")
+        self.assertEqual(loaded["messages"][1]["content"], "new text")
+
+    def test_upsert_missing_conv_does_nothing(self):
+        # Should not raise
+        self.store.upsert_assistant_message("no-such", "text", "2026-01-01T00:00:00Z")
+
+    # ── finalize_assistant_message ────────────────────────────────
+
+    def test_finalize_removes_streaming_flag(self):
+        conv = self.store.new_conversation("m")
+        self.store.upsert_assistant_message(conv["id"], "Done", "2026-01-01T00:00:00Z")
+        self.store.finalize_assistant_message(conv["id"])
+        loaded = self.store.get_conversation(conv["id"])
+        msg = loaded["messages"][0]
+        self.assertNotIn("streaming", msg)
+        # message_count should be updated (assistant counts)
+        self.assertEqual(loaded["message_count"], 1)
+
+    def test_finalize_updates_index(self):
+        conv = self.store.new_conversation("m")
+        self.store.append_message(conv["id"], {"role": "user", "content": "hi"})
+        self.store.upsert_assistant_message(conv["id"], "response", "2026-01-01T00:00:00Z")
+        self.store.finalize_assistant_message(conv["id"])
+        convs = self.store.list_conversations()
+        self.assertEqual(convs[0]["message_count"], 2)
+
+    def test_finalize_missing_conv_does_nothing(self):
+        self.store.finalize_assistant_message("no-such")
 
     # ── preferences ──────────────────────────────────────────────────
 
@@ -195,6 +234,26 @@ class TestConversationStore(unittest.TestCase):
         prefs_path = Path(self.tmpdir) / "conversations" / "_preferences.json"
         prefs_path.write_text("bad json{")
         self.assertIsNone(self.store.get_preferred_model())
+
+    # ── task counter ────────────────────────────────────────────────
+
+    def test_get_task_count_default_zero(self):
+        self.assertEqual(self.store.get_task_count(), 0)
+
+    def test_set_and_get_task_count(self):
+        self.store.set_task_count(7)
+        self.assertEqual(self.store.get_task_count(), 7)
+
+    def test_task_count_survives_new_store_instance(self):
+        self.store.set_task_count(12)
+        store2 = ConversationStore(self.tmpdir)
+        self.assertEqual(store2.get_task_count(), 12)
+
+    def test_task_count_coexists_with_model_pref(self):
+        self.store.set_preferred_model("claude-opus-4-6")
+        self.store.set_task_count(3)
+        self.assertEqual(self.store.get_preferred_model(), "claude-opus-4-6")
+        self.assertEqual(self.store.get_task_count(), 3)
 
     # ── rotation ─────────────────────────────────────────────────────
 

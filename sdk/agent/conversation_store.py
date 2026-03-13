@@ -16,8 +16,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 MAX_CONVERSATIONS = 50
-MAX_SUMMARY_CHARS = 4000
-ASSISTANT_TRUNCATE = 500
 
 
 class ConversationStore:
@@ -111,57 +109,75 @@ class ConversationStore:
             self._save_index(index)
         return True
 
-    # ── Continuation ─────────────────────────────────────────────────
+    # ── Session resume ──────────────────────────────────────────────
 
-    def build_continuation_summary(self, conv_id: str) -> str | None:
-        """Build a condensed transcript of a prior conversation.
+    def set_session_id(self, conv_id: str, session_id: str) -> None:
+        """Store the CLI session ID for a conversation.
 
-        Used to inject context when continuing a conversation with a fresh
-        SDK subprocess. Truncates assistant messages and caps total length.
+        This links our conversation to the Claude CLI's transcript,
+        enabling true conversation resume via ``--resume``.
         """
         conv = self._load_conversation(conv_id)
         if conv is None:
+            return
+        conv["session_id"] = session_id
+        self._save_conversation(conv)
+
+    def get_session_id(self, conv_id: str) -> str | None:
+        """Retrieve the stored CLI session ID, or None for old conversations."""
+        conv = self._load_conversation(conv_id)
+        if conv is None:
             return None
+        return conv.get("session_id")
 
-        lines: list[str] = []
-        lines.append(f"## Prior Conversation Context (id: {conv_id})")
-        lines.append(f"Title: {conv.get('title', 'Untitled')}")
-        lines.append(f"Date: {conv.get('created_at', 'unknown')}")
-        lines.append("")
+    # ── Crash-safe streaming persistence ─────────────────────────
 
-        total_chars = sum(len(ln) for ln in lines)
+    def upsert_assistant_message(
+        self, conv_id: str, content: str, timestamp: str,
+    ) -> None:
+        """Update the in-progress assistant message, or create one.
 
-        for msg in conv.get("messages", []):
-            role = msg.get("role", "")
-            content = msg.get("content", "")
+        Called during streaming to incrementally persist assistant text.
+        Messages are marked ``"streaming": True`` until finalized.
+        """
+        conv = self._load_conversation(conv_id)
+        if conv is None:
+            return
+        messages = conv.get("messages", [])
+        # Update the existing streaming assistant message if present
+        if (
+            messages
+            and messages[-1].get("role") == "assistant"
+            and messages[-1].get("streaming")
+        ):
+            messages[-1]["content"] = content
+            messages[-1]["timestamp"] = timestamp
+        else:
+            messages.append({
+                "role": "assistant",
+                "content": content,
+                "timestamp": timestamp,
+                "streaming": True,
+            })
+        conv["messages"] = messages
+        conv["updated_at"] = timestamp
+        self._save_conversation(conv)
+        # Skip _update_index on every flush — too expensive during streaming
 
-            if role == "user":
-                line = f"User: {content}"
-            elif role == "assistant":
-                truncated = (
-                    content[:ASSISTANT_TRUNCATE] + "..."
-                    if len(content) > ASSISTANT_TRUNCATE
-                    else content
-                )
-                line = f"Assistant: {truncated}"
-            elif role == "tool_use":
-                line = f"[Tool: {msg.get('name', '?')}]"
-            else:
-                continue
-
-            if total_chars + len(line) > MAX_SUMMARY_CHARS:
-                lines.append("... (earlier messages trimmed)")
-                break
-            lines.append(line)
-            total_chars += len(line)
-
-        lines.append("")
-        lines.append("---")
-        lines.append(
-            "The user is continuing this conversation. "
-            "Maintain context from the prior exchange above."
-        )
-        return "\n".join(lines)
+    def finalize_assistant_message(self, conv_id: str) -> None:
+        """Remove the streaming flag and update the index."""
+        conv = self._load_conversation(conv_id)
+        if conv is None:
+            return
+        messages = conv.get("messages", [])
+        if messages and messages[-1].get("role") == "assistant":
+            messages[-1].pop("streaming", None)
+            conv["messages"] = messages
+            conv["message_count"] = sum(
+                1 for m in messages if m.get("role") in ("user", "assistant")
+            )
+            self._save_conversation(conv)
+            self._update_index(conv)
 
     # ── Preferences ──────────────────────────────────────────────────
 
@@ -188,6 +204,32 @@ class ConversationStore:
             self._prefs_path.write_text(json.dumps(prefs, indent=2))
         except OSError as e:
             logger.warning("Failed to save preferences: %s", e)
+
+    # ── Global task counter ───────────────────────────────────────────
+
+    def get_task_count(self) -> int:
+        """Load the global task counter from preferences."""
+        try:
+            if self._prefs_path.exists():
+                prefs = json.loads(self._prefs_path.read_text())
+                return prefs.get("task_count", 0)
+        except (json.JSONDecodeError, OSError):
+            pass
+        return 0
+
+    def set_task_count(self, count: int) -> None:
+        """Persist the global task counter."""
+        prefs: dict[str, Any] = {}
+        try:
+            if self._prefs_path.exists():
+                prefs = json.loads(self._prefs_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+        prefs["task_count"] = count
+        try:
+            self._prefs_path.write_text(json.dumps(prefs, indent=2))
+        except OSError as e:
+            logger.warning("Failed to save task count: %s", e)
 
     # ── Internal helpers ─────────────────────────────────────────────
 

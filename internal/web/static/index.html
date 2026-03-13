@@ -832,6 +832,31 @@
         .llm-status-err { color: var(--accent-red); }
         .llm-bar { fill: var(--accent-cyan); rx: 2; }
         .llm-bar-label { fill: var(--text-dim); font-size: 10px; font-family: 'SF Mono', Monaco, monospace; }
+        .llm-card-sub { font-size: 0.7rem; color: var(--text-dim); margin-top: 4px; font-family: 'SF Mono', Monaco, monospace; }
+        .llm-range-tabs { display: flex; gap: 2px; }
+        .llm-range-tab { padding: 3px 10px; border-radius: var(--radius-sm); border: 1px solid transparent; font-size: 0.75rem; color: var(--text-dim); cursor: pointer; background: none; transition: all 0.15s; }
+        .llm-range-tab:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+        .llm-range-tab.active { color: var(--accent-cyan); background: rgba(6,182,212,0.1); border-color: rgba(6,182,212,0.2); }
+        .llm-chart-wrap { position: relative; }
+        .llm-chart-legend { display: flex; gap: 14px; }
+        .llm-legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.7rem; color: var(--text-dim); }
+        .llm-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+        .llm-chart-tooltip { position: absolute; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 0.72rem; color: var(--text-primary); pointer-events: none; display: none; z-index: 20; white-space: nowrap; line-height: 1.7; }
+        .llm-log-row-err td { background: rgba(239,68,68,0.04); }
+        .llm-error-detail { font-size: 0.75rem; color: var(--accent-red); padding: 4px 12px !important; word-break: break-word; opacity: 0.85; border-top: none !important; }
+        .llm-header-sub { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+        .llm-completion-val { color: var(--accent-violet) !important; }
+
+        /* ── SDK Agent View ── */
+        .sdk-section { margin-bottom: 16px; }
+        .sdk-section-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim); margin-bottom: 8px; }
+        .sdk-stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .sdk-stat-cards-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+        .sdk-api-equiv .stat-number { color: var(--text-muted) !important; font-size: 1rem !important; }
+        .sdk-api-equiv .stat-sub { color: var(--accent-orange); }
+        .sdk-evo-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .sdk-cost-chart-wrap { position: relative; }
+        .sdk-cost-tooltip { position: absolute; top: 4px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 0.72rem; color: var(--text-primary); pointer-events: none; display: none; z-index: 20; white-space: nowrap; }
 
         /* ── Activity Drawer ── */
         .activity-backdrop {
@@ -1070,8 +1095,18 @@
         .chat-code-block code { color: var(--accent-green); font-family: 'SF Mono', 'Fira Code', monospace; }
         .chat-inline-code { background: color-mix(in srgb, var(--accent-violet) 15%, transparent); color: var(--accent-violet); padding: 1px 5px; border-radius: 3px; font-size: 0.82rem; font-family: 'SF Mono', 'Fira Code', monospace; }
         .chat-status-pill { align-self: center; padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 500; background: var(--bg-tertiary); color: var(--text-dim); border: 1px solid var(--border-subtle); }
-        .chat-tool-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; background: color-mix(in srgb, var(--accent-violet) 8%, transparent); color: var(--accent-violet); border: 1px solid color-mix(in srgb, var(--accent-violet) 15%, transparent); font-family: 'SF Mono', 'Fira Code', monospace; white-space: nowrap; }
-        .chat-tool-pill .tool-icon { font-size: 0.6rem; opacity: 0.6; }
+        .chat-tool-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; background: color-mix(in srgb, var(--accent-violet) 8%, transparent); color: var(--accent-violet); border: 1px solid color-mix(in srgb, var(--accent-violet) 15%, transparent); font-family: 'SF Mono', 'Fira Code', monospace; white-space: nowrap; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+        .chat-tool-pill:hover { background: color-mix(in srgb, var(--accent-violet) 16%, transparent); border-color: color-mix(in srgb, var(--accent-violet) 30%, transparent); }
+        .chat-tool-pill.expanded { background: color-mix(in srgb, var(--accent-violet) 14%, transparent); border-color: color-mix(in srgb, var(--accent-violet) 25%, transparent); }
+        .chat-tool-pill .tool-icon { font-size: 0.6rem; opacity: 0.6; transition: transform 0.15s; }
+        .chat-tool-pill.expanded .tool-icon { transform: rotate(90deg); }
+        .chat-tool-detail { display: none; flex-basis: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 8px; font-size: 0.72rem; font-family: 'SF Mono', 'Fira Code', monospace; background: color-mix(in srgb, var(--accent-violet) 5%, var(--bg-primary)); border: 1px solid color-mix(in srgb, var(--accent-violet) 12%, transparent); color: var(--text-secondary); max-height: 300px; overflow-y: auto; }
+        .chat-tool-detail.visible { display: block; }
+        .chat-tool-detail pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
+        .tool-detail-section { margin-bottom: 6px; }
+        .tool-detail-section:last-child { margin-bottom: 0; }
+        .tool-detail-label { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-violet); margin-bottom: 2px; }
+        .chat-tool-pill.tool-error { border-color: var(--accent-red, #e55); color: var(--accent-red, #e55); }
         .chat-tool-row { display: flex; flex-wrap: wrap; gap: 4px; align-self: flex-start; }
         .chat-streaming::after { content: '\25CB'; animation: blink 1s step-start infinite; margin-left: 2px; }
         @keyframes blink { 50% { opacity: 0; } }
@@ -1375,8 +1410,8 @@
                         <div class="llm-panel">
                             <div class="llm-panel-title">Usage by Agent</div>
                             <table class="llm-table" id="llmAgentTable">
-                                <thead><tr><th>Agent</th><th>Requests</th><th>Tokens</th></tr></thead>
-                                <tbody id="llmAgentBody"><tr><td colspan="3" class="llm-empty">No data yet</td></tr></tbody>
+                                <thead><tr><th>Agent</th><th>Requests</th><th>Tokens</th><th>Errors</th><th>Cost</th><th>Avg Latency</th></tr></thead>
+                                <tbody id="llmAgentBody"><tr><td colspan="6" class="llm-empty">No data yet</td></tr></tbody>
                             </table>
                         </div>
                         <div class="llm-panel">
@@ -2411,22 +2446,62 @@
             document.getElementById('llmUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
             document.getElementById('navTokenCount').textContent = (s.total_tokens || 0).toLocaleString();
 
+            var log = data.log || [];
+
+            // Build per-agent extras (cost + avg latency) from log
+            var agentExtras = {};
+            log.forEach(function(r) {
+                var a = r.caller || 'unknown';
+                if (!agentExtras[a]) agentExtras[a] = { latencySum: 0, count: 0, cost: 0, errors: 0 };
+                agentExtras[a].latencySum += (r.latency_ms || 0);
+                agentExtras[a].count++;
+                agentExtras[a].cost += (r.estimated_cost_usd || 0);
+                if (!r.success) agentExtras[a].errors++;
+            });
+
             // Agent table
             var agentBody = document.getElementById('llmAgentBody');
             var agents = s.by_agent || {};
             var agentKeys = Object.keys(agents).sort(function(a, b) { return (agents[b].total_tokens || 0) - (agents[a].total_tokens || 0); });
             if (agentKeys.length === 0) {
-                agentBody.innerHTML = '<tr><td colspan="3" class="llm-empty">No agent data yet</td></tr>';
+                agentBody.innerHTML = '<tr><td colspan="6" class="llm-empty">No agent data yet</td></tr>';
             } else {
                 agentBody.innerHTML = agentKeys.map(function(k) {
                     var a = agents[k];
-                    return '<tr><td><strong>' + escapeHtml(k) + '</strong></td><td>' + (a.requests || 0) + '</td><td>' + (a.total_tokens || 0).toLocaleString() + '</td></tr>';
+                    var ext = agentExtras[k] || {};
+                    var errors = ext.errors || 0;
+                    var errHtml = errors > 0 ? '<span style="color:var(--accent-red)">' + errors + '</span>' : '0';
+                    var cost = ext.cost ? '$' + ext.cost.toFixed(4) : '-';
+                    var avgLat = ext.count ? (ext.latencySum / ext.count).toFixed(0) + 'ms' : '-';
+                    return '<tr><td><strong>' + escapeHtml(k) + '</strong></td><td>' + (a.requests || 0) + '</td><td>' + (a.total_tokens || 0).toLocaleString() + '</td><td>' + errHtml + '</td><td>' + cost + '</td><td>' + avgLat + '</td></tr>';
+                }).join('');
+            }
+
+            // Operations table (computed from log) with p50/p95
+            var opStats = {};
+            log.forEach(function(r) {
+                var op = r.operation || 'unknown';
+                if (!opStats[op]) opStats[op] = { count: 0, tokens: 0, latencies: [] };
+                opStats[op].count++;
+                opStats[op].tokens += (r.prompt_tokens || 0) + (r.completion_tokens || 0);
+                opStats[op].latencies.push(r.latency_ms || 0);
+            });
+            var opsBody = document.getElementById('llmOpsBody');
+            var opKeys = Object.keys(opStats).sort(function(a, b) { return opStats[b].count - opStats[a].count; });
+            if (opKeys.length === 0) {
+                opsBody.innerHTML = '<tr><td colspan="6" class="llm-empty">No data yet</td></tr>';
+            } else {
+                opsBody.innerHTML = opKeys.map(function(op) {
+                    var os = opStats[op];
+                    var sorted = os.latencies.slice().sort(function(a, b) { return a - b; });
+                    var p50 = sorted[Math.floor(sorted.length * 0.5)] || 0;
+                    var p95 = sorted[Math.floor(sorted.length * 0.95)] || 0;
+                    return '<tr><td>' + escapeHtml(op) + '</td><td>' + os.count + '</td><td>' + os.tokens.toLocaleString() + '</td><td>' + p50 + 'ms</td><td>' + p95 + 'ms</td></tr>';
                 }).join('');
             }
 
             // Request log
             var logBody = document.getElementById('llmLogBody');
-            var log = data.log || [];
             if (log.length === 0) {
                 logBody.innerHTML = '<tr><td colspan="6" class="llm-empty">No requests recorded yet</td></tr>';
             } else {
@@ -2435,7 +2510,14 @@
                     var tokens = (r.prompt_tokens || 0) + (r.completion_tokens || 0);
                     var statusCls = r.success ? 'llm-status-ok' : 'llm-status-err';
                     var statusTxt = r.success ? 'OK' : 'ERR';
-                    return '<tr><td>' + t + '</td><td>' + escapeHtml(r.caller || '-') + '</td><td>' + escapeHtml(r.operation || '-') + '</td><td>' + tokens.toLocaleString() + '</td><td>' + (r.latency_ms || 0) + 'ms</td><td class="' + statusCls + '">' + statusTxt + '</td></tr>';
+                    var rowCls = r.success ? '' : ' class="llm-log-row-err"';
+                    var inOut = (r.prompt_tokens || 0).toLocaleString() + ' / ' + (r.completion_tokens || 0).toLocaleString();
+                    var model = escapeHtml((r.model || '-').replace('local-model', 'local'));
+                    var row = '<tr' + rowCls + '><td>' + t + '</td><td>' + escapeHtml(r.caller || '-') + '</td><td>' + escapeHtml(r.operation || '-') + '</td><td>' + model + '</td><td>' + inOut + '</td><td>' + (r.latency_ms || 0) + 'ms</td><td class="' + statusCls + '">' + statusTxt + '</td></tr>';
+                    if (!r.success && r.error_message) {
+                        row += '<tr class="llm-log-row-err"><td colspan="7" class="llm-error-detail">' + escapeHtml(r.error_message) + '</td></tr>';
+                    }
+                    return row;
                 }).join('');
             }
 
@@ -2503,6 +2585,41 @@
 
     // ── Utilities ──
     function escapeHtml(str) { if (!str) return ''; var div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+    function toggleToolDetail(e) {
+        var pill = e.currentTarget;
+        var input = pill.getAttribute('data-tool-input');
+        var result = pill.getAttribute('data-tool-result');
+        if (!input && !result) return;
+        // The detail panel lives after the tool-row, not after the pill
+        var toolRow = pill.closest('.chat-tool-row') || pill.parentNode;
+        var existing = toolRow.nextElementSibling;
+        if (existing && existing.classList.contains('chat-tool-detail') && existing.getAttribute('data-for') === pill.getAttribute('data-tool-use-id')) {
+            existing.classList.toggle('visible');
+            pill.classList.toggle('expanded');
+        } else {
+            // Collapse any other open detail in this row
+            if (existing && existing.classList.contains('chat-tool-detail')) {
+                existing.remove();
+                toolRow.querySelectorAll('.chat-tool-pill.expanded').forEach(function(p) { p.classList.remove('expanded'); });
+            }
+            var detail = document.createElement('div');
+            detail.className = 'chat-tool-detail visible';
+            if (pill.getAttribute('data-tool-use-id')) {
+                detail.setAttribute('data-for', pill.getAttribute('data-tool-use-id'));
+            }
+            var html = '';
+            if (input) {
+                html += '<div class="tool-detail-section"><div class="tool-detail-label">Input</div><pre>' + escapeHtml(input) + '</pre></div>';
+            }
+            if (result) {
+                html += '<div class="tool-detail-section"><div class="tool-detail-label">Result</div><pre>' + escapeHtml(result) + '</pre></div>';
+            }
+            detail.innerHTML = html;
+            toolRow.parentNode.insertBefore(detail, toolRow.nextSibling);
+            pill.classList.add('expanded');
+        }
+        scrollChatBottom();
+    }
     function timeAgo(dateStr) {
         if (!dateStr) return '';
         var d = new Date(dateStr);
@@ -2858,9 +2975,17 @@
             case 'tool_use':
                 // Show tool name as a compact pill (strip mcp__ prefixes)
                 var toolName = (msg.name || '').replace(/^mcp__mnemonic__/, '').replace(/^mcp__/, '');
+                var toolInput = msg.input || '';
                 var pill = document.createElement('div');
                 pill.className = 'chat-tool-pill';
                 pill.innerHTML = '<span class="tool-icon">\u25B6</span>' + escapeHtml(toolName);
+                if (toolInput) {
+                    pill.setAttribute('data-tool-input', toolInput);
+                    pill.addEventListener('click', toggleToolDetail);
+                }
+                if (msg.tool_use_id) {
+                    pill.setAttribute('data-tool-use-id', msg.tool_use_id);
+                }
                 // Group consecutive tool pills in a flex row
                 var lastChild = container.lastElementChild;
                 var row;
@@ -2873,6 +2998,14 @@
                 }
                 row.appendChild(pill);
                 scrollChatBottom();
+                break;
+            case 'tool_result':
+                // Attach result to the matching tool pill
+                var targetPill = container.querySelector('.chat-tool-pill[data-tool-use-id="' + msg.tool_use_id + '"]');
+                if (targetPill) {
+                    targetPill.setAttribute('data-tool-result', msg.content || '');
+                    if (msg.is_error) targetPill.classList.add('tool-error');
+                }
                 break;
             case 'status':
                 var labels = { recalling: 'Recalling context...', working: 'Working...', reflecting: 'Reflecting...', ready: 'Ready' };
@@ -3039,11 +3172,16 @@
                 appendChatBubble('assistant', m.content);
             } else if (m.role === 'tool_use') {
                 var toolName = (m.name || '').replace(/^mcp__mnemonic__/, '').replace(/^mcp__/, '');
+                var toolInput = m.input || '';
                 var row = document.createElement('div');
                 row.className = 'chat-tool-row';
                 var pill = document.createElement('div');
                 pill.className = 'chat-tool-pill';
                 pill.innerHTML = '<span class="tool-icon">\u25B6</span>' + escapeHtml(toolName);
+                if (toolInput) {
+                    pill.setAttribute('data-tool-input', toolInput);
+                    pill.addEventListener('click', toggleToolDetail);
+                }
                 row.appendChild(pill);
                 container.appendChild(row);
             }

@@ -299,9 +299,10 @@ class TestStreamEvents(unittest.TestCase):
         text_events = [e for e in events if e[0] == "text"]
         self.assertEqual(text_events[0][1], "hello")
         done_events = [e for e in events if e[0] == "done"]
-        cost, turns = done_events[0][1]
+        cost, turns, session_id = done_events[0][1]
         self.assertAlmostEqual(cost, 0.01)
         self.assertEqual(turns, 1)
+        self.assertEqual(session_id, "test-session")
 
     def test_thinking_event(self):
         from claude_agent_sdk import AssistantMessage, ResultMessage, ThinkingBlock
@@ -360,8 +361,9 @@ class TestStreamEvents(unittest.TestCase):
         asyncio.run(collect())
         tool_events = [e for e in events if e[0] == "tool_use"]
         self.assertEqual(len(tool_events), 1)
-        name, inp = tool_events[0][1]
+        name, inp, tid = tool_events[0][1]
         self.assertEqual(name, "Read")
+        self.assertEqual(tid, "tu_1")
 
 
 if __name__ == "__main__":

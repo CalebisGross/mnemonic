@@ -4,7 +4,7 @@ Wraps ClaudeSDKClient in a Starlette WebSocket endpoint so the agent
 can be used from the Mnemonic web dashboard instead of only via terminal.
 
 Supports persistent conversations (continue / delete / list), model
-switching (with client recreation), and context injection for continuation.
+switching (with client recreation), and session resume for continuation.
 """
 from __future__ import annotations
 
@@ -46,53 +46,77 @@ async def _stream_to_ws(
     ws: WebSocket,
     store: ConversationStore | None = None,
     conv_id: str | None = None,
-) -> tuple[float, int]:
+) -> TaskMetrics:
     """Stream messages from the SDK client to the WebSocket.
 
     Uses the shared stream_events() generator from session.py.
     If *store* and *conv_id* are provided, assistant text and tool calls
-    are also persisted to the conversation store.
+    are persisted incrementally (crash-safe) to the conversation store.
 
-    Returns (cost_usd, turns).
+    Returns TaskMetrics with cost, turns, and session_id.
     """
-    cost_usd = 0.0
-    turns = 0
-    accumulated_text = ""
+    metrics = TaskMetrics()
+    # Track the latest text for the current assistant turn.
+    # SDK sends full text (not deltas) for each AssistantMessage,
+    # so we replace rather than accumulate.
+    current_turn_text = ""
 
-    async for event_type, data in stream_events(client):
-        if event_type == "text":
-            await _send(ws, {"type": "text", "content": data})
-            accumulated_text += data
-        elif event_type == "thinking":
-            if data:
-                await _send(ws, {"type": "thinking", "summary": data})
-        elif event_type == "tool_use":
-            name, inp = data
-            if len(inp) > 200:
-                inp = inp[:197] + "..."
-            await _send(ws, {
-                "type": "tool_use",
-                "name": name,
-                "input": inp,
-            })
-            if store and conv_id:
-                store.append_message(conv_id, {
-                    "role": "tool_use",
+    try:
+        async for event_type, data in stream_events(client):
+            if event_type == "text":
+                await _send(ws, {"type": "text", "content": data})
+                # Replace — SDK text blocks contain the full turn text
+                current_turn_text = data
+            elif event_type == "thinking":
+                if data:
+                    await _send(ws, {"type": "thinking", "summary": data})
+            elif event_type == "tool_use":
+                name, inp, tool_use_id = data
+                # Finalize current assistant text before tool_use
+                if store and conv_id and current_turn_text.strip():
+                    store.upsert_assistant_message(
+                        conv_id, current_turn_text,
+                        datetime.now(timezone.utc).isoformat(),
+                    )
+                    store.finalize_assistant_message(conv_id)
+                    current_turn_text = ""
+                # Truncate for WebSocket display, store full input
+                ws_inp = inp[:797] + "..." if len(inp) > 800 else inp
+                await _send(ws, {
+                    "type": "tool_use",
                     "name": name,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "input": ws_inp,
+                    "tool_use_id": tool_use_id,
                 })
-        elif event_type == "done":
-            cost_usd, turns = data
+                if store and conv_id:
+                    store.append_message(conv_id, {
+                        "role": "tool_use",
+                        "name": name,
+                        "input": inp,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+            elif event_type == "tool_result":
+                tool_use_id, content, is_error = data
+                # Truncate for WebSocket display
+                ws_content = content[:2000] + "..." if len(content) > 2000 else content
+                await _send(ws, {
+                    "type": "tool_result",
+                    "tool_use_id": tool_use_id,
+                    "content": ws_content,
+                    "is_error": is_error,
+                })
+            elif event_type == "done":
+                metrics.cost_usd, metrics.turns, metrics.session_id = data
+    finally:
+        # Always persist whatever text we have — even on crash
+        if store and conv_id and current_turn_text.strip():
+            store.upsert_assistant_message(
+                conv_id, current_turn_text,
+                datetime.now(timezone.utc).isoformat(),
+            )
+            store.finalize_assistant_message(conv_id)
 
-    # Persist accumulated assistant text as a single message
-    if store and conv_id and accumulated_text.strip():
-        store.append_message(conv_id, {
-            "role": "assistant",
-            "content": accumulated_text,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
-
-    return cost_usd, turns
+    return metrics
 
 
 async def _handle_task(
@@ -108,12 +132,10 @@ async def _handle_task(
     """Run pre-task recall -> main query -> post-task reflection, streaming to WS."""
 
     async def _ws_main_stream(c: ClaudeSDKClient) -> TaskMetrics:
-        cost, turns = await _stream_to_ws(c, ws, store, conv_id)
-        return TaskMetrics(cost_usd=cost, turns=turns)
+        return await _stream_to_ws(c, ws, store, conv_id)
 
     async def _ws_side_stream(c: ClaudeSDKClient) -> TaskMetrics:
-        cost, turns = await _stream_to_ws(c, ws)  # don't persist recall/reflect
-        return TaskMetrics(cost_usd=cost, turns=turns)
+        return await _stream_to_ws(c, ws)  # don't persist recall/reflect
 
     async def _on_phase(phase: str) -> None:
         await _send(ws, {"type": "status", "status": phase})
@@ -125,9 +147,11 @@ async def _handle_task(
         on_phase=_on_phase,
     )
 
-    # Update conversation cost
+    # Update conversation cost and session ID
     if store and conv_id:
         store.update_cost(conv_id, total.cost_usd)
+        if total.session_id:
+            store.set_session_id(conv_id, total.session_id)
 
     await _send(ws, {
         "type": "done",
@@ -146,8 +170,8 @@ class WebSocketSession:
         self._cfg = cfg
         self._store = store
         self._session_id = f"web-{uuid.uuid4().hex[:8]}"
-        self._task_count = 0
-        self._continuation_context: str | None = None
+        self._task_count = store.get_task_count()
+        self._resume_session_id: str | None = None
         self._current_conv_id: str | None = None
         self._session_model = store.get_preferred_model() or cfg.model
 
@@ -176,8 +200,14 @@ class WebSocketSession:
         """Create a ClaudeSDKClient and run the message loop.
 
         Returns True if the client should be recreated (model switch).
+        If ``_resume_session_id`` is set, the CLI subprocess resumes from
+        the prior session transcript, restoring full conversation history.
         """
-        session_cfg = replace(self._cfg, model=self._session_model)
+        resume_id = self._resume_session_id
+        self._resume_session_id = None  # consume once
+        session_cfg = replace(
+            self._cfg, model=self._session_model, resume=resume_id,
+        )
         options = build_options(session_cfg)
         async with ClaudeSDKClient(options=options) as client:
             await _send(self._ws, {"type": "status", "status": "ready"})
@@ -231,11 +261,11 @@ class WebSocketSession:
         if msg_type == "list_conversations":
             await self._handle_list_conversations()
         elif msg_type == "load_conversation":
-            await self._handle_load_conversation(msg)
+            return await self._handle_load_conversation(msg)
         elif msg_type == "delete_conversation":
             await self._handle_delete_conversation(msg)
         elif msg_type == "new_conversation":
-            await self._handle_new_conversation()
+            return await self._handle_new_conversation()
         elif msg_type == "set_model":
             return await self._handle_set_model(msg)
         elif msg_type == "message":
@@ -252,28 +282,33 @@ class WebSocketSession:
             "conversations": convs,
         })
 
-    async def _handle_load_conversation(self, msg: dict) -> None:
+    async def _handle_load_conversation(self, msg: dict) -> bool:
+        """Load a conversation. Returns True to trigger client reconnect for resume."""
         cid = msg.get("id", "")
         loaded = self._store.get_conversation(cid)
         if loaded:
             self._current_conv_id = cid
-            self._continuation_context = self._store.build_continuation_summary(cid)
+            self._resume_session_id = self._store.get_session_id(cid)
             await _send(self._ws, {
                 "type": "conversation_loaded",
                 "conversation": loaded,
             })
+            # Reconnect to resume the CLI session with full history
+            if self._resume_session_id:
+                return True
         else:
             await _send(self._ws, {
                 "type": "error",
                 "message": "Conversation not found",
             })
+        return False
 
     async def _handle_delete_conversation(self, msg: dict) -> None:
         cid = msg.get("id", "")
         self._store.delete_conversation(cid)
         if cid == self._current_conv_id:
             self._current_conv_id = None
-            self._continuation_context = None
+            self._resume_session_id = None
             await _send(self._ws, {
                 "type": "conversation_started",
                 "id": None,
@@ -284,14 +319,16 @@ class WebSocketSession:
             "id": cid,
         })
 
-    async def _handle_new_conversation(self) -> None:
+    async def _handle_new_conversation(self) -> bool:
+        """Returns True to trigger client reconnect with a fresh CLI session."""
         self._current_conv_id = None
-        self._continuation_context = None
+        self._resume_session_id = None  # no resume — fresh session
         await _send(self._ws, {
             "type": "conversation_started",
             "id": None,
             "model": self._session_model,
         })
+        return True
 
     # ── Model switching ──
 
@@ -304,7 +341,7 @@ class WebSocketSession:
         self._store.set_preferred_model(new_model)
         logger.info("Model changed to %s", new_model)
         if self._current_conv_id:
-            self._continuation_context = self._store.build_continuation_summary(
+            self._resume_session_id = self._store.get_session_id(
                 self._current_conv_id
             )
         await _send(self._ws, {"type": "model_set", "model": new_model})
@@ -337,24 +374,14 @@ class WebSocketSession:
             "timestamp": now,
         })
 
-        # On first message after loading a prior conversation,
-        # inject the continuation context summary.
-        effective_task = content
-        if self._continuation_context:
-            effective_task = (
-                self._continuation_context
-                + "\n\n## Current Message\n"
-                + content
-            )
-            self._continuation_context = None  # only inject once
-
         try:
             await _handle_task(
-                client, session_cfg, effective_task,
+                client, session_cfg, content,
                 self._session_id, self._task_count, self._ws,
                 self._store, self._current_conv_id,
             )
             self._task_count += 1
+            self._store.set_task_count(self._task_count)
             # Periodic evolution cycle
             if self._task_count % session_cfg.evolve_interval == 0:
                 await _send(self._ws, {"type": "status", "status": "evolving"})

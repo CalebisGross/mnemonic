@@ -39,7 +39,14 @@ def build_options(cfg: Config) -> ClaudeAgentOptions:
         "agents": make_subagents(cfg.subagent_model),
     }
 
+    # Disable extended thinking — the web UI doesn't display it and it
+    # adds latency / cost for content that is silently discarded.
+    options_kwargs["thinking"] = {"type": "disabled"}
+
     if cfg.max_turns is not None:
         options_kwargs["max_turns"] = cfg.max_turns
+
+    if cfg.resume:
+        options_kwargs["resume"] = cfg.resume
 
     return ClaudeAgentOptions(**options_kwargs)

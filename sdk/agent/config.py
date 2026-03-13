@@ -37,6 +37,7 @@ class Config:
     verbose: bool = False
     no_reflect: bool = False
     subagent_model: str = DEFAULT_SUBAGENT_MODEL
+    resume: str | None = None
     evolution_dir_override: str | None = field(
         default_factory=lambda: os.environ.get("MNEMONIC_EVOLUTION_DIR")
     )
