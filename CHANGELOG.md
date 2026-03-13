@@ -4,6 +4,13 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.9.0](https://github.com/CalebisGross/mnemonic/compare/v0.8.2...v0.9.0) (2026-03-13)
+
+
+### Features
+
+* config sweep + full pipeline benchmark ([de6fc47](https://github.com/CalebisGross/mnemonic/commit/de6fc47564cb1448c2798ee7e0aad172a476345f))
+
 ## [0.8.2](https://github.com/CalebisGross/mnemonic/compare/v0.8.1...v0.8.2) (2026-03-13)
 
 
