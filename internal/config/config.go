@@ -512,52 +512,25 @@ func (c *Config) process(configDir string) error {
 	}
 
 	// Parse duration strings from raw YAML values
-	if c.Consolidation.IntervalRaw != "" {
-		c.Consolidation.Interval, err = parseDurationString(c.Consolidation.IntervalRaw)
-		if err != nil {
-			return fmt.Errorf("parsing consolidation.interval: %w", err)
-		}
+	durations := []struct {
+		raw   string
+		dest  *time.Duration
+		field string
+	}{
+		{c.Consolidation.IntervalRaw, &c.Consolidation.Interval, "consolidation.interval"},
+		{c.Consolidation.RetentionWindowRaw, &c.Consolidation.RetentionWindow, "consolidation.retention_window"},
+		{c.Metacognition.IntervalRaw, &c.Metacognition.Interval, "metacognition.interval"},
+		{c.Dreaming.IntervalRaw, &c.Dreaming.Interval, "dreaming.interval"},
+		{c.Abstraction.IntervalRaw, &c.Abstraction.Interval, "abstraction.interval"},
+		{c.Orchestrator.SelfTestIntervalRaw, &c.Orchestrator.SelfTestInterval, "orchestrator.self_test_interval"},
+		{c.Orchestrator.MonitorIntervalRaw, &c.Orchestrator.MonitorInterval, "orchestrator.monitor_interval"},
 	}
-
-	if c.Consolidation.RetentionWindowRaw != "" {
-		c.Consolidation.RetentionWindow, err = parseDurationString(c.Consolidation.RetentionWindowRaw)
-		if err != nil {
-			return fmt.Errorf("parsing consolidation.retention_window: %w", err)
-		}
-	}
-
-	if c.Metacognition.IntervalRaw != "" {
-		c.Metacognition.Interval, err = parseDurationString(c.Metacognition.IntervalRaw)
-		if err != nil {
-			return fmt.Errorf("parsing metacognition.interval: %w", err)
-		}
-	}
-
-	if c.Dreaming.IntervalRaw != "" {
-		c.Dreaming.Interval, err = parseDurationString(c.Dreaming.IntervalRaw)
-		if err != nil {
-			return fmt.Errorf("parsing dreaming.interval: %w", err)
-		}
-	}
-
-	if c.Abstraction.IntervalRaw != "" {
-		c.Abstraction.Interval, err = parseDurationString(c.Abstraction.IntervalRaw)
-		if err != nil {
-			return fmt.Errorf("parsing abstraction.interval: %w", err)
-		}
-	}
-
-	if c.Orchestrator.SelfTestIntervalRaw != "" {
-		c.Orchestrator.SelfTestInterval, err = parseDurationString(c.Orchestrator.SelfTestIntervalRaw)
-		if err != nil {
-			return fmt.Errorf("parsing orchestrator.self_test_interval: %w", err)
-		}
-	}
-
-	if c.Orchestrator.MonitorIntervalRaw != "" {
-		c.Orchestrator.MonitorInterval, err = parseDurationString(c.Orchestrator.MonitorIntervalRaw)
-		if err != nil {
-			return fmt.Errorf("parsing orchestrator.monitor_interval: %w", err)
+	for _, d := range durations {
+		if d.raw != "" {
+			*d.dest, err = parseDurationString(d.raw)
+			if err != nil {
+				return fmt.Errorf("parsing %s: %w", d.field, err)
+			}
 		}
 	}
 
