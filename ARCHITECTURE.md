@@ -17,8 +17,8 @@ The cognitive model (spread activation, salience decay, associative linking) is 
 |-----------|--------|-----------|
 | Language | Go | Fast, single binary, great concurrency, clean daemon |
 | Store | SQLite (WAL mode) | Sub-ms lookups, FTS5, ACID, single file, embedded |
-| LLM runtime | LM Studio | Local, OpenAI-compatible API, model-agnostic |
-| Embeddings | LM Studio (e.g. nomic-embed-text) | Same runtime, separate model, local semantic search |
+| LLM runtime | LM Studio / Gemini API / any OpenAI-compatible provider | Local or cloud, model-agnostic |
+| Embeddings | Provider-supplied (e.g. embeddinggemma, Gemini embedding) | Separate model slot, local or cloud semantic search |
 | Platform | macOS ARM (primary), Linux x86_64 (next), Windows (planned) | Cross-platform via build tags |
 
 ---
@@ -32,13 +32,13 @@ These are the load-bearing walls. Get them right and everything downstream is sw
 type Provider interface {
     Complete(ctx, req CompletionRequest) (CompletionResponse, error)
     Embed(ctx, text string) ([]float32, error)
-    StructuredComplete(ctx, req CompletionRequest, schema interface{}) (StructuredOutput, error)
+    BatchEmbed(ctx, texts []string) ([][]float32, error)
     Health(ctx) error
     ModelInfo(ctx) (ModelMetadata, error)
 }
 ```
-- v1 implementation: LM Studio (OpenAI-compatible)
-- Future: Ollama, vLLM, cloud APIs — zero agent code changes
+- Implementations: LM Studio (local, OpenAI-compatible), Gemini API (cloud), any OpenAI-compatible endpoint
+- Instrumented wrapper tracks per-call token usage, latency, and caller identity
 
 ### 2. `store.Store`
 ```go
@@ -90,7 +90,8 @@ type Agent interface {
     Health(ctx) error
 }
 ```
-- All 8 cognitive agents + orchestrator + reactor implement this
+
+- All 8 cognitive agents + orchestrator implement this (reactor is a separate engine)
 - Loosely coupled through the event bus
 
 ### 5. `events.EventBus`
@@ -153,14 +154,56 @@ Query → [Parse + Embed] → Entry Points (FTS top 3 + Embedding top 3) → Spr
 
 Spread activation follows strongest association links, with activation decaying per hop. Every accessed memory gets strengthened (access_count++, last_accessed updated).
 
-### Layer 5 — Meta-Cognition (Basic Monitoring)
+### Layer 5 — Episoding (Temporal Clustering)
 
-Runs daily. v1 scope is **observe and log**, not act:
+Clusters raw memories into time-window episodes (default 10-minute windows). When a window closes:
+
+1. Collect raw memories in the time range
+2. LLM synthesizes a title, narrative, and emotional tone
+3. Extract concepts, files modified, and event timeline
+4. Create episode record linking to constituent memories
+5. Emit `EpisodeClosed` event
+
+Claude-aware prompt for AI-assisted development sessions — recognizes coding patterns, debugging flows, and decision-making.
+
+### Layer 6 — Meta-Cognition (Self-Reflection)
+
+Runs periodically (default every 4 hours):
+
 - Memory growth patterns (topic concentration)
 - Retrieval success/failure rate (via user feedback)
 - Association graph health (isolated clusters, density)
 - Consolidation effectiveness
+- Re-embed orphaned memories, trigger consolidation when needed
 - Log observations to `meta_observations` table
+
+### Layer 7 — Dreaming (Memory Replay)
+
+Runs periodically (default every 1 hour). Replays and cross-pollinates memories:
+
+1. Select batch of recent memories (default 60)
+2. Strengthen associations between related memories across projects
+3. Link memories to discovered patterns
+4. Generate higher-order insights from memory clusters
+5. Prune noise associations (below threshold)
+
+### Layer 8 — Abstraction (Hierarchical Knowledge)
+
+Runs periodically (default every 2 hours). Builds hierarchical knowledge:
+
+- **Level 1 — Patterns**: Recurring themes extracted from memory clusters
+- **Level 2 — Principles**: Generalizations across patterns
+- **Level 3 — Axioms**: Fundamental truths with high confidence
+
+Abstractions are grounded in evidence. Those that lose supporting evidence are demoted or archived.
+
+### Layer 9 — Reactor (Event-Driven Rules)
+
+Event-driven rule engine that fires condition-action chains in response to system events:
+
+- Trigger consolidation when DB grows too large
+- Kick off dreaming when an episode closes
+- Escalate health alerts when agents fail repeatedly
 
 ---
 
@@ -169,16 +212,40 @@ Runs daily. v1 scope is **observe and log**, not act:
 ### HTTP REST (`http://localhost:9999/api/v1/`)
 
 ```
-POST   /memories              Create raw memory (explicit user input)
-GET    /memories               List memories (with filters)
-GET    /memories/:id           Get specific memory
-POST   /query                  Query memories (spread activation)
-POST   /consolidation/run      Force consolidation cycle
-GET    /consolidation/status   Last consolidation info
 GET    /health                 System health check
 GET    /stats                  Memory statistics
-POST   /feedback               Submit retrieval feedback
+
+POST   /memories               Create raw memory (explicit user input)
+GET    /memories                List memories (with filters)
+GET    /memories/:id            Get specific memory
+GET    /memories/:id/context    Get memory with surrounding context
+GET    /raw/:id                 Get raw (unprocessed) memory
+
+GET    /episodes                List episodes
+GET    /episodes/:id            Get specific episode
+
+POST   /query                   Query memories (spread activation + LLM synthesis)
+POST   /feedback                Submit retrieval feedback
+
+POST   /consolidation/run       Force consolidation cycle
+POST   /ingest                  Bulk-ingest a directory
+
+GET    /insights                Meta-cognition observations
+GET    /patterns                Discovered patterns
+GET    /abstractions            Hierarchical abstractions
+GET    /projects                Project summaries
+
+GET    /llm/usage               LLM token usage by agent
+
+GET    /graph                   Association graph for D3.js visualization
+
+GET    /agent/evolution          Agent SDK evolution state (conditional)
+GET    /agent/changelog          Agent evolution changelog (conditional)
+GET    /agent/sessions           Agent session history (conditional)
+GET    /agent/config             Agent SDK configuration (conditional)
 ```
+
+Optional bearer token authentication via `Authorization: Bearer <token>` header (configure with `mnemonic generate-token`).
 
 ### WebSocket (`ws://localhost:9999/ws`)
 
@@ -191,11 +258,16 @@ Real-time event stream. Clients can filter by event type:
 ### Web Dashboard (embedded in Go binary)
 
 Served at `http://localhost:9999/`. Features:
+
 - Memory count by state (active/fading/archived)
 - Live event feed (real-time via WebSocket)
 - Association graph visualization (D3.js)
 - Query tester with score explanations
 - System health (LLM status, store health, watcher status)
+- LLM usage monitoring (per-agent token consumption and cost)
+- Memory source tags (hoverable, showing origin: filesystem, terminal, clipboard, MCP, consolidation)
+- 5 themes: Midnight, Ember, Nord, Slate, Parchment (persists in localStorage)
+- Agent SDK dashboard: evolution state, principles, strategies, session timeline, chat
 
 ---
 
@@ -282,6 +354,94 @@ CREATE TABLE consolidation_history (
     associations_pruned INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Episodes (temporal clusters of raw events)
+CREATE TABLE episodes (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    start_time DATETIME NOT NULL,
+    end_time DATETIME NOT NULL,
+    summary TEXT,
+    narrative TEXT,
+    salience REAL DEFAULT 0.5,
+    emotional_tone TEXT,
+    state TEXT DEFAULT 'open',       -- open | closed
+    concepts JSON DEFAULT '[]',
+    files_modified JSON DEFAULT '[]',
+    event_timeline JSON DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Multi-resolution memory (gist / narrative / detail)
+CREATE TABLE memory_resolutions (
+    memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+    gist TEXT,
+    narrative TEXT,
+    detail_raw_ids JSON,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Structured concept extraction
+CREATE TABLE concept_sets (
+    memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+    topics JSON,
+    entities JSON,
+    actions JSON,
+    causality JSON,
+    significance TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Patterns discovered through consolidation/dreaming
+CREATE TABLE patterns (
+    id TEXT PRIMARY KEY,
+    pattern_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    evidence_ids JSON DEFAULT '[]',
+    strength REAL DEFAULT 0.5,
+    project TEXT,
+    concepts JSON DEFAULT '[]',
+    embedding BLOB,
+    state TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Abstractions: hierarchical knowledge (level 1=pattern, 2=principle, 3=axiom)
+CREATE TABLE abstractions (
+    id TEXT PRIMARY KEY,
+    level INTEGER DEFAULT 1,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    parent_id TEXT,
+    source_pattern_ids JSON DEFAULT '[]',
+    confidence REAL DEFAULT 0.5,
+    concepts JSON DEFAULT '[]',
+    embedding BLOB,
+    state TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- System metadata key-value store
+CREATE TABLE system_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- LLM usage tracking (per-call instrumentation)
+CREATE TABLE llm_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    operation TEXT NOT NULL,
+    caller TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    success INTEGER NOT NULL DEFAULT 1
+);
 ```
 
 ---
@@ -294,11 +454,14 @@ mnemonic/
 │   ├── mnemonic/
 │   │   ├── main.go                        # Daemon entry point + CLI
 │   │   └── ingest.go                      # Bulk ingest subcommand
-│   └── benchmark/main.go                  # End-to-end benchmark
+│   ├── benchmark/main.go                  # End-to-end benchmark
+│   └── benchmark-quality/                 # Memory quality IR benchmark
 ├── internal/
 │   ├── llm/
 │   │   ├── provider.go                    # LLM interface
-│   │   └── lmstudio.go                    # LM Studio implementation
+│   │   ├── lmstudio.go                    # LM Studio / OpenAI-compatible implementation
+│   │   ├── instrumented.go                # Usage-tracking wrapper (tokens, latency, caller)
+│   │   └── pricing.go                     # Token cost estimation
 │   ├── store/
 │   │   ├── store.go                       # Store interface + domain types
 │   │   └── sqlite/                        # SQLite implementation (FTS5, embeddings, episodes, patterns)
@@ -329,9 +492,10 @@ mnemonic/
 │   ├── web/
 │   │   ├── server.go                      # Static file serving (go:embed)
 │   │   └── static/index.html              # Dashboard (D3.js graph, live feed, query tester)
-│   ├── mcp/server.go                      # MCP server (10 tools for Claude Code)
+│   ├── ingest/                            # Project ingestion engine
+│   ├── mcp/server.go                      # MCP server (13 tools for Claude Code)
 │   ├── backup/                            # Export/import logic
-│   ├── daemon/daemon.go                   # Service management (macOS LaunchAgent)
+│   ├── daemon/                            # Service management (macOS LaunchAgent + Linux systemd)
 │   ├── config/config.go                   # Configuration loading
 │   └── logger/logger.go                   # Structured logging
 ├── sdk/                                   # Python agent SDK (self-evolving assistant)
@@ -339,10 +503,7 @@ mnemonic/
 │   ├── tests/                             # SDK tests
 │   └── pyproject.toml
 ├── migrations/                            # SQLite schema migrations
-├── evolution/                             # Agent evolution data (created at runtime, gitignored)
-│   └── examples/                         # Example evolution data for reference
-├── scripts/                               # Utility scripts (pitch deck generator)
-├── tests/                                 # User acceptance tests
+├── scripts/                               # Utility scripts
 ├── config.yaml
 ├── Makefile
 └── go.mod
@@ -352,7 +513,7 @@ mnemonic/
 
 ## Build History
 
-All original build phases are **complete**. Current focus is cross-platform support and graph visualization improvements.
+All original build phases are **complete**. Current focus is SDK features, dashboard polish, and recall quality.
 
 ### Completed
 
@@ -375,7 +536,7 @@ All original build phases are **complete**. Current focus is cross-platform supp
 - **Database encryption** — air-gapped assumption covers v1
 - **Local model fine-tuning** — LM Studio handles v1
 - **Native macOS menu bar widget** — web dashboard covers v1, native UI later
-- ~~**MCP server integration**~~ — **Done.** 10 MCP tools implemented (`internal/mcp/server.go`)
+- ~~**MCP server integration**~~ — **Done.** 13 MCP tools implemented (`internal/mcp/server.go`)
 
 ---
 

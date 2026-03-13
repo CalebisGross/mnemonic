@@ -2,6 +2,8 @@
 
 Mnemonic uses a local LLM via [LM Studio](https://lmstudio.ai/) for semantic understanding. This guide walks through the recommended setup.
 
+> **Alternative:** You can use Google Gemini API or any OpenAI-compatible provider instead of LM Studio. Set `llm.endpoint` to your provider's URL and export `LLM_API_KEY` with your API key. Cloud APIs typically use `llm.max_concurrent: 8` (vs 2 for local). If using a cloud provider, skip the LM Studio sections below and go straight to [Configure Mnemonic](#configure-mnemonic).
+
 ## Install LM Studio
 
 Download from [lmstudio.ai](https://lmstudio.ai/) and install. LM Studio runs entirely on your machine — no cloud API keys needed.

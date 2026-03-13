@@ -4,9 +4,9 @@ A local-first, air-gapped semantic memory system that learns and organizes your 
 
 ## What is this?
 
-Mnemonic is an autonomous memory daemon that runs entirely on your machine — no cloud APIs, no vendor lock-in. It watches your filesystem, terminal, and clipboard, automatically capturing and organizing information you interact with. It uses a cognitive architecture inspired by neuroscience with 8 specialized agents that perceive, encode, consolidate, retrieve, reflect, dream, discover patterns, and build hierarchical abstractions.
+Mnemonic is an autonomous memory daemon that runs entirely on your machine. It watches your filesystem, terminal, and clipboard, automatically capturing and organizing information you interact with. It uses a cognitive architecture inspired by neuroscience with 8 cognitive agents that perceive, encode, consolidate, retrieve, reflect, dream, discover patterns, and build hierarchical abstractions — plus an orchestrator and a reactive rule engine.
 
-The system runs local LLMs via LM Studio for semantic understanding, stores everything in SQLite with full-text and vector search, and exposes a REST API with a live web dashboard. It's designed as persistent memory infrastructure — your CLI, your tools, and AI agents (like Claude Code) can all query your memory through a unified interface with 10 MCP tools.
+The system runs LLMs for semantic understanding — locally via LM Studio or through cloud APIs like Google Gemini. It stores everything in SQLite with full-text and vector search, and exposes a REST API with a live web dashboard. It's designed as persistent memory infrastructure — your CLI, your tools, and AI agents (like Claude Code) can all query your memory through a unified interface with 13 MCP tools.
 
 The "analog LLM" vision: the association graph IS the model. Memories build into patterns, patterns into principles, principles into axioms. The system learns, self-corrects, and gets smarter autonomously.
 
@@ -50,14 +50,16 @@ make build
 ## Quick Start
 
 **Prerequisites:**
-- LM Studio running locally — see [LM Studio Setup](docs/setup-lmstudio.md)
+
+- An LLM provider — either [LM Studio](docs/setup-lmstudio.md) running locally, or a cloud API key (e.g., Google Gemini)
 
 **Setup:**
 ```bash
 # Copy the example config and edit it
 cp config.yaml ~/.mnemonic/config.yaml
-# Edit ~/.mnemonic/config.yaml: set llm.chat_model, llm.embedding_model
-# See docs/setup-lmstudio.md for recommended models and settings
+# Edit ~/.mnemonic/config.yaml: set llm.endpoint, llm.chat_model, llm.embedding_model
+# For LM Studio: see docs/setup-lmstudio.md
+# For Gemini: set endpoint to Gemini API URL and export LLM_API_KEY
 mnemonic serve   # Run in foreground (recommended for first run)
 # Open http://127.0.0.1:9999
 ```
@@ -107,6 +109,8 @@ For architectural deep dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 | **Data** | `export --format json\|sqlite` | Dump all memories |
 | **Data** | `import FILE --mode merge\|replace` | Load JSON export |
 | **Data** | `backup` | Timestamped backup (keeps 5) |
+| **Data** | `restore FILE` | Restore database from backup |
+| **Data** | `cleanup` | Archive stale observations |
 | **Insights** | `insights` | Memory health report |
 | **Insights** | `meta-cycle` | Run metacognition analysis |
 | **Insights** | `dream-cycle` | Run dream replay |
@@ -117,6 +121,7 @@ For architectural deep dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 | **Monitor** | `watch` | Live event stream |
 | **Setup** | `install` | Auto-start (macOS LaunchAgent / Linux systemd) |
 | **Setup** | `uninstall` | Remove auto-start service |
+| **Setup** | `generate-token` | Generate bearer token for API auth |
 | **Setup** | `version` | Show version |
 | **Danger** | `purge` | Stop daemon and delete all data (fresh start) |
 
@@ -144,7 +149,7 @@ See [CLAUDE.md](CLAUDE.md) for Claude Code usage guidelines.
 
 All settings live in `config.yaml`. Key sections:
 
-- **llm** — LM Studio endpoint, chat model, embedding model, timeouts
+- **llm** — LLM provider endpoint (LM Studio, Gemini, or any OpenAI-compatible), chat model, embedding model, timeouts
 - **store** — SQLite path, journal mode (use WAL for faster writes)
 - **perception** — Watch directories, shell, clipboard; heuristic thresholds
 - **encoding** — Concept extraction limits, similarity search, contextual encoding
@@ -158,7 +163,7 @@ All settings live in `config.yaml`. Key sections:
 - **mcp** — Enable/disable MCP server
 - **agent_sdk** — Agent SDK dashboard, evolution directory, WebSocket port
 - **coaching** — Coaching file path for LLM prompt improvements
-- **api** — Server host/port, request timeout
+- **api** — Server host/port, request timeout, optional bearer token authentication
 - **web** — Enable/disable embedded dashboard
 - **logging** — Level, format, output file
 
@@ -171,14 +176,18 @@ Open `http://127.0.0.1:9999` for the embedded web UI:
 - **Recall** — Query tester: try searches, see retrieval scores and synthesized responses
 - **Explore** — Browse episodes, memories, patterns, and abstractions in sub-tabs
 - **Graph** — D3.js visualization of memory associations
+- **LLM Usage** — Per-agent token consumption and cost tracking
 - **Agent** — SDK evolution dashboard: principles, strategies, session timeline, chat (requires `agent_sdk.enabled: true` and Claude CLI authenticated — run `claude` once to log in)
 - **Activity drawer** — Slide-out panel with live event feed and metacognition insights
+- **Themes** — 5 dashboard themes: Midnight, Ember, Nord, Slate, Parchment (persists in localStorage)
+- **Live updates** — Real-time data refresh via WebSocket
+- **Source tags** — Hoverable tags showing where each memory originated (filesystem, terminal, clipboard, MCP, consolidation)
 
 ## Project Structure
 
 ```
 internal/
-  llm/              LLM provider interface + LM Studio implementation (chat + embeddings)
+  llm/              LLM provider interface + implementations (LM Studio, Gemini/cloud API)
   store/            Store interface + SQLite implementation with FTS5 + vector search
   events/           Event bus (pub/sub)
   watcher/          Filesystem, terminal, clipboard, git watchers

@@ -1,6 +1,6 @@
 # Mnemonic — Development Guide
 
-Mnemonic is a local-first, air-gapped semantic memory system built in Go. It uses 9 cognitive agents + orchestrator + reactor, SQLite with FTS5 + vector search, and a local LLM (via LM Studio) for semantic understanding.
+Mnemonic is a local-first, air-gapped semantic memory system built in Go. It uses 8 cognitive agents + orchestrator + reactor, SQLite with FTS5 + vector search, and LLMs (LM Studio locally or cloud APIs like Gemini) for semantic understanding.
 
 ## Build & Test
 
@@ -14,15 +14,16 @@ make run                      # Build and run in foreground (serve mode)
 golangci-lint run             # Lint (uses .golangci.yml config)
 ```
 
-**Version** is injected via ldflags from `Makefile` (`VERSION=0.6.0`). The binary var is in `cmd/mnemonic/main.go`.
+**Version** is injected via ldflags from `Makefile` (`VERSION=0.8.0`). The binary var is in `cmd/mnemonic/main.go`.
 
 ## Project Layout
 
 ```
 cmd/mnemonic/          CLI + daemon entry point
 cmd/benchmark/         End-to-end benchmark
+cmd/benchmark-quality/ Memory quality IR benchmark
 internal/
-  agent/               9 cognitive agents + orchestrator + reactor
+  agent/               8 cognitive agents + orchestrator + reactor
     perception/        Watch filesystem/terminal/clipboard, heuristic filter
     encoding/          LLM compression, concept extraction, association linking
     episoding/         Temporal episode clustering
@@ -37,7 +38,8 @@ internal/
   web/                 Embedded dashboard (single index.html, D3.js graph)
   mcp/                 MCP server (13 tools for Claude Code)
   store/               Store interface + SQLite implementation
-  llm/                 LLM provider interface + LM Studio client
+  llm/                 LLM provider interface + implementations (LM Studio, Gemini/cloud API)
+  ingest/              Project ingestion engine
   watcher/             Filesystem (FSEvents/fsnotify), terminal, clipboard
   daemon/              Service management (macOS LaunchAgent + Linux systemd)
   events/              Event bus (in-memory pub/sub)
