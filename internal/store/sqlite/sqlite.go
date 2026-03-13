@@ -17,6 +17,11 @@ import (
 	store "github.com/appsprout/mnemonic/internal/store"
 )
 
+// scanner is satisfied by both *sql.Row and *sql.Rows.
+type scanner interface {
+	Scan(dest ...any) error
+}
+
 // SQLiteStore implements the Store interface using SQLite as the backend.
 type SQLiteStore struct {
 	db            *sql.DB
@@ -346,7 +351,7 @@ func scanRawMemoryRows(rows *sql.Rows) ([]store.RawMemory, error) {
 const memoryColumns = `id, raw_id, timestamp, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, source, project, session_id, created_at, updated_at`
 
 // scanMemory scans a memory row from the database.
-func scanMemory(row *sql.Row) (store.Memory, error) {
+func scanMemoryFrom(s scanner) (store.Memory, error) {
 	var mem store.Memory
 	var conceptsStr sql.NullString
 	var embeddingBlob []byte
@@ -356,7 +361,7 @@ func scanMemory(row *sql.Row) (store.Memory, error) {
 	var source sql.NullString
 	var project, sessionID sql.NullString
 
-	err := row.Scan(
+	err := s.Scan(
 		&mem.ID,
 		&mem.RawID,
 		&mem.Timestamp,
@@ -430,92 +435,20 @@ func scanMemory(row *sql.Row) (store.Memory, error) {
 	return mem, nil
 }
 
+func scanMemory(row *sql.Row) (store.Memory, error) {
+	return scanMemoryFrom(row)
+}
+
 // scanMemoryRows scans multiple memory rows from rows.
 func scanMemoryRows(rows *sql.Rows) ([]store.Memory, error) {
 	defer rows.Close()
 	var memories []store.Memory
 
 	for rows.Next() {
-		var mem store.Memory
-		var conceptsStr sql.NullString
-		var embeddingBlob []byte
-		var gistOfStr sql.NullString
-		var lastAccessedStr sql.NullString
-		var episodeID sql.NullString
-		var source sql.NullString
-		var project, sessionID sql.NullString
-
-		err := rows.Scan(
-			&mem.ID,
-			&mem.RawID,
-			&mem.Timestamp,
-			&mem.Content,
-			&mem.Summary,
-			&conceptsStr,
-			&embeddingBlob,
-			&mem.Salience,
-			&mem.AccessCount,
-			&lastAccessedStr,
-			&mem.State,
-			&gistOfStr,
-			&episodeID,
-			&source,
-			&project,
-			&sessionID,
-			&mem.CreatedAt,
-			&mem.UpdatedAt,
-		)
+		mem, err := scanMemoryFrom(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan memory row: %w", err)
 		}
-
-		// Decode concepts
-		if conceptsStr.Valid && conceptsStr.String != "" {
-			concepts, err := decodeStringSlice(conceptsStr.String)
-			if err != nil {
-				return nil, err
-			}
-			mem.Concepts = concepts
-		} else {
-			mem.Concepts = []string{}
-		}
-
-		// Decode embedding
-		if len(embeddingBlob) > 0 {
-			mem.Embedding = decodeEmbedding(embeddingBlob)
-		} else {
-			mem.Embedding = []float32{}
-		}
-
-		// Decode gist_of
-		if gistOfStr.Valid && gistOfStr.String != "" {
-			gistOf, err := decodeStringSlice(gistOfStr.String)
-			if err != nil {
-				return nil, err
-			}
-			mem.GistOf = gistOf
-		} else {
-			mem.GistOf = []string{}
-		}
-
-		// Decode episode_id
-		mem.EpisodeID = episodeID.String
-
-		// Decode source
-		mem.Source = source.String
-
-		// Decode project and session_id
-		mem.Project = project.String
-		mem.SessionID = sessionID.String
-
-		// Parse last_accessed
-		if lastAccessedStr.Valid && lastAccessedStr.String != "" {
-			lastAccessed, err := time.Parse(time.RFC3339, lastAccessedStr.String)
-			if err == nil {
-				mem.LastAccessed = lastAccessed
-			}
-		}
-
 		memories = append(memories, mem)
 	}
 
