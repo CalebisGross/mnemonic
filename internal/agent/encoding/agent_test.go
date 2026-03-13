@@ -14,6 +14,7 @@ import (
 	"github.com/appsprout/mnemonic/internal/events"
 	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
+	"github.com/appsprout/mnemonic/internal/store/storetest"
 )
 
 // ---------------------------------------------------------------------------
@@ -21,6 +22,7 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockStore struct {
+	storetest.MockStore
 	getRawFn             func(ctx context.Context, id string) (store.RawMemory, error)
 	listRawUnprocessedFn func(ctx context.Context, limit int) ([]store.RawMemory, error)
 	markRawProcessedFn   func(ctx context.Context, id string) error
@@ -35,7 +37,6 @@ type mockStore struct {
 	writeMemoryAttrsFn   func(ctx context.Context, attrs store.MemoryAttributes) error
 }
 
-func (m *mockStore) WriteRaw(ctx context.Context, raw store.RawMemory) error { return nil }
 func (m *mockStore) GetRaw(ctx context.Context, id string) (store.RawMemory, error) {
 	if m.getRawFn != nil {
 		return m.getRawFn(ctx, id)
@@ -46,9 +47,6 @@ func (m *mockStore) ListRawUnprocessed(ctx context.Context, limit int) ([]store.
 	if m.listRawUnprocessedFn != nil {
 		return m.listRawUnprocessedFn(ctx, limit)
 	}
-	return nil, nil
-}
-func (m *mockStore) ListRawMemoriesAfter(ctx context.Context, after time.Time, limit int) ([]store.RawMemory, error) {
 	return nil, nil
 }
 func (m *mockStore) MarkRawProcessed(ctx context.Context, id string) error {
@@ -63,29 +61,11 @@ func (m *mockStore) WriteMemory(ctx context.Context, mem store.Memory) error {
 	}
 	return nil
 }
-func (m *mockStore) GetMemory(ctx context.Context, id string) (store.Memory, error) {
-	return store.Memory{}, nil
-}
-func (m *mockStore) GetMemoryByRawID(ctx context.Context, rawID string) (store.Memory, error) {
-	return store.Memory{}, nil
-}
-func (m *mockStore) UpdateMemory(ctx context.Context, mem store.Memory) error { return nil }
-func (m *mockStore) UpdateSalience(ctx context.Context, id string, salience float32) error {
-	return nil
-}
-func (m *mockStore) UpdateState(ctx context.Context, id string, state string) error { return nil }
-func (m *mockStore) IncrementAccess(ctx context.Context, id string) error           { return nil }
-func (m *mockStore) ListMemories(ctx context.Context, state string, limit, offset int) ([]store.Memory, error) {
-	return nil, nil
-}
 func (m *mockStore) CountMemories(ctx context.Context) (int, error) {
 	if m.countMemoriesFn != nil {
 		return m.countMemoriesFn(ctx)
 	}
 	return 0, nil
-}
-func (m *mockStore) SearchByFullText(ctx context.Context, query string, limit int) ([]store.Memory, error) {
-	return nil, nil
 }
 func (m *mockStore) SearchByEmbedding(ctx context.Context, embedding []float32, limit int) ([]store.RetrievalResult, error) {
 	if m.searchByEmbeddingFn != nil {
@@ -105,89 +85,17 @@ func (m *mockStore) CreateAssociation(ctx context.Context, assoc store.Associati
 	}
 	return nil
 }
-func (m *mockStore) GetAssociations(ctx context.Context, memoryID string) ([]store.Association, error) {
-	return nil, nil
-}
-func (m *mockStore) UpdateAssociationStrength(ctx context.Context, sourceID, targetID string, strength float32) error {
-	return nil
-}
-func (m *mockStore) UpdateAssociationType(ctx context.Context, sourceID, targetID string, relationType string) error {
-	return nil
-}
-func (m *mockStore) WriteRetrievalFeedback(ctx context.Context, fb store.RetrievalFeedback) error {
-	return nil
-}
-func (m *mockStore) GetRetrievalFeedback(ctx context.Context, queryID string) (store.RetrievalFeedback, error) {
-	return store.RetrievalFeedback{}, nil
-}
-func (m *mockStore) ActivateAssociation(ctx context.Context, sourceID, targetID string) error {
-	return nil
-}
-func (m *mockStore) PruneWeakAssociations(ctx context.Context, threshold float32) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) BatchUpdateSalience(ctx context.Context, updates map[string]float32) error {
-	return nil
-}
-func (m *mockStore) BatchMergeMemories(ctx context.Context, sourceIDs []string, gist store.Memory) error {
-	return nil
-}
-func (m *mockStore) DeleteOldArchived(ctx context.Context, olderThan time.Time) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) WriteConsolidation(ctx context.Context, record store.ConsolidationRecord) error {
-	return nil
-}
-func (m *mockStore) GetLastConsolidation(ctx context.Context) (store.ConsolidationRecord, error) {
-	return store.ConsolidationRecord{}, nil
-}
-func (m *mockStore) ListAllAssociations(ctx context.Context) ([]store.Association, error) {
-	return nil, nil
-}
-func (m *mockStore) GetAssociationsForMemoryIDs(ctx context.Context, memoryIDs []string) ([]store.Association, error) {
-	return nil, nil
-}
-func (m *mockStore) ListAllRawMemories(ctx context.Context) ([]store.RawMemory, error) {
-	return nil, nil
-}
-func (m *mockStore) WriteMetaObservation(ctx context.Context, obs store.MetaObservation) error {
-	return nil
-}
-func (m *mockStore) ListMetaObservations(ctx context.Context, observationType string, limit int) ([]store.MetaObservation, error) {
-	return nil, nil
-}
-func (m *mockStore) GetDeadMemories(ctx context.Context, cutoffDate time.Time) ([]store.Memory, error) {
-	return nil, nil
-}
-func (m *mockStore) GetSourceDistribution(ctx context.Context) (map[string]int, error) {
-	return nil, nil
-}
-func (m *mockStore) GetStatistics(ctx context.Context) (store.StoreStatistics, error) {
-	return store.StoreStatistics{}, nil
-}
-func (m *mockStore) CreateEpisode(ctx context.Context, ep store.Episode) error { return nil }
-func (m *mockStore) GetEpisode(ctx context.Context, id string) (store.Episode, error) {
-	return store.Episode{}, nil
-}
-func (m *mockStore) UpdateEpisode(ctx context.Context, ep store.Episode) error { return nil }
-func (m *mockStore) ListEpisodes(ctx context.Context, state string, limit, offset int) ([]store.Episode, error) {
-	return nil, nil
-}
 func (m *mockStore) GetOpenEpisode(ctx context.Context) (store.Episode, error) {
 	if m.getOpenEpisodeFn != nil {
 		return m.getOpenEpisodeFn(ctx)
 	}
 	return store.Episode{}, fmt.Errorf("no open episode")
 }
-func (m *mockStore) CloseEpisode(ctx context.Context, id string) error { return nil }
 func (m *mockStore) WriteMemoryResolution(ctx context.Context, res store.MemoryResolution) error {
 	if m.writeMemoryResFn != nil {
 		return m.writeMemoryResFn(ctx, res)
 	}
 	return nil
-}
-func (m *mockStore) GetMemoryResolution(ctx context.Context, memoryID string) (store.MemoryResolution, error) {
-	return store.MemoryResolution{}, nil
 }
 func (m *mockStore) WriteConceptSet(ctx context.Context, cs store.ConceptSet) error {
 	if m.writeConceptSetFn != nil {
@@ -195,94 +103,12 @@ func (m *mockStore) WriteConceptSet(ctx context.Context, cs store.ConceptSet) er
 	}
 	return nil
 }
-func (m *mockStore) GetConceptSet(ctx context.Context, memoryID string) (store.ConceptSet, error) {
-	return store.ConceptSet{}, nil
-}
-func (m *mockStore) SearchByEntity(ctx context.Context, name string, entityType string, limit int) ([]store.Memory, error) {
-	return nil, nil
-}
 func (m *mockStore) WriteMemoryAttributes(ctx context.Context, attrs store.MemoryAttributes) error {
 	if m.writeMemoryAttrsFn != nil {
 		return m.writeMemoryAttrsFn(ctx, attrs)
 	}
 	return nil
 }
-func (m *mockStore) GetMemoryAttributes(ctx context.Context, memoryID string) (store.MemoryAttributes, error) {
-	return store.MemoryAttributes{}, nil
-}
-
-// --- Pattern operations ---
-func (m *mockStore) WritePattern(ctx context.Context, p store.Pattern) error { return nil }
-func (m *mockStore) GetPattern(ctx context.Context, id string) (store.Pattern, error) {
-	return store.Pattern{}, nil
-}
-func (m *mockStore) UpdatePattern(ctx context.Context, p store.Pattern) error { return nil }
-func (m *mockStore) ListPatterns(ctx context.Context, project string, limit int) ([]store.Pattern, error) {
-	return nil, nil
-}
-func (m *mockStore) SearchPatternsByEmbedding(ctx context.Context, embedding []float32, limit int) ([]store.Pattern, error) {
-	return nil, nil
-}
-func (m *mockStore) ArchiveAllPatterns(ctx context.Context) (int, error) {
-	return 0, nil
-}
-
-// --- Abstraction operations ---
-func (m *mockStore) WriteAbstraction(ctx context.Context, a store.Abstraction) error { return nil }
-func (m *mockStore) GetAbstraction(ctx context.Context, id string) (store.Abstraction, error) {
-	return store.Abstraction{}, nil
-}
-func (m *mockStore) UpdateAbstraction(ctx context.Context, a store.Abstraction) error { return nil }
-func (m *mockStore) ListAbstractions(ctx context.Context, level int, limit int) ([]store.Abstraction, error) {
-	return nil, nil
-}
-func (m *mockStore) SearchAbstractionsByEmbedding(ctx context.Context, embedding []float32, limit int) ([]store.Abstraction, error) {
-	return nil, nil
-}
-func (m *mockStore) ArchiveAllAbstractions(ctx context.Context) (int, error) {
-	return 0, nil
-}
-
-// --- Scoped queries ---
-func (m *mockStore) SearchByProject(ctx context.Context, project string, query string, limit int) ([]store.Memory, error) {
-	return nil, nil
-}
-func (m *mockStore) ListMemoriesByTimeRange(ctx context.Context, from, to time.Time, limit int) ([]store.Memory, error) {
-	return nil, nil
-}
-func (m *mockStore) GetProjectSummary(ctx context.Context, project string) (map[string]interface{}, error) {
-	return nil, nil
-}
-func (m *mockStore) ListProjects(ctx context.Context) ([]string, error) { return nil, nil }
-func (m *mockStore) RawMemoryExistsByPath(ctx context.Context, source string, project string, filePath string) (bool, error) {
-	return false, nil
-}
-func (m *mockStore) CountRawUnprocessedByPathPatterns(ctx context.Context, patterns []string) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) BulkMarkRawProcessedByPathPatterns(ctx context.Context, patterns []string) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) ArchiveMemoriesByRawPathPatterns(ctx context.Context, patterns []string) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) BatchWriteRaw(ctx context.Context, raws []store.RawMemory) error { return nil }
-func (m *mockStore) DeleteOldMetaObservations(_ context.Context, _ time.Time) (int, error) {
-	return 0, nil
-}
-
-// --- LLM usage tracking ---
-func (m *mockStore) RecordLLMUsage(_ context.Context, _ llm.LLMUsageRecord) error {
-	return nil
-}
-func (m *mockStore) GetLLMUsageSummary(_ context.Context, _ time.Time) (store.LLMUsageSummary, error) {
-	return store.LLMUsageSummary{}, nil
-}
-func (m *mockStore) GetLLMUsageLog(_ context.Context, _ int) ([]llm.LLMUsageRecord, error) {
-	return nil, nil
-}
-
-func (m *mockStore) Close() error { return nil }
 
 // ---------------------------------------------------------------------------
 // Mock LLM provider

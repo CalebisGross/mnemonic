@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/appsprout/mnemonic/internal/events"
-	"github.com/appsprout/mnemonic/internal/llm"
 	"github.com/appsprout/mnemonic/internal/store"
+	"github.com/appsprout/mnemonic/internal/store/storetest"
 )
 
 // ---------------------------------------------------------------------------
@@ -18,6 +18,7 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockStore struct {
+	storetest.MockStore
 	observations []store.MetaObservation
 	writtenObs   []store.MetaObservation
 	statistics   store.StoreStatistics
@@ -45,188 +46,6 @@ func (m *mockStore) WriteMetaObservation(_ context.Context, obs store.MetaObserv
 func (m *mockStore) GetStatistics(_ context.Context) (store.StoreStatistics, error) {
 	return m.statistics, nil
 }
-
-// --- All other store.Store methods (stubs) ---
-
-func (m *mockStore) WriteRaw(context.Context, store.RawMemory) error { return nil }
-func (m *mockStore) GetRaw(context.Context, string) (store.RawMemory, error) {
-	return store.RawMemory{}, nil
-}
-func (m *mockStore) ListRawUnprocessed(context.Context, int) ([]store.RawMemory, error) {
-	return nil, nil
-}
-func (m *mockStore) ListRawMemoriesAfter(context.Context, time.Time, int) ([]store.RawMemory, error) {
-	return nil, nil
-}
-func (m *mockStore) MarkRawProcessed(context.Context, string) error  { return nil }
-func (m *mockStore) WriteMemory(context.Context, store.Memory) error { return nil }
-func (m *mockStore) GetMemory(context.Context, string) (store.Memory, error) {
-	return store.Memory{}, nil
-}
-func (m *mockStore) GetMemoryByRawID(context.Context, string) (store.Memory, error) {
-	return store.Memory{}, nil
-}
-func (m *mockStore) UpdateMemory(context.Context, store.Memory) error      { return nil }
-func (m *mockStore) UpdateSalience(context.Context, string, float32) error { return nil }
-func (m *mockStore) UpdateState(context.Context, string, string) error     { return nil }
-func (m *mockStore) IncrementAccess(context.Context, string) error         { return nil }
-func (m *mockStore) ListMemories(context.Context, string, int, int) ([]store.Memory, error) {
-	return nil, nil
-}
-func (m *mockStore) CountMemories(context.Context) (int, error) { return 0, nil }
-func (m *mockStore) SearchByFullText(context.Context, string, int) ([]store.Memory, error) {
-	return nil, nil
-}
-func (m *mockStore) SearchByEmbedding(context.Context, []float32, int) ([]store.RetrievalResult, error) {
-	return nil, nil
-}
-func (m *mockStore) SearchByConcepts(context.Context, []string, int) ([]store.Memory, error) {
-	return nil, nil
-}
-func (m *mockStore) CreateAssociation(context.Context, store.Association) error { return nil }
-func (m *mockStore) GetAssociations(context.Context, string) ([]store.Association, error) {
-	return nil, nil
-}
-func (m *mockStore) UpdateAssociationStrength(context.Context, string, string, float32) error {
-	return nil
-}
-func (m *mockStore) UpdateAssociationType(context.Context, string, string, string) error {
-	return nil
-}
-func (m *mockStore) WriteRetrievalFeedback(context.Context, store.RetrievalFeedback) error {
-	return nil
-}
-func (m *mockStore) GetRetrievalFeedback(context.Context, string) (store.RetrievalFeedback, error) {
-	return store.RetrievalFeedback{}, nil
-}
-func (m *mockStore) ActivateAssociation(context.Context, string, string) error { return nil }
-func (m *mockStore) PruneWeakAssociations(context.Context, float32) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) BatchUpdateSalience(context.Context, map[string]float32) error { return nil }
-func (m *mockStore) BatchMergeMemories(context.Context, []string, store.Memory) error {
-	return nil
-}
-func (m *mockStore) DeleteOldArchived(context.Context, time.Time) (int, error) { return 0, nil }
-func (m *mockStore) WriteConsolidation(context.Context, store.ConsolidationRecord) error {
-	return nil
-}
-func (m *mockStore) GetLastConsolidation(context.Context) (store.ConsolidationRecord, error) {
-	return store.ConsolidationRecord{}, nil
-}
-func (m *mockStore) ListAllAssociations(context.Context) ([]store.Association, error) {
-	return nil, nil
-}
-func (m *mockStore) GetAssociationsForMemoryIDs(context.Context, []string) ([]store.Association, error) {
-	return nil, nil
-}
-func (m *mockStore) ListAllRawMemories(context.Context) ([]store.RawMemory, error) {
-	return nil, nil
-}
-func (m *mockStore) GetDeadMemories(context.Context, time.Time) ([]store.Memory, error) {
-	return nil, nil
-}
-func (m *mockStore) GetSourceDistribution(context.Context) (map[string]int, error) {
-	return nil, nil
-}
-func (m *mockStore) CreateEpisode(context.Context, store.Episode) error { return nil }
-func (m *mockStore) GetEpisode(context.Context, string) (store.Episode, error) {
-	return store.Episode{}, nil
-}
-func (m *mockStore) UpdateEpisode(context.Context, store.Episode) error { return nil }
-func (m *mockStore) ListEpisodes(context.Context, string, int, int) ([]store.Episode, error) {
-	return nil, nil
-}
-func (m *mockStore) GetOpenEpisode(context.Context) (store.Episode, error) {
-	return store.Episode{}, nil
-}
-func (m *mockStore) CloseEpisode(context.Context, string) error { return nil }
-func (m *mockStore) WriteMemoryResolution(context.Context, store.MemoryResolution) error {
-	return nil
-}
-func (m *mockStore) GetMemoryResolution(context.Context, string) (store.MemoryResolution, error) {
-	return store.MemoryResolution{}, nil
-}
-func (m *mockStore) WriteConceptSet(context.Context, store.ConceptSet) error { return nil }
-func (m *mockStore) GetConceptSet(context.Context, string) (store.ConceptSet, error) {
-	return store.ConceptSet{}, nil
-}
-func (m *mockStore) SearchByEntity(context.Context, string, string, int) ([]store.Memory, error) {
-	return nil, nil
-}
-func (m *mockStore) WriteMemoryAttributes(context.Context, store.MemoryAttributes) error {
-	return nil
-}
-func (m *mockStore) GetMemoryAttributes(context.Context, string) (store.MemoryAttributes, error) {
-	return store.MemoryAttributes{}, nil
-}
-func (m *mockStore) WritePattern(context.Context, store.Pattern) error { return nil }
-func (m *mockStore) GetPattern(context.Context, string) (store.Pattern, error) {
-	return store.Pattern{}, nil
-}
-func (m *mockStore) UpdatePattern(context.Context, store.Pattern) error { return nil }
-func (m *mockStore) ListPatterns(context.Context, string, int) ([]store.Pattern, error) {
-	return nil, nil
-}
-func (m *mockStore) SearchPatternsByEmbedding(context.Context, []float32, int) ([]store.Pattern, error) {
-	return nil, nil
-}
-func (m *mockStore) ArchiveAllPatterns(context.Context) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) WriteAbstraction(context.Context, store.Abstraction) error { return nil }
-func (m *mockStore) GetAbstraction(context.Context, string) (store.Abstraction, error) {
-	return store.Abstraction{}, nil
-}
-func (m *mockStore) UpdateAbstraction(context.Context, store.Abstraction) error { return nil }
-func (m *mockStore) ListAbstractions(context.Context, int, int) ([]store.Abstraction, error) {
-	return nil, nil
-}
-func (m *mockStore) SearchAbstractionsByEmbedding(context.Context, []float32, int) ([]store.Abstraction, error) {
-	return nil, nil
-}
-func (m *mockStore) ArchiveAllAbstractions(context.Context) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) SearchByProject(context.Context, string, string, int) ([]store.Memory, error) {
-	return nil, nil
-}
-func (m *mockStore) ListMemoriesByTimeRange(context.Context, time.Time, time.Time, int) ([]store.Memory, error) {
-	return nil, nil
-}
-func (m *mockStore) GetProjectSummary(context.Context, string) (map[string]interface{}, error) {
-	return nil, nil
-}
-func (m *mockStore) ListProjects(context.Context) ([]string, error) { return nil, nil }
-func (m *mockStore) RawMemoryExistsByPath(context.Context, string, string, string) (bool, error) {
-	return false, nil
-}
-func (m *mockStore) CountRawUnprocessedByPathPatterns(context.Context, []string) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) BulkMarkRawProcessedByPathPatterns(context.Context, []string) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) ArchiveMemoriesByRawPathPatterns(context.Context, []string) (int, error) {
-	return 0, nil
-}
-func (m *mockStore) BatchWriteRaw(context.Context, []store.RawMemory) error { return nil }
-func (m *mockStore) DeleteOldMetaObservations(_ context.Context, _ time.Time) (int, error) {
-	return 0, nil
-}
-
-// --- LLM usage tracking ---
-func (m *mockStore) RecordLLMUsage(_ context.Context, _ llm.LLMUsageRecord) error {
-	return nil
-}
-func (m *mockStore) GetLLMUsageSummary(_ context.Context, _ time.Time) (store.LLMUsageSummary, error) {
-	return store.LLMUsageSummary{}, nil
-}
-func (m *mockStore) GetLLMUsageLog(_ context.Context, _ int) ([]llm.LLMUsageRecord, error) {
-	return nil, nil
-}
-
-func (m *mockStore) Close() error { return nil }
 
 // ---------------------------------------------------------------------------
 // Helper: synchronous bus for deterministic tests
