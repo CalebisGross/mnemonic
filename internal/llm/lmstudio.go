@@ -165,15 +165,15 @@ type openAIJSONSchema struct {
 
 // openAICompletionRequest is the request format for the OpenAI-compatible chat completion API.
 type openAICompletionRequest struct {
-	Model            string                `json:"model"`
-	Messages         []openAIMessage       `json:"messages"`
-	MaxTokens        int                   `json:"max_tokens,omitempty"`
-	Temperature      float32               `json:"temperature,omitempty"`
-	TopP             float32               `json:"top_p,omitempty"`
-	Stop             []string              `json:"stop,omitempty"`
-	Tools            []openAITool          `json:"tools,omitempty"`
-	ResponseFormat   *openAIResponseFormat `json:"response_format,omitempty"`
-	ReasoningEffort  string                `json:"reasoning_effort,omitempty"`
+	Model           string                `json:"model"`
+	Messages        []openAIMessage       `json:"messages"`
+	MaxTokens       int                   `json:"max_tokens,omitempty"`
+	Temperature     float32               `json:"temperature,omitempty"`
+	TopP            float32               `json:"top_p,omitempty"`
+	Stop            []string              `json:"stop,omitempty"`
+	Tools           []openAITool          `json:"tools,omitempty"`
+	ResponseFormat  *openAIResponseFormat `json:"response_format,omitempty"`
+	ReasoningEffort string                `json:"reasoning_effort,omitempty"`
 }
 
 // openAIChoice represents a single choice in a completion response.

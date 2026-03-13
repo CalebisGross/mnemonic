@@ -35,6 +35,7 @@ type EncodingAgent struct {
 	cancel               context.CancelFunc
 	wg                   sync.WaitGroup
 	subscriptionID       string
+	classificationSubID  string
 	pollingStopChan      chan struct{}
 	stopOnce             sync.Once
 	processingMutex      sync.Mutex
@@ -231,7 +232,7 @@ func (ea *EncodingAgent) Start(ctx context.Context, bus events.Bus) error {
 
 	// Subscribe to background LLM classification if enabled
 	if ea.config.EnableLLMClassification {
-		bus.Subscribe(events.TypeAssociationsPendingClassification, ea.handleAssociationClassification)
+		ea.classificationSubID = bus.Subscribe(events.TypeAssociationsPendingClassification, ea.handleAssociationClassification)
 		ea.log.Info("LLM association classification enabled", "agent", ea.name)
 	}
 
@@ -252,6 +253,9 @@ func (ea *EncodingAgent) Stop() error {
 		// Unsubscribe from events
 		if ea.bus != nil && ea.subscriptionID != "" {
 			ea.bus.Unsubscribe(ea.subscriptionID)
+		}
+		if ea.bus != nil && ea.classificationSubID != "" {
+			ea.bus.Unsubscribe(ea.classificationSubID)
 		}
 
 		// Stop the polling loop
@@ -291,8 +295,13 @@ func (ea *EncodingAgent) handleRawMemoryCreated(ctx context.Context, event event
 		return fmt.Errorf("invalid event type: expected RawMemoryCreated")
 	}
 
-	// Prevent duplicate processing
+	// Respect backoff period — if the LLM is down, let polling handle retries
 	ea.processingMutex.Lock()
+	if !ea.backoffUntil.IsZero() && time.Now().Before(ea.backoffUntil) {
+		ea.processingMutex.Unlock()
+		return nil // polling will pick this up after backoff expires
+	}
+	// Prevent duplicate processing
 	if ea.processingMemories[e.ID] {
 		ea.processingMutex.Unlock()
 		return nil
@@ -330,10 +339,19 @@ func (ea *EncodingAgent) handleRawMemoryCreated(ctx context.Context, event event
 				ea.log.Warn("encoding permanently failed from event, marking as processed",
 					"raw_id", e.ID, "attempts", count, "error", err)
 				_ = ea.store.MarkRawProcessed(ea.ctx, e.ID)
+				// Clean up failure tracking to prevent unbounded map growth
+				ea.processingMutex.Lock()
+				delete(ea.failureCounts, e.ID)
+				ea.processingMutex.Unlock()
 			} else {
 				ea.log.Warn("encoding failed from event, polling will retry",
 					"raw_id", e.ID, "attempt", count, "error", err)
 			}
+		} else {
+			// Success — clean up any prior failure tracking for this ID
+			ea.processingMutex.Lock()
+			delete(ea.failureCounts, e.ID)
+			ea.processingMutex.Unlock()
 		}
 	}()
 
@@ -409,6 +427,7 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 		ea.processingMutex.Lock()
 		retries := ea.failureCounts[raw.ID]
 		if retries >= maxRetries {
+			delete(ea.failureCounts, raw.ID) // clean up stale entry
 			ea.processingMutex.Unlock()
 			continue
 		}
@@ -436,6 +455,10 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 					"raw_id", raw.ID, "attempts", count, "error", err)
 				// Mark as processed so it stops retrying
 				_ = ea.store.MarkRawProcessed(ctx, raw.ID)
+				// Clean up failure tracking to prevent unbounded map growth
+				ea.processingMutex.Lock()
+				delete(ea.failureCounts, raw.ID)
+				ea.processingMutex.Unlock()
 			} else {
 				ea.log.Warn("encoding failed, will retry later",
 					"raw_id", raw.ID, "attempt", count, "max", maxRetries, "error", err)
@@ -689,12 +712,18 @@ const maxLLMContentChars = 8000
 // Roughly ~500 tokens, well under the 2048 token limit of small embedding models.
 const maxEmbeddingChars = 4000
 
-// truncateContent truncates a string to maxChars, adding "..." if truncated.
+// truncateContent truncates a string to maxChars characters, adding "..." if truncated.
+// Uses rune-aware slicing to avoid splitting multi-byte UTF-8 characters.
 func truncateContent(content string, maxChars int) string {
 	if len(content) <= maxChars {
+		// Fast path: byte length fits, so rune count fits too.
 		return content
 	}
-	return content[:maxChars] + "..."
+	runes := []rune(content)
+	if len(runes) <= maxChars {
+		return content
+	}
+	return string(runes[:maxChars]) + "..."
 }
 
 // stripHTMLTags removes HTML/XML tags and collapses whitespace to extract readable text.
@@ -785,11 +814,39 @@ func extractJSON(s string) string {
 		}
 	}
 
-	// Find the first '{' and last '}' — extract the outermost JSON object
+	// Find the first '{' and its matching '}' using brace counting
 	first := strings.Index(s, "{")
-	last := strings.LastIndex(s, "}")
-	if first != -1 && last > first {
-		return s[first : last+1]
+	if first != -1 {
+		depth := 0
+		inString := false
+		escaped := false
+		for i := first; i < len(s); i++ {
+			if escaped {
+				escaped = false
+				continue
+			}
+			ch := s[i]
+			if ch == '\\' && inString {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = !inString
+				continue
+			}
+			if inString {
+				continue
+			}
+			if ch == '{' {
+				depth++
+			} else if ch == '}' {
+				depth--
+				if depth == 0 {
+					return s[first : i+1]
+				}
+			}
+		}
+		// Unbalanced — fall through
 	}
 
 	return s
@@ -850,8 +907,8 @@ func (ea *EncodingAgent) compressAndExtractConcepts(ctx context.Context, raw sto
 	if result.Summary == "" {
 		result.Summary = truncateContent(processedContent, 100)
 	}
-	if len(result.Summary) > 100 {
-		result.Summary = result.Summary[:100]
+	if r := []rune(result.Summary); len(r) > 100 {
+		result.Summary = string(r[:100])
 	}
 	if result.Content == "" {
 		result.Content = truncatedContent
@@ -1002,8 +1059,8 @@ func (ea *EncodingAgent) fallbackCompression(raw store.RawMemory) *compressionRe
 			summary = fmt.Sprintf("File activity (%s, %s)", raw.Source, raw.Type)
 		}
 	}
-	if len(summary) > 80 {
-		summary = summary[:80]
+	if r := []rune(summary); len(r) > 80 {
+		summary = string(r[:80])
 	}
 
 	// Extract basic concepts from the content
@@ -1452,10 +1509,16 @@ func joinConcepts(concepts []string) string {
 	return strings.Join(concepts, ", ")
 }
 
-// truncateString truncates a string to maxLen.
+// truncateString truncates a string to maxLen characters.
+// Uses rune-aware slicing to avoid splitting multi-byte UTF-8 characters.
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
+		// Fast path: byte length fits, so rune count fits too.
 		return s
 	}
-	return s[:maxLen] + "..."
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen]) + "..."
 }

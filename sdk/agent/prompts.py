@@ -223,7 +223,10 @@ def assemble_system_prompt(evolution_dir: str) -> str:
 
     parts = [BASE_PROMPT]
 
-    evo = Path(evolution_dir)
+    evo = Path(evolution_dir).resolve()
+
+    # Tell the agent exactly where its evolution files live
+    parts.append(f"## Evolution Directory\nYour evolution files are at: `{evo}/`\nWhen reading or writing evolution files, use this absolute path.")
 
     # Inject learned principles (filtered by confidence, capped)
     principles_file = evo / "principles.yaml"
@@ -272,7 +275,7 @@ def assemble_system_prompt(evolution_dir: str) -> str:
     if patches_file.exists():
         try:
             data = yaml.safe_load(patches_file.read_text()) or {}
-            patches = data.get("patches", [])[:_PATCHES_MAX]
+            patches = (data.get("patches") or data.get("prompt_patches") or [])[:_PATCHES_MAX]
             if patches:
                 lines = ["## Additional Instructions"]
                 for patch in patches:

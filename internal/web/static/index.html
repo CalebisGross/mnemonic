@@ -1061,7 +1061,7 @@
         .agent-memory-stat .stat-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
 
         /* ── Agent Chat ── */
-        .agent-chat-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-top: 16px; display: flex; flex-direction: column; height: 600px; }
+        .agent-chat-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-top: 16px; display: flex; flex-direction: column; height: 700px; min-height: 300px; max-height: 90vh; resize: vertical; overflow: hidden; }
         .agent-chat-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; gap: 8px; }
         .agent-chat-header-left { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
         .agent-chat-header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
@@ -1115,14 +1115,14 @@
         .chat-tool-pill.expanded { background: color-mix(in srgb, var(--accent-violet) 14%, transparent); border-color: color-mix(in srgb, var(--accent-violet) 25%, transparent); }
         .chat-tool-pill .tool-icon { font-size: 0.6rem; opacity: 0.6; transition: transform 0.15s; }
         .chat-tool-pill.expanded .tool-icon { transform: rotate(90deg); }
-        .chat-tool-detail { display: none; flex-basis: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 8px; font-size: 0.72rem; font-family: 'SF Mono', 'Fira Code', monospace; background: color-mix(in srgb, var(--accent-violet) 5%, var(--bg-primary)); border: 1px solid color-mix(in srgb, var(--accent-violet) 12%, transparent); color: var(--text-secondary); max-height: 300px; overflow-y: auto; }
+        .chat-tool-detail { display: none; width: 100%; margin-top: 6px; padding: 12px 14px; border-radius: 8px; font-size: 0.82rem; line-height: 1.5; font-family: 'SF Mono', 'Fira Code', monospace; background: color-mix(in srgb, var(--accent-violet) 5%, var(--bg-primary)); border: 1px solid color-mix(in srgb, var(--accent-violet) 12%, transparent); color: var(--text-secondary); max-height: 400px; min-height: 60px; overflow-y: auto; flex-shrink: 0; box-sizing: border-box; }
         .chat-tool-detail.visible { display: block; }
-        .chat-tool-detail pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
-        .tool-detail-section { margin-bottom: 6px; }
+        .chat-tool-detail pre { white-space: pre-wrap; word-break: break-word; margin: 0; font-size: inherit; line-height: inherit; }
+        .tool-detail-section { margin-bottom: 10px; }
         .tool-detail-section:last-child { margin-bottom: 0; }
-        .tool-detail-label { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-violet); margin-bottom: 2px; }
+        .tool-detail-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-violet); margin-bottom: 4px; }
         .chat-tool-pill.tool-error { border-color: var(--accent-red, #e55); color: var(--accent-red, #e55); }
-        .chat-tool-row { display: flex; flex-wrap: wrap; gap: 4px; align-self: flex-start; }
+        .chat-tool-row { display: flex; flex-wrap: wrap; gap: 4px; align-self: flex-start; flex-shrink: 0; }
         .chat-streaming::after { content: '\25CB'; animation: blink 1s step-start infinite; margin-left: 2px; }
         @keyframes blink { 50% { opacity: 0; } }
         .agent-chat-input-row { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
@@ -1155,7 +1155,7 @@
             .agent-view { padding: 12px 16px; }
             .agent-header { flex-direction: column; align-items: flex-start; gap: 8px; }
             .agent-memory-bar { grid-template-columns: 1fr 1fr; }
-            .agent-chat-panel { height: 450px; }
+            .agent-chat-panel { height: 500px; }
             .llm-view { padding: 12px 16px; }
             .llm-cards { grid-template-columns: repeat(3, 1fr); }
             .llm-grid { grid-template-columns: 1fr; }
@@ -2851,6 +2851,7 @@
             detail.innerHTML = html;
             toolRow.parentNode.insertBefore(detail, toolRow.nextSibling);
             pill.classList.add('expanded');
+            detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
         scrollChatBottom();
     }
@@ -3146,9 +3147,12 @@
         sessions.slice().reverse().forEach(function(s) {
             var sessionCost = (s.tasks || []).reduce(function(sum, t) { return sum + (t.cost_usd || 0); }, 0);
             var sessionDate = s.started ? new Date(s.started).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+            // Use first task description as session label instead of opaque ID
+            var firstTask = (s.tasks || [])[0];
+            var sessionLabel = (firstTask && firstTask.description) ? firstTask.description.substring(0, 60) : (s.id || '?');
             html += '<div class="session-group">';
             html += '<div class="session-group-header">' +
-                '<span class="session-group-id">' + escapeHtml(s.id || '?') + '</span>' +
+                '<span class="session-group-id" title="' + escapeHtml(s.id || '') + '">' + escapeHtml(sessionLabel) + '</span>' +
                 '<span class="session-group-model">' + escapeHtml(s.model || '?') + '</span>' +
                 '<span class="session-group-cost">$' + sessionCost.toFixed(2) + '</span>' +
                 '<span class="session-group-date">' + escapeHtml(sessionDate) + '</span>' +

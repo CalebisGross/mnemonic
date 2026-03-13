@@ -75,13 +75,18 @@ func HandleAgentEvolution(evolutionDir string, log *slog.Logger) http.HandlerFun
 			}
 		}
 
-		// Read patches
+		// Read patches (supports both "patches" and "prompt_patches" YAML keys)
 		if data, err := os.ReadFile(filepath.Join(evolutionDir, "prompt_patches.yaml")); err == nil {
 			var doc struct {
-				Patches []patch `yaml:"patches"`
+				Patches       []patch `yaml:"patches"`
+				PromptPatches []patch `yaml:"prompt_patches"`
 			}
-			if err := yaml.Unmarshal(data, &doc); err == nil && doc.Patches != nil {
-				resp.Patches = doc.Patches
+			if err := yaml.Unmarshal(data, &doc); err == nil {
+				if doc.Patches != nil {
+					resp.Patches = doc.Patches
+				} else if doc.PromptPatches != nil {
+					resp.Patches = doc.PromptPatches
+				}
 			}
 		}
 
@@ -144,6 +149,21 @@ func HandleAgentChangelog(evolutionDir string, log *slog.Logger) http.HandlerFun
 					Date:  currentDate,
 					Title: strings.TrimPrefix(trimmed, "### "),
 				}
+			} else if strings.HasPrefix(trimmed, "**") && strings.Contains(trimmed, "**") && currentDate != "" {
+				// Bold lines also serve as entry titles (common changelog format)
+				if currentEntry != nil {
+					resp.Entries = append(resp.Entries, *currentEntry)
+				}
+				title := trimmed
+				// Strip leading/trailing ** markers
+				title = strings.TrimPrefix(title, "**")
+				if idx := strings.Index(title, "**"); idx >= 0 {
+					title = title[:idx]
+				}
+				currentEntry = &changelogEntry{
+					Date:  currentDate,
+					Title: strings.TrimSpace(title),
+				}
 			} else if currentEntry != nil && trimmed != "" {
 				// Accumulate rationale text
 				text := strings.TrimPrefix(trimmed, "- ")
@@ -184,6 +204,7 @@ type taskRecord struct {
 	CostUSD     float64 `json:"cost_usd"`
 	Turns       int     `json:"turns"`
 	Evolved     bool    `json:"evolved"`
+	ConvID      string  `json:"conv_id,omitempty"`
 }
 
 type sessionStats struct {

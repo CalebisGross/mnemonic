@@ -32,3 +32,4 @@ sdk/agent/evolution/conversations/
 .claude/settings.local.json
 .claude/plans/
 .claude/projects/
+sdk/agent/evolution/.decay_stamp

@@ -138,6 +138,7 @@ def _record_task(
     cost_usd: float,
     turns: int,
     evolved: bool,
+    conv_id: str | None = None,
 ) -> None:
     """Append a task record to sessions.json."""
     sessions_path = Path(evolution_dir) / "sessions.json"
@@ -167,14 +168,17 @@ def _record_task(
         data["sessions"].append(current_session)
 
     # Append task
-    current_session["tasks"].append({
+    task_entry: dict = {
         "description": description[:200],
         "started": started,
         "duration_ms": duration_ms,
         "cost_usd": round(cost_usd, 6),
         "turns": turns,
         "evolved": evolved,
-    })
+    }
+    if conv_id:
+        task_entry["conv_id"] = conv_id
+    current_session["tasks"].append(task_entry)
 
     # Rotate: keep only the most recent MAX_SESSIONS sessions
     if len(data["sessions"]) > MAX_SESSIONS:
@@ -233,6 +237,7 @@ async def _orchestrate_task(
     main_stream_fn: Callable,
     side_stream_fn: Callable | None = None,
     on_phase: Callable | None = None,
+    conv_id: str | None = None,
 ) -> TaskMetrics:
     """Shared task orchestration: pre-task recall → main → post-task reflect → telemetry.
 
@@ -297,6 +302,7 @@ async def _orchestrate_task(
         cost_usd=total.cost_usd,
         turns=total.turns,
         evolved=evolved,
+        conv_id=conv_id,
     )
     return total
 

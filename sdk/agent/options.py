@@ -3,7 +3,7 @@ from __future__ import annotations
 from claude_agent_sdk import ClaudeAgentOptions, HookMatcher
 
 from agent.config import Config
-from agent.hooks import post_tool_use_hook
+from agent.hooks import make_post_tool_use_hook
 from agent.prompts import assemble_system_prompt
 from agent.subagents import make_subagents
 from agent.tools import ALL_MNEMONIC_TOOLS, BUILTIN_TOOLS
@@ -33,7 +33,7 @@ def build_options(cfg: Config) -> ClaudeAgentOptions:
         "model": cfg.model,
         "hooks": {
             "PostToolUse": [
-                HookMatcher(matcher=None, hooks=[post_tool_use_hook]),
+                HookMatcher(matcher=None, hooks=[make_post_tool_use_hook()]),
             ],
         },
         "agents": make_subagents(cfg.subagent_model),
