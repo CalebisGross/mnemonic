@@ -2819,13 +2819,15 @@
     function escapeHtml(str) { if (!str) return ''; var div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
     function toggleToolDetail(e) {
         var pill = e.currentTarget;
-        var input = pill.getAttribute('data-tool-input');
-        var result = pill.getAttribute('data-tool-result');
+        var toolId = pill.getAttribute('data-tool-use-id');
+        var entry = toolId ? toolDataMap.get(toolId) : null;
+        var input = entry ? entry.input : null;
+        var result = entry ? entry.result : null;
         if (!input && !result) return;
         // The detail panel lives after the tool-row, not after the pill
         var toolRow = pill.closest('.chat-tool-row') || pill.parentNode;
         var existing = toolRow.nextElementSibling;
-        if (existing && existing.classList.contains('chat-tool-detail') && existing.getAttribute('data-for') === pill.getAttribute('data-tool-use-id')) {
+        if (existing && existing.classList.contains('chat-tool-detail') && existing.getAttribute('data-for') === toolId) {
             existing.classList.toggle('visible');
             pill.classList.toggle('expanded');
         } else {
@@ -2836,8 +2838,8 @@
             }
             var detail = document.createElement('div');
             detail.className = 'chat-tool-detail visible';
-            if (pill.getAttribute('data-tool-use-id')) {
-                detail.setAttribute('data-for', pill.getAttribute('data-tool-use-id'));
+            if (toolId) {
+                detail.setAttribute('data-for', toolId);
             }
             var html = '';
             if (input) {
@@ -3226,6 +3228,8 @@
 
     // ── Agent Chat ──
     var agentChat = { ws: null, connected: false, busy: false, wsUrl: null, currentBubble: null, reconnectTimer: null, currentConvId: null };
+    // Store tool input/result data in a Map keyed by tool_use_id to avoid DOM bloat from large data-attributes
+    var toolDataMap = new Map();
 
     function initAgentChat(webPort) {
         if (!webPort || webPort === 0) return;
@@ -3309,12 +3313,12 @@
                 var pill = document.createElement('div');
                 pill.className = 'chat-tool-pill';
                 pill.innerHTML = '<span class="tool-icon">\u25B6</span>' + escapeHtml(toolName);
-                if (toolInput) {
-                    pill.setAttribute('data-tool-input', toolInput);
-                    pill.addEventListener('click', toggleToolDetail);
-                }
                 if (msg.tool_use_id) {
                     pill.setAttribute('data-tool-use-id', msg.tool_use_id);
+                    if (toolInput) {
+                        toolDataMap.set(msg.tool_use_id, { input: toolInput, result: null });
+                    }
+                    pill.addEventListener('click', toggleToolDetail);
                 }
                 // Group consecutive tool pills in a flex row
                 var lastChild = container.lastElementChild;
@@ -3330,11 +3334,18 @@
                 scrollChatBottom();
                 break;
             case 'tool_result':
-                // Attach result to the matching tool pill
-                var targetPill = container.querySelector('.chat-tool-pill[data-tool-use-id="' + msg.tool_use_id + '"]');
-                if (targetPill) {
-                    targetPill.setAttribute('data-tool-result', msg.content || '');
-                    if (msg.is_error) targetPill.classList.add('tool-error');
+                // Store result in the Map; mark pill as error if needed
+                if (msg.tool_use_id) {
+                    var existing = toolDataMap.get(msg.tool_use_id);
+                    if (existing) {
+                        existing.result = msg.content || '';
+                    } else {
+                        toolDataMap.set(msg.tool_use_id, { input: null, result: msg.content || '' });
+                    }
+                    if (msg.is_error) {
+                        var targetPill = container.querySelector('.chat-tool-pill[data-tool-use-id="' + msg.tool_use_id + '"]');
+                        if (targetPill) targetPill.classList.add('tool-error');
+                    }
                 }
                 break;
             case 'status':
@@ -3493,6 +3504,7 @@
     function displayLoadedConversation(conv) {
         var container = document.getElementById('chatMessages');
         container.innerHTML = '';
+        toolDataMap.clear();
         agentChat.currentConvId = conv.id;
         agentChat.currentBubble = null;
         document.getElementById('chatTitle').textContent = conv.title || 'Conversation';
@@ -3505,13 +3517,15 @@
             } else if (m.role === 'tool_use') {
                 var toolName = (m.name || '').replace(/^mcp__mnemonic__/, '').replace(/^mcp__/, '');
                 var toolInput = m.input || '';
+                var toolId = m.tool_use_id || ('hist-' + Math.random().toString(36).slice(2, 10));
                 var row = document.createElement('div');
                 row.className = 'chat-tool-row';
                 var pill = document.createElement('div');
                 pill.className = 'chat-tool-pill';
                 pill.innerHTML = '<span class="tool-icon">\u25B6</span>' + escapeHtml(toolName);
+                pill.setAttribute('data-tool-use-id', toolId);
                 if (toolInput) {
-                    pill.setAttribute('data-tool-input', toolInput);
+                    toolDataMap.set(toolId, { input: toolInput, result: null });
                     pill.addEventListener('click', toggleToolDetail);
                 }
                 row.appendChild(pill);
@@ -3540,6 +3554,7 @@
     function startNewConversation() {
         if (!agentChat.connected || agentChat.busy) return;
         document.getElementById('chatMessages').innerHTML = '';
+        toolDataMap.clear();
         document.getElementById('chatHistoryPanel').style.display = 'none';
         agentChat.currentBubble = null;
         agentChat.ws.send(JSON.stringify({ type: 'new_conversation' }));

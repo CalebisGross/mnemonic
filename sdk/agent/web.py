@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 import uuid
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -71,6 +72,8 @@ async def _stream_to_ws(
     # SDK sends full text (not deltas) for each AssistantMessage,
     # so we replace rather than accumulate.
     current_turn_text = ""
+    # Throttle disk writes during streaming — save at most every 3 seconds.
+    _last_flush = 0.0
 
     try:
         async for event_type, data in stream_events(client):
@@ -78,6 +81,14 @@ async def _stream_to_ws(
                 await _send(ws, {"type": "text", "content": data})
                 # Replace — SDK text blocks contain the full turn text
                 current_turn_text = data
+                # Throttled persistence: flush to disk at most every 3s
+                now = time.monotonic()
+                if store and conv_id and now - _last_flush >= 3.0:
+                    store.upsert_assistant_message(
+                        conv_id, current_turn_text,
+                        datetime.now(timezone.utc).isoformat(),
+                    )
+                    _last_flush = now
             elif event_type == "thinking":
                 if data:
                     await _send(ws, {"type": "thinking", "summary": data})
