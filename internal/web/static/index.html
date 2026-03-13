@@ -1557,6 +1557,8 @@
         TOKEN: new URLSearchParams(window.location.search).get('token') || '',
     };
 
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
     // Wrapper for fetch that adds auth header when token is configured
     function apiFetch(url, opts) {
         opts = opts || {};
@@ -1564,6 +1566,30 @@
             opts.headers = Object.assign({}, opts.headers, { 'Authorization': 'Bearer ' + CONFIG.TOKEN });
         }
         return fetch(url, opts);
+    }
+
+    // Fetch JSON helper — calls apiFetch, checks response, parses JSON
+    async function fetchJSON(path, opts) {
+        var resp = await apiFetch(CONFIG.API_BASE + path, opts);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
+        return resp.json();
+    }
+
+    // Generate an array of day buckets for the last N days (for D3 charts)
+    function makeDayBuckets(days, extraFields) {
+        var now = new Date();
+        var dayMs = 86400000;
+        var buckets = [];
+        for (var i = days - 1; i >= 0; i--) {
+            var d = new Date(now.getTime() - i * dayMs);
+            d.setHours(0, 0, 0, 0);
+            var bucket = { date: d, idx: days - 1 - i };
+            if (extraFields) {
+                for (var k in extraFields) { bucket[k] = extraFields[k]; }
+            }
+            buckets.push(bucket);
+        }
+        return buckets;
     }
 
     // ── View Switching ──
@@ -1732,8 +1758,7 @@
     }
 
     async function loadEpisodes(section) {
-        var resp = await apiFetch(CONFIG.API_BASE + '/episodes?limit=50');
-        var data = await resp.json();
+        var data = await fetchJSON('/episodes?limit=50');
         var episodes = data.episodes || [];
         if (episodes.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128218;</div><div class="empty-state-text">No episodes yet</div><div class="empty-state-sub">Episodes are created as memories accumulate</div></div>'; return; }
         section.innerHTML = episodes.map(function(ep) {
@@ -1772,8 +1797,7 @@
     }
 
     async function loadMemories(section) {
-        var resp = await apiFetch(CONFIG.API_BASE + '/memories?limit=50&state=active');
-        var data = await resp.json();
+        var data = await fetchJSON('/memories?limit=50&state=active');
         var memories = data.memories || [];
         if (memories.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#129504;</div><div class="empty-state-text">No memories yet</div><div class="empty-state-sub">Use the Remember panel to add your first memory</div></div>'; return; }
         section.innerHTML = memories.map(function(m) {
@@ -1866,15 +1890,14 @@
     }
 
     async function loadPatterns(section) {
-        var resp = await apiFetch(CONFIG.API_BASE + '/patterns?limit=20');
-        var data = await resp.json();
+        var data = await fetchJSON('/patterns?limit=20');
         var patterns = data.patterns || [];
         if (patterns.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128200;</div><div class="empty-state-text">No patterns discovered yet</div><div class="empty-state-sub">Patterns emerge after consolidation cycles</div></div>'; return; }
         section.innerHTML = patterns.map(function(p) {
             var strengthPct = Math.round((p.strength || 0) * 100);
             var concepts = (p.concepts || []).slice(0, 5);
             var evidenceCount = (p.evidence_ids || []).length;
-            var age = p.created_at ? timeAgo(p.created_at) : '';
+            var age = p.created_at ? relativeTime(p.created_at) : '';
             var html = '<div class="pattern-card"><div class="pattern-title">' + escapeHtml(p.title || 'Untitled');
             if (p.project) html += ' <span style="color:var(--accent-blue);font-size:0.8rem">[' + escapeHtml(p.project) + ']</span>';
             html += '</div><span class="badge badge-type">' + escapeHtml(p.pattern_type || 'pattern') + '</span>';
@@ -1892,8 +1915,7 @@
     }
 
     async function loadAbstractions(section) {
-        var resp = await apiFetch(CONFIG.API_BASE + '/abstractions?limit=20');
-        var data = await resp.json();
+        var data = await fetchJSON('/abstractions?limit=20');
         var abstractions = data.abstractions || [];
         if (abstractions.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128161;</div><div class="empty-state-text">No abstractions yet</div><div class="empty-state-sub">Abstractions form from patterns during dream cycles</div></div>'; return; }
         section.innerHTML = abstractions.map(function(a) {
@@ -1901,7 +1923,7 @@
             var confPct = Math.round((a.confidence || 0) * 100);
             var concepts = (a.concepts || []).slice(0, 5);
             var sourceCount = (a.source_pattern_ids || []).length;
-            var age = a.created_at ? timeAgo(a.created_at) : '';
+            var age = a.created_at ? relativeTime(a.created_at) : '';
             var html = '<div class="abstraction-card"><div class="abstraction-title">' + escapeHtml(a.title || 'Untitled');
             html += ' <span class="badge badge-level">' + levelLabel + '</span>';
             if (a.state && a.state !== 'active') html += ' <span class="badge" style="background:var(--warning-bg);color:var(--warning-text)">' + escapeHtml(a.state) + '</span>';
@@ -2259,12 +2281,7 @@
 
         var now = new Date();
         var dayMs = 86400000;
-        var buckets = [];
-        for (var i = 29; i >= 0; i--) {
-            var dayStart = new Date(now.getTime() - i * dayMs);
-            dayStart.setHours(0, 0, 0, 0);
-            buckets.push({ date: dayStart, count: 0, idx: 29 - i });
-        }
+        var buckets = makeDayBuckets(30, { count: 0 });
         items.forEach(function(item) {
             var d = new Date(item._date);
             d.setHours(0, 0, 0, 0);
@@ -2301,9 +2318,8 @@
 
         var dayFilter = _timelineState.dayFilter;
 
-        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         function fmtDate(d) {
-            return months[d.getMonth()] + ' ' + d.getDate();
+            return MONTHS[d.getMonth()] + ' ' + d.getDate();
         }
 
         // Hit-area rects (full height, transparent) for easy hover/click
@@ -2445,8 +2461,7 @@
 
     async function loadInsights() {
         try {
-            var resp = await apiFetch(CONFIG.API_BASE + '/insights');
-            var data = await resp.json();
+            var data = await fetchJSON('/insights');
             var observations = data.observations || [];
             var container = document.getElementById('insightsContainer');
             if (observations.length === 0) { container.innerHTML = '<div style="padding:8px;font-size:0.8rem;color:var(--text-dim)">No insights yet</div>'; return; }
@@ -2486,8 +2501,7 @@
     // ── Projects ──
     async function loadProjects() {
         try {
-            var resp = await apiFetch(CONFIG.API_BASE + '/projects');
-            var data = await resp.json();
+            var data = await fetchJSON('/projects');
             state.projectList = data.projects || [];
             var select = document.getElementById('rememberProject');
             state.projectList.forEach(function(p) {
@@ -2574,8 +2588,7 @@
     async function loadLLMUsage() {
         try {
             var limit = _llmRange === '168h' ? 500 : 200;
-            var resp = await apiFetch(CONFIG.API_BASE + '/llm/usage?since=' + _llmRange + '&limit=' + limit);
-            var data = await resp.json();
+            var data = await fetchJSON('/llm/usage?since=' + _llmRange + '&limit=' + limit);
             state.llmLoaded = true;
 
             var s = data.summary || {};
@@ -2855,22 +2868,9 @@
         }
         scrollChatBottom();
     }
-    function timeAgo(dateStr) {
-        if (!dateStr) return '';
-        var d = new Date(dateStr);
-        var now = new Date();
-        var sec = Math.floor((now - d) / 1000);
-        if (sec < 60) return 'just now';
-        var min = Math.floor(sec / 60);
-        if (min < 60) return min + 'm ago';
-        var hr = Math.floor(min / 60);
-        if (hr < 24) return hr + 'h ago';
-        var days = Math.floor(hr / 24);
-        if (days < 30) return days + 'd ago';
-        return Math.floor(days / 30) + 'mo ago';
-    }
-
-    function relativeTime(date) {
+    function relativeTime(input) {
+        if (!input) return '';
+        var date = input instanceof Date ? input : new Date(input);
         var diff = Date.now() - date.getTime();
         if (diff < 60000) return 'just now';
         if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
@@ -2977,12 +2977,7 @@
 
         var now = new Date();
         var dayMs = 86400000;
-        var buckets = [];
-        for (var i = 29; i >= 0; i--) {
-            var d = new Date(now.getTime() - i * dayMs);
-            d.setHours(0, 0, 0, 0);
-            buckets.push({ idx: 29 - i, date: d, tasks: 0, turns: 0 });
-        }
+        var buckets = makeDayBuckets(30, { tasks: 0, turns: 0 });
         sessions.forEach(function(s) {
             (s.tasks || []).forEach(function(t) {
                 if (!t.started) return;
@@ -2996,7 +2991,6 @@
             });
         });
 
-        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         var maxTasks = Math.max.apply(null, buckets.map(function(b) { return b.tasks; })) || 1;
         var w = container.clientWidth || 400;
         var h = 140;
@@ -3013,7 +3007,7 @@
         g.append('g').attr('transform', 'translate(0,' + ih + ')')
             .call(d3.axisBottom(x)
                 .tickValues(buckets.filter(function(b) { return b.idx % 7 === 0; }).map(function(b) { return b.idx; }))
-                .tickFormat(function(i) { var d = buckets[i].date; return months[d.getMonth()] + ' ' + d.getDate(); }))
+                .tickFormat(function(i) { var d = buckets[i].date; return MONTHS[d.getMonth()] + ' ' + d.getDate(); }))
             .selectAll('text').attr('fill', 'var(--text-dim)').style('font-size', '10px');
         g.append('g').call(d3.axisLeft(y).ticks(Math.min(maxTasks, 4)).tickFormat(d3.format('d')))
             .selectAll('text').attr('fill', 'var(--text-dim)').style('font-size', '10px');
@@ -3034,7 +3028,7 @@
             .attr('fill', 'transparent')
             .on('mouseover', function(event, b) {
                 if (b.tasks === 0) return;
-                tooltip.textContent = months[b.date.getMonth()] + ' ' + b.date.getDate() + ' · ' + b.tasks + ' task' + (b.tasks === 1 ? '' : 's') + ' · ' + b.turns + ' turns';
+                tooltip.textContent = MONTHS[b.date.getMonth()] + ' ' + b.date.getDate() + ' · ' + b.tasks + ' task' + (b.tasks === 1 ? '' : 's') + ' · ' + b.turns + ' turns';
                 tooltip.style.display = 'block';
                 var bx = margin.left + x(b.idx) + x.bandwidth() / 2;
                 var ttLeft = bx + 8;
