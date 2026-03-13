@@ -4,6 +4,48 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2025-03-13
+
+### Added
+
+- Multi-theme dashboard selector: Midnight, Ember, Nord, Slate, Parchment (persists in localStorage)
+- Live-updating dashboard with real-time data refresh via WebSocket
+- Memory source tracking with hoverable tags in timeline
+- LLM usage monitoring with per-agent token tracking and dashboard display
+- Gemini API support with API key authentication (any OpenAI-compatible provider)
+- Optional bearer token API authentication (`mnemonic generate-token`)
+- Project ingestion system (CLI `ingest`, API endpoint, MCP tool)
+- `mnemonic diagnose` command for config/DB/LLM/disk diagnostics
+- Embedding index scalability monitoring and drift detection
+- Database integrity checks and disaster recovery
+- Config validation, safe defaults, and configurable busy timeout
+- Memory quality benchmark with scenario-based IR metrics
+- Memory deduplication, decay, and TTL cleanup
+- Hard-reject filters for desktop noise
+- Sensitive file filtering in ingest, watcher, and perception
+- User-facing documentation: troubleshooting, LM Studio setup, backup/restore
+- Test coverage for llm, backup, and api/routes packages
+- Release pipeline with multi-platform builds and Homebrew formula
+- Conventional commits and release-please for automated versioning
+
+### Fixed
+
+- Graph visualization: reworked D3 force layout, adaptive forces, fit-to-screen, responsive SVG
+- Dashboard XSS and silent error handling
+- Dashboard badge colors converted from hardcoded `rgba()` to `color-mix()` for theme compatibility
+- Pattern deduplication with embedding-level checks
+- Noisy memory ingestion filtering
+- Windows compilation errors
+- N+1 queries, connection pooling, sentinel errors
+- Release workflow: replaced deprecated macOS runner
+
+### Changed
+
+- Standardized exit codes and user-facing error messages
+- Improved recall quality: pattern cleanup, concise synthesis
+- Tuned config defaults for Gemini cloud API (higher concurrency, larger context windows)
+- Updated all documentation to reflect current architecture and features
+
 ## [0.7.0] - 2025-03-11
 
 ### Added

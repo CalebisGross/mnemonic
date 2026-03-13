@@ -21,12 +21,25 @@ Enforced by `.claude/hooks/protect-git.sh` and `.claude/hooks/no-secrets.sh`:
 - `git checkout .` / `git restore .` -- discards all unstaged changes
 - Staging `.env`, `credentials`, `*.db`, `settings.local.json`
 
-## Commit Messages
+## Commit Messages (Conventional Commits)
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) format — release-please uses these to auto-generate changelogs and version bumps:
+
+- `feat: add memory source tracking` — new feature (bumps minor)
+- `fix: prevent nil pointer in retrieval` — bug fix (bumps patch)
+- `docs: update README with Gemini setup` — documentation only
+- `refactor: simplify consolidation loop` — code change, no behavior change
+- `test: add encoding agent coverage` — tests only
+- `chore: update dependencies` — maintenance
+- `ci: fix release workflow runner` — CI/CD changes
+
+Rules:
 
 - Short, direct subject line describing the change
 - Body for context when non-obvious
 - No issue-closing keywords in commit messages unless explicitly asked
 - Use Co-Authored-By for Claude contributions
+- Append `!` after the type for breaking changes: `feat!: redesign store interface`
 
 ## Secrets
 

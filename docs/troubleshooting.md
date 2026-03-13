@@ -119,9 +119,11 @@ Common problems and how to fix them.
 
 5. SQLite WAL files (`memory.db-wal`) can grow temporarily during writes. They are checkpointed automatically.
 
-## LM Studio connection errors
+## LLM connection errors
 
 **Symptom:** `mnemonic diagnose` reports LLM as unhealthy.
+
+### LM Studio (local)
 
 1. Verify LM Studio is running and the server is started (not just the app).
 2. Check the endpoint matches your config:
@@ -133,6 +135,20 @@ Common problems and how to fix them.
    - A chat model (e.g., `qwen/qwen3.5-9b`)
    - An embedding model (e.g., `text-embedding-embeddinggemma-300m-qat`)
 4. See [LM Studio Setup](setup-lmstudio.md) for detailed configuration.
+
+### Gemini / Cloud API
+
+1. Verify your API key is set:
+   ```bash
+   echo $LLM_API_KEY  # should not be empty
+   ```
+2. Check the endpoint URL format in config.yaml — Gemini uses:
+   ```yaml
+   llm:
+     endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
+   ```
+3. Verify your API key has access to the configured models (chat + embedding).
+4. Check for rate limiting — cloud providers may throttle requests. Reduce `llm.max_concurrent` if you see intermittent failures.
 
 ## Database corruption
 
