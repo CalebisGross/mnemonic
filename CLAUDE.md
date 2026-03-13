@@ -1,6 +1,6 @@
 # Mnemonic — Development Guide
 
-Mnemonic is a local-first, air-gapped semantic memory system built in Go. It uses 9 cognitive agents + orchestrator, SQLite with FTS5 + vector search, and LLMs (LM Studio locally or cloud APIs like Gemini) for semantic understanding.
+Mnemonic is a local-first, air-gapped semantic memory system built in Go. It uses 8 cognitive agents + orchestrator + reactor, SQLite with FTS5 + vector search, and LLMs (LM Studio locally or cloud APIs like Gemini) for semantic understanding.
 
 ## Build & Test
 
@@ -23,7 +23,7 @@ cmd/mnemonic/          CLI + daemon entry point
 cmd/benchmark/         End-to-end benchmark
 cmd/benchmark-quality/ Memory quality IR benchmark
 internal/
-  agent/               9 cognitive agents + orchestrator + reactor
+  agent/               8 cognitive agents + orchestrator + reactor
     perception/        Watch filesystem/terminal/clipboard, heuristic filter
     encoding/          LLM compression, concept extraction, association linking
     episoding/         Temporal episode clustering

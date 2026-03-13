@@ -90,7 +90,8 @@ type Agent interface {
     Health(ctx) error
 }
 ```
-- All 9 cognitive agents + orchestrator implement this
+
+- All 8 cognitive agents + orchestrator implement this (reactor is a separate engine)
 - Loosely coupled through the event bus
 
 ### 5. `events.EventBus`

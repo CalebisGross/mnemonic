@@ -4,7 +4,7 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
-## [0.8.0] - 2025-03-13
+## [0.8.0] - 2026-03-13
 
 ### Added
 

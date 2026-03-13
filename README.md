@@ -4,7 +4,7 @@ A local-first, air-gapped semantic memory system that learns and organizes your 
 
 ## What is this?
 
-Mnemonic is an autonomous memory daemon that runs entirely on your machine. It watches your filesystem, terminal, and clipboard, automatically capturing and organizing information you interact with. It uses a cognitive architecture inspired by neuroscience with 9 specialized agents that perceive, encode, consolidate, retrieve, reflect, dream, discover patterns, and build hierarchical abstractions.
+Mnemonic is an autonomous memory daemon that runs entirely on your machine. It watches your filesystem, terminal, and clipboard, automatically capturing and organizing information you interact with. It uses a cognitive architecture inspired by neuroscience with 8 cognitive agents that perceive, encode, consolidate, retrieve, reflect, dream, discover patterns, and build hierarchical abstractions — plus an orchestrator and a reactive rule engine.
 
 The system runs LLMs for semantic understanding — locally via LM Studio or through cloud APIs like Google Gemini. It stores everything in SQLite with full-text and vector search, and exposes a REST API with a live web dashboard. It's designed as persistent memory infrastructure — your CLI, your tools, and AI agents (like Claude Code) can all query your memory through a unified interface with 13 MCP tools.
 
