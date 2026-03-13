@@ -4,6 +4,13 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.8.1](https://github.com/CalebisGross/mnemonic/compare/v0.8.0...v0.8.1) (2026-03-13)
+
+
+### Bug Fixes
+
+* correct CHANGELOG date, agent counts, and release-please marker ([65b64a6](https://github.com/CalebisGross/mnemonic/commit/65b64a619ca91f956c3d6672ad64672a58e3e941))
+
 ## [0.8.0] - 2026-03-13
 
 ### Added
