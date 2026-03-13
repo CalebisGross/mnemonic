@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/appsprout/mnemonic/internal/store"
@@ -15,10 +14,7 @@ import (
 func HandleListPatterns(s store.Store, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		project := r.URL.Query().Get("project")
-		limit := 20
-		if l, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && l > 0 && l <= 100 {
-			limit = l
-		}
+		limit := parseIntParam(r, "limit", 20, 1, 100)
 
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
@@ -45,14 +41,8 @@ func HandleListPatterns(s store.Store, log *slog.Logger) http.HandlerFunc {
 // GET /api/v1/abstractions?level=0&limit=20
 func HandleListAbstractions(s store.Store, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		level := 0 // 0 = all levels
-		if l, err := strconv.Atoi(r.URL.Query().Get("level")); err == nil && l >= 0 {
-			level = l
-		}
-		limit := 20
-		if l, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && l > 0 && l <= 100 {
-			limit = l
-		}
+		level := parseIntParam(r, "level", 0, 0, 10)
+		limit := parseIntParam(r, "limit", 20, 1, 100)
 
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
