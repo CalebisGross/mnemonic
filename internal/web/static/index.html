@@ -1002,10 +1002,11 @@
 
         /* ── Update Badge ── */
         .update-badge {
-            display: inline-block; margin-left: 8px; padding: 2px 8px;
-            font-size: 0.65rem; font-weight: 600; border-radius: 10px;
-            background: var(--accent-green); color: var(--bg-primary);
+            display: inline-block; margin-left: 8px; padding: 3px 10px;
+            font-size: 0.7rem; font-weight: 600; border-radius: 10px;
+            background: var(--accent-green); color: #fff;
             cursor: pointer; animation: badgePulse 2s ease-in-out infinite;
+            white-space: nowrap;
         }
         .update-badge:hover { opacity: 0.85; }
         .update-badge.updating { background: var(--text-dim); cursor: wait; animation: none; }
