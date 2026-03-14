@@ -4,6 +4,27 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.14.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.13.0...v0.14.0) (2026-03-14)
+
+
+### Features
+
+* add self-update mechanism (CLI + dashboard) ([fd1c814](https://github.com/AppSprout-dev/mnemonic/commit/fd1c814d3c158283a6821b53e74a2272b48de7dc))
+* add self-update mechanism (CLI + dashboard) ([bb9497b](https://github.com/AppSprout-dev/mnemonic/commit/bb9497bae0260cb5f7e12d097feab458f0a51fdd))
+* show version in dashboard header ([6c0a3e1](https://github.com/AppSprout-dev/mnemonic/commit/6c0a3e130fd8795bce6f23bee30a8821513061be))
+* show version in dashboard header ([c7208ab](https://github.com/AppSprout-dev/mnemonic/commit/c7208ab2c0ddc89835d3b3e255fb061017e8424a))
+
+
+### Bug Fixes
+
+* add summary fallback in consolidation createGist ([24940b7](https://github.com/AppSprout-dev/mnemonic/commit/24940b7940b0e5410c271ccba323991a821b4d95))
+* add summary fallback in consolidation createGist ([697c32c](https://github.com/AppSprout-dev/mnemonic/commit/697c32c7b2dcb315803b3f1f20b6b44da803e1c5)), closes [#133](https://github.com/AppSprout-dev/mnemonic/issues/133)
+* add WIN_HOME fallback and restore env overrides ([6e6f4e4](https://github.com/AppSprout-dev/mnemonic/commit/6e6f4e4ce2597303ad4ddbe03c44f4a0df13bb37))
+* resolve MSYS2 make HOME mismatch breaking Go build on Windows ([22c5958](https://github.com/AppSprout-dev/mnemonic/commit/22c59588cbfbd245c425cce7d9d37268d9316412))
+* resolve MSYS2 make HOME mismatch breaking Go build paths on Windows ([189a38c](https://github.com/AppSprout-dev/mnemonic/commit/189a38cecb144f95de75e41bf1db2924540408f4))
+* use go-version-file in CI and release workflows ([0cf75c1](https://github.com/AppSprout-dev/mnemonic/commit/0cf75c11d07ed9a0efc0e4a4e173d8706af835c5))
+* use go-version-file in CI and release workflows ([85bb335](https://github.com/AppSprout-dev/mnemonic/commit/85bb335629fbeacd0531cb5d4be4a6decf0b27f9))
+
 ## [0.13.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.12.0...v0.13.0) (2026-03-14)
 
 
