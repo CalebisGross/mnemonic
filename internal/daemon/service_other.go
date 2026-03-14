@@ -30,3 +30,7 @@ func (m *stubManager) Start() error {
 func (m *stubManager) Stop() error {
 	return fmt.Errorf("service management is not supported on this platform")
 }
+
+func (m *stubManager) Restart() error {
+	return fmt.Errorf("service management is not supported on this platform")
+}
