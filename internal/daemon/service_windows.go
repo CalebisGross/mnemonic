@@ -170,6 +170,11 @@ func (m *windowsServiceManager) Stop() error {
 	return nil
 }
 
+func (m *windowsServiceManager) Restart() error {
+	// Use sc.exe to restart — spawned as a background process so it outlives the current binary.
+	return exec.Command("cmd", "/C", "net stop "+winServiceName+" && net start "+winServiceName).Start()
+}
+
 func (m *windowsServiceManager) ServiceName() string {
 	return "windows-service"
 }

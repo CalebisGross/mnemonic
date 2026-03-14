@@ -20,6 +20,12 @@ type ServiceManager interface {
 	// Stop stops the service via the platform service manager.
 	Stop() error
 
+	// Restart restarts the service via the platform service manager.
+	// It must be safe to call from within the running daemon — the restart
+	// is handled externally by the service manager (e.g. systemctl restart)
+	// so the caller's process can exit cleanly.
+	Restart() error
+
 	// ServiceName returns a human-readable name for the service backend (e.g. "launchd", "systemd").
 	ServiceName() string
 }

@@ -26,13 +26,13 @@ type UpdateResponse struct {
 	Message         string `json:"message,omitempty"`
 }
 
-// ServiceRestarter can stop and start the daemon service.
-// If nil is passed to HandleUpdate, the handler will still perform the update
-// but cannot restart the daemon automatically.
+// ServiceRestarter can restart the daemon service after an update.
+// Restart must be safe to call from within the running daemon — it should
+// spawn the restart asynchronously (e.g. via systemctl restart) so the
+// current process can finish responding before being killed.
 type ServiceRestarter interface {
 	IsInstalled() bool
-	Stop() error
-	Start() error
+	Restart() error
 }
 
 // HandleUpdateCheck returns an HTTP handler that checks for available updates
@@ -115,18 +115,15 @@ func HandleUpdate(version string, svc ServiceRestarter, log *slog.Logger) http.H
 		// Send response before restarting
 		writeJSON(w, http.StatusOK, resp)
 
-		// Restart the daemon in the background if possible
+		// Restart the daemon in the background if possible.
+		// Restart() must be non-blocking (e.g. spawns systemctl restart)
+		// so the HTTP response has time to flush before the process dies.
 		if canRestart {
 			go func() {
 				time.Sleep(500 * time.Millisecond)
 				log.Info("restarting daemon after update")
-				if err := svc.Stop(); err != nil {
-					log.Error("failed to stop daemon for restart", "error", err)
-					return
-				}
-				time.Sleep(1 * time.Second)
-				if err := svc.Start(); err != nil {
-					log.Error("failed to start daemon after update", "error", err)
+				if err := svc.Restart(); err != nil {
+					log.Error("failed to restart daemon after update", "error", err)
 				}
 			}()
 		}

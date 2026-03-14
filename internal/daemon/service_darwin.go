@@ -163,6 +163,13 @@ func (m *launchdManager) Stop() error {
 	return exec.Command("launchctl", "stop", serviceLabel).Run()
 }
 
+func (m *launchdManager) Restart() error {
+	// launchctl has no native restart; spawn a background shell to stop+start.
+	// Start() (not Run) so the command outlives the current process.
+	return exec.Command("sh", "-c",
+		"launchctl stop "+serviceLabel+" && sleep 1 && launchctl start "+serviceLabel).Start()
+}
+
 func (m *launchdManager) ServiceName() string {
 	return "launchd"
 }
