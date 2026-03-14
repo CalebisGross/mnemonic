@@ -226,7 +226,7 @@ func (tw *TerminalWatcher) checkForNewEntries() {
 		tw.log.Debug("failed to open history file", "path", tw.historyFilePath, "err", err)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Get current file size
 	info, err := file.Stat()

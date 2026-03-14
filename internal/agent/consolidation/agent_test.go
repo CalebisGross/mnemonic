@@ -1213,4 +1213,3 @@ func TestExtractJSONFromResponse(t *testing.T) {
 		})
 	}
 }
-

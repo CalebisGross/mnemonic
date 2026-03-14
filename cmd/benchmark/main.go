@@ -193,7 +193,7 @@ func postJSON(path string, body interface{}) ([]byte, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respData, err := io.ReadAll(resp.Body)
 	return respData, resp.StatusCode, err
 }
@@ -203,7 +203,7 @@ func getJSON(path string) ([]byte, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	return data, resp.StatusCode, err
 }

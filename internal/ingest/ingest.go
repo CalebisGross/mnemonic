@@ -17,6 +17,11 @@ import (
 
 const batchSize = 50
 
+// ProjectResolver resolves paths and names to canonical project names.
+type ProjectResolver interface {
+	Resolve(input string) string
+}
+
 // Config holds parameters for an ingestion run.
 type Config struct {
 	Dir               string
@@ -26,6 +31,7 @@ type Config struct {
 	SensitivePatterns []string
 	MaxContentBytes   int
 	OnProgress        func(current, total int, path string) // optional progress callback
+	ProjectResolver   ProjectResolver
 }
 
 // Result holds the outcome of an ingestion run.
@@ -53,8 +59,15 @@ func Run(ctx context.Context, cfg Config, s store.Store, bus events.Bus, log *sl
 		return nil, fmt.Errorf("%s is not a directory", absDir)
 	}
 
-	// Default project name
+	// Resolve project name
 	project := cfg.Project
+	if cfg.ProjectResolver != nil {
+		if project != "" {
+			project = cfg.ProjectResolver.Resolve(project)
+		} else {
+			project = cfg.ProjectResolver.Resolve(absDir)
+		}
+	}
 	if project == "" {
 		project = filepath.Base(absDir)
 	}

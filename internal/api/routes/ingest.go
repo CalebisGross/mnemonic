@@ -32,7 +32,7 @@ type IngestResponse struct {
 func HandleIngest(s store.Store, bus events.Bus, excludePatterns []string, maxContentBytes int, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		var req IngestRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

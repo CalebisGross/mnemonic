@@ -99,10 +99,10 @@ func TestConfigMaxContentLengthFilters(t *testing.T) {
 
 func TestConfigFrequencyThresholdBlocksRepetition(t *testing.T) {
 	tests := []struct {
-		name           string
-		threshold      int
-		submissions    int
-		wantLastPass   bool
+		name         string
+		threshold    int
+		submissions  int
+		wantLastPass bool
 	}{
 		// Submit same content 3 times: threshold=2 means 3rd is blocked (seen >2)
 		{"threshold_2_blocks_at_3", 2, 3, false},

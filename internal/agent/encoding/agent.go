@@ -740,7 +740,6 @@ const maxLLMContentChars = 8000
 // Roughly ~500 tokens, well under the 2048 token limit of small embedding models.
 const maxEmbeddingChars = 4000
 
-
 // stripHTMLTags removes HTML/XML tags and collapses whitespace to extract readable text.
 // This lets the LLM focus on actual content rather than markup.
 func stripHTMLTags(s string) string {
@@ -794,7 +793,6 @@ func looksLikeMarkup(content string) bool {
 	}
 	return false
 }
-
 
 // compressAndExtractConcepts calls the LLM to compress and extract concepts from a raw memory.
 // Falls back to heuristic compression if the LLM call fails or returns unparseable output.
@@ -929,9 +927,9 @@ Fill in every JSON field based on the actual event content below:
 		b.WriteString("\n\n")
 	}
 
-	b.WriteString(fmt.Sprintf("SOURCE: %s\n", source))
-	b.WriteString(fmt.Sprintf("TYPE: %s\n", memType))
-	b.WriteString(fmt.Sprintf("CONTENT:\n%s\n", content))
+	fmt.Fprintf(&b, "SOURCE: %s\n", source)
+	fmt.Fprintf(&b, "TYPE: %s\n", memType)
+	fmt.Fprintf(&b, "CONTENT:\n%s\n", content)
 
 	return b.String()
 }

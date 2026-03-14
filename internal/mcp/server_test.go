@@ -29,7 +29,7 @@ func (m *mockBus) Close() error                      { return nil }
 // TestHandleInitialize tests handleInitialize returns correct protocol version and server info.
 func TestHandleInitialize(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "test", "", []string{}, 0)
+	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "test", "", []string{}, 0, nil)
 
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
@@ -88,7 +88,7 @@ func TestHandleInitialize(t *testing.T) {
 // TestHandleToolsList tests handleToolsList returns all 10 tools.
 func TestHandleToolsList(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "test", "", []string{}, 0)
+	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "test", "", []string{}, 0, nil)
 
 	req := &jsonRPCRequest{
 		JSONRPC: "2.0",
@@ -288,7 +288,7 @@ func TestSuccessResponse(t *testing.T) {
 // TestHandleRequestDispatch tests that handleRequest correctly dispatches to handlers.
 func TestHandleRequestDispatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "test", "", []string{}, 0)
+	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "test", "", []string{}, 0, nil)
 
 	tests := []struct {
 		method  string

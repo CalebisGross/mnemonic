@@ -14,15 +14,15 @@ import (
 // configMockStore embeds the zero-value mockStore and overrides specific methods via callbacks.
 type configMockStore struct {
 	mockStore
-	listMemoriesFn       func(ctx context.Context, state string, limit, offset int) ([]store.Memory, error)
-	getDeadMemoriesFn    func(ctx context.Context, cutoffDate time.Time) ([]store.Memory, error)
-	updateSalienceFn     func(ctx context.Context, id string, salience float32) error
-	getAssociationsFn    func(ctx context.Context, memoryID string) ([]store.Association, error)
-	updateAssocStrFn     func(ctx context.Context, sourceID, targetID string, strength float32) error
+	listMemoriesFn    func(ctx context.Context, state string, limit, offset int) ([]store.Memory, error)
+	getDeadMemoriesFn func(ctx context.Context, cutoffDate time.Time) ([]store.Memory, error)
+	updateSalienceFn  func(ctx context.Context, id string, salience float32) error
+	getAssociationsFn func(ctx context.Context, memoryID string) ([]store.Association, error)
+	updateAssocStrFn  func(ctx context.Context, sourceID, targetID string, strength float32) error
 
 	// Call tracking
-	updateSalienceCalls  []updateSalienceCall
-	updateAssocStrCalls  []updateAssocStrCall
+	updateSalienceCalls []updateSalienceCall
+	updateAssocStrCalls []updateAssocStrCall
 }
 
 type updateSalienceCall struct {
@@ -31,9 +31,9 @@ type updateSalienceCall struct {
 }
 
 type updateAssocStrCall struct {
-	SourceID  string
-	TargetID  string
-	Strength  float32
+	SourceID string
+	TargetID string
+	Strength float32
 }
 
 func (m *configMockStore) ListMemories(ctx context.Context, state string, limit, offset int) ([]store.Memory, error) {
@@ -83,10 +83,10 @@ func cfgTestLogger() *slog.Logger {
 
 func TestConfigBatchSizeLimitsReplay(t *testing.T) {
 	tests := []struct {
-		name         string
-		batchSize    int
+		name          string
+		batchSize     int
 		totalMemories int
-		wantReplayed int
+		wantReplayed  int
 	}{
 		{"batch_10_of_50", 10, 50, 10},
 		{"batch_30_of_50", 30, 50, 30},
@@ -142,10 +142,10 @@ func TestConfigSalienceThresholdFiltersReplay(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		threshold      float32
-		wantReplayed   int
-		expectIDs      []string
+		name         string
+		threshold    float32
+		wantReplayed int
+		expectIDs    []string
 	}{
 		{"threshold_0.1_all_pass", 0.1, 3, []string{"high", "mid", "low"}},
 		{"threshold_0.3_filters_low", 0.3, 2, []string{"high", "mid"}},
@@ -185,11 +185,11 @@ func TestConfigSalienceThresholdFiltersReplay(t *testing.T) {
 
 func TestConfigAssociationBoostFactorStrengthens(t *testing.T) {
 	tests := []struct {
-		name          string
-		boostFactor   float32
-		initialStr    float32
-		wantStrMin    float32
-		wantStrMax    float32
+		name        string
+		boostFactor float32
+		initialStr  float32
+		wantStrMin  float32
+		wantStrMax  float32
 	}{
 		// 0.5 * 1.0 = 0.5 (unchanged)
 		{"boost_1.0_no_change", 1.0, 0.5, 0.5, 0.5},
@@ -246,10 +246,10 @@ func TestConfigAssociationBoostFactorStrengthens(t *testing.T) {
 
 func TestConfigNoisePruneThresholdDemotesLowSalience(t *testing.T) {
 	tests := []struct {
-		name           string
-		threshold      float32
-		memSalience    float32
-		expectDemoted  bool
+		name          string
+		threshold     float32
+		memSalience   float32
+		expectDemoted bool
 	}{
 		// Memory salience 0.1, threshold 0.05 → not below threshold → not demoted
 		{"salience_0.1_threshold_0.05_keeps", 0.05, 0.1, false},

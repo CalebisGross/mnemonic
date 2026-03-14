@@ -187,7 +187,7 @@ func TestExportSQLite_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open exported SQLite file: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := db.Ping(); err != nil {
 		t.Fatalf("exported SQLite file is not a valid database: %v", err)

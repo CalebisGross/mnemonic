@@ -65,9 +65,10 @@ func ExtractJSON(s string) string {
 			if inString {
 				continue
 			}
-			if ch == '{' {
+			switch ch {
+			case '{':
 				depth++
-			} else if ch == '}' {
+			case '}':
 				depth--
 				if depth == 0 {
 					return s[first : i+1]

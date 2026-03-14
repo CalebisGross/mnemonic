@@ -94,7 +94,7 @@ func newRotatingWriter(path string, maxSize int64, maxBackups int) (*rotatingWri
 
 	info, err := f.Stat()
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 
@@ -136,7 +136,7 @@ func (rw *rotatingWriter) rotate() error {
 		src := fmt.Sprintf("%s.%d", rw.path, i)
 		dst := fmt.Sprintf("%s.%d", rw.path, i+1)
 		if i == rw.maxBackups {
-			os.Remove(src)
+			_ = os.Remove(src)
 		} else {
 			_ = os.Rename(src, dst)
 		}

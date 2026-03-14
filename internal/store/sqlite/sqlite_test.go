@@ -46,7 +46,7 @@ func writeRawForMemory(t *testing.T, s *SQLiteStore, rawID string) {
 // TestWriteRawReadRaw tests round-trip write and read of raw memories.
 func TestWriteRawReadRaw(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -91,7 +91,7 @@ func TestWriteRawReadRaw(t *testing.T) {
 // TestWriteMemoryReadMemory tests round-trip write and read of encoded memories.
 func TestWriteMemoryReadMemory(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -149,7 +149,7 @@ func TestWriteMemoryReadMemory(t *testing.T) {
 // TestListMemoriesWithStateFilter tests filtering memories by state.
 func TestListMemoriesWithStateFilter(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -199,7 +199,7 @@ func TestListMemoriesWithStateFilter(t *testing.T) {
 // TestUpdateSalience tests updating a memory's salience.
 func TestUpdateSalience(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -239,7 +239,7 @@ func TestUpdateSalience(t *testing.T) {
 // TestIncrementAccess tests incrementing access count and updating last_accessed.
 func TestIncrementAccess(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -285,7 +285,7 @@ func TestIncrementAccess(t *testing.T) {
 // TestUpdateStateTransitions tests state transitions (active → fading → archived).
 func TestUpdateStateTransitions(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -334,7 +334,7 @@ func TestUpdateStateTransitions(t *testing.T) {
 // TestCreateAssociation tests creating an association between two memories.
 func TestCreateAssociation(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -374,7 +374,7 @@ func TestCreateAssociation(t *testing.T) {
 // TestGetAssociations tests retrieving associations for a memory.
 func TestGetAssociations(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -424,7 +424,7 @@ func TestGetAssociations(t *testing.T) {
 // TestListAllAssociations tests retrieving all associations in the system.
 func TestListAllAssociations(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -476,7 +476,7 @@ func TestListAllAssociations(t *testing.T) {
 // TestGetStatistics tests that GetStatistics returns correct counts.
 func TestGetStatistics(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -536,7 +536,7 @@ func TestGetStatistics(t *testing.T) {
 // TestWriteMetaObservation tests storing a meta-observation.
 func TestWriteMetaObservation(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -559,7 +559,7 @@ func TestWriteMetaObservation(t *testing.T) {
 // TestListMetaObservations tests retrieving meta-observations.
 func TestListMetaObservations(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -616,7 +616,7 @@ func TestListMetaObservations(t *testing.T) {
 // TestCountMemories tests the CountMemories function.
 func TestCountMemories(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -659,7 +659,7 @@ func TestCountMemories(t *testing.T) {
 // TestSearchByConcepts tests basic concept-based search functionality.
 func TestSearchByConcepts(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -701,7 +701,7 @@ func TestSearchByConcepts(t *testing.T) {
 // TestGetDeadMemories tests retrieving memories that haven't been accessed since a cutoff date.
 func TestGetDeadMemories(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -736,7 +736,7 @@ func TestGetDeadMemories(t *testing.T) {
 // TestUpdateMemory tests updating an existing memory.
 func TestUpdateMemory(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -787,7 +787,7 @@ func TestUpdateMemory(t *testing.T) {
 // TestPruneWeakAssociations tests pruning associations below a strength threshold.
 func TestPruneWeakAssociations(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -845,7 +845,7 @@ func TestPruneWeakAssociations(t *testing.T) {
 // TestListRawUnprocessed tests retrieving unprocessed raw memories.
 func TestListRawUnprocessed(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 
@@ -903,7 +903,7 @@ func TestListRawUnprocessed(t *testing.T) {
 // TestMarkRawProcessed tests marking a raw memory as processed.
 func TestMarkRawProcessed(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 

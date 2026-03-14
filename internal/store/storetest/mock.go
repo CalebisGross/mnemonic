@@ -99,7 +99,7 @@ func (MockStore) ArchiveMemoriesByRawPathPatterns(context.Context, []string) (in
 
 // --- Batch operations ---
 
-func (MockStore) BatchWriteRaw(context.Context, []store.RawMemory) error   { return nil }
+func (MockStore) BatchWriteRaw(context.Context, []store.RawMemory) error        { return nil }
 func (MockStore) BatchUpdateSalience(context.Context, map[string]float32) error { return nil }
 func (MockStore) BatchMergeMemories(context.Context, []string, store.Memory) error {
 	return nil

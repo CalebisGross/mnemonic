@@ -49,7 +49,7 @@ func Start(execPath string, configPath string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to open log file: %w", err)
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }()
 
 	// Redirect stdout and stderr to log file
 	cmd.Stdout = logFile

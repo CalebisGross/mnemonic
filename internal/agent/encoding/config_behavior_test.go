@@ -121,10 +121,10 @@ func TestConfigCompletionTemperaturePassedToLLM(t *testing.T) {
 
 func TestConfigSimilarityThresholdGatesAssociations(t *testing.T) {
 	tests := []struct {
-		name                string
-		threshold           float32
-		similarScore        float32
-		expectAssocCreated  bool
+		name               string
+		threshold          float32
+		similarScore       float32
+		expectAssocCreated bool
 	}{
 		{"score_0.5_threshold_0.3_creates", 0.3, 0.5, true},
 		{"score_0.5_threshold_0.6_skips", 0.6, 0.5, false},
@@ -234,8 +234,8 @@ func TestConfigMaxSimilarSearchResultsPassedToStore(t *testing.T) {
 
 func TestConfigConceptVocabularyIncludedInPrompt(t *testing.T) {
 	tests := []struct {
-		name       string
-		vocabulary []string
+		name           string
+		vocabulary     []string
 		expectInPrompt string
 	}{
 		{"custom_vocab", []string{"golang", "memory", "sqlite"}, "golang, memory, sqlite"},
@@ -294,8 +294,8 @@ func TestConfigConceptVocabularyIncludedInPrompt(t *testing.T) {
 
 func TestConfigMaxConcurrentEncodingsLimitsConcurrency(t *testing.T) {
 	tests := []struct {
-		name           string
-		maxConcurrent  int
+		name            string
+		maxConcurrent   int
 		wantMaxInFlight int
 	}{
 		{"concurrency_1", 1, 1},

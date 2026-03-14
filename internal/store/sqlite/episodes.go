@@ -11,7 +11,7 @@ import (
 )
 
 // episodeColumns is the standard column list for episode queries.
-const episodeColumns = `id, title, start_time, end_time, duration_sec, raw_memory_ids, memory_ids, summary, narrative, salience, emotional_tone, outcome, state, created_at, updated_at, concepts, files_modified, event_timeline`
+const episodeColumns = `id, title, start_time, end_time, duration_sec, raw_memory_ids, memory_ids, summary, narrative, salience, emotional_tone, outcome, state, created_at, updated_at, concepts, files_modified, event_timeline, project`
 
 // CreateEpisode inserts a new episode.
 func (s *SQLiteStore) CreateEpisode(ctx context.Context, ep store.Episode) error {
@@ -26,7 +26,7 @@ func (s *SQLiteStore) CreateEpisode(ctx context.Context, ep store.Episode) error
 
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO episodes (`+episodeColumns+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		ep.ID,
 		ep.Title,
 		ep.StartTime.Format(time.RFC3339),
@@ -45,6 +45,7 @@ func (s *SQLiteStore) CreateEpisode(ctx context.Context, ep store.Episode) error
 		concepts,
 		files,
 		string(timeline),
+		ep.Project,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create episode: %w", err)
@@ -71,7 +72,7 @@ func (s *SQLiteStore) UpdateEpisode(ctx context.Context, ep store.Episode) error
 	}
 
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE episodes SET title=?, start_time=?, end_time=?, duration_sec=?, raw_memory_ids=?, memory_ids=?, summary=?, narrative=?, salience=?, emotional_tone=?, outcome=?, state=?, updated_at=?, concepts=?, files_modified=?, event_timeline=?
+		`UPDATE episodes SET title=?, start_time=?, end_time=?, duration_sec=?, raw_memory_ids=?, memory_ids=?, summary=?, narrative=?, salience=?, emotional_tone=?, outcome=?, state=?, updated_at=?, concepts=?, files_modified=?, event_timeline=?, project=?
 		WHERE id = ?`,
 		ep.Title,
 		ep.StartTime.Format(time.RFC3339),
@@ -89,6 +90,7 @@ func (s *SQLiteStore) UpdateEpisode(ctx context.Context, ep store.Episode) error
 		concepts,
 		files,
 		string(timeline),
+		ep.Project,
 		ep.ID,
 	)
 	if err != nil {
@@ -112,7 +114,7 @@ func (s *SQLiteStore) ListEpisodes(ctx context.Context, state string, limit, off
 	if err != nil {
 		return nil, fmt.Errorf("failed to list episodes: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var episodes []store.Episode
 	for rows.Next() {
@@ -150,13 +152,14 @@ func scanEpisodeFrom(s scanner) (store.Episode, error) {
 	var rawIDsStr, memIDsStr string
 	var title, summary, narrative, emotionalTone, outcome sql.NullString
 	var conceptsStr, filesStr, timelineStr sql.NullString
+	var project sql.NullString
 
 	err := s.Scan(
 		&ep.ID, &title, &startStr, &endStr, &ep.DurationSec,
 		&rawIDsStr, &memIDsStr, &summary, &narrative,
 		&ep.Salience, &emotionalTone, &outcome, &ep.State,
 		&createdStr, &updatedStr,
-		&conceptsStr, &filesStr, &timelineStr,
+		&conceptsStr, &filesStr, &timelineStr, &project,
 	)
 	if err != nil {
 		return ep, err
@@ -167,6 +170,7 @@ func scanEpisodeFrom(s scanner) (store.Episode, error) {
 	ep.Narrative = narrative.String
 	ep.EmotionalTone = emotionalTone.String
 	ep.Outcome = outcome.String
+	ep.Project = project.String
 	ep.StartTime, _ = time.Parse(time.RFC3339, startStr)
 	ep.EndTime, _ = time.Parse(time.RFC3339, endStr)
 	ep.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)

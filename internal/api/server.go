@@ -133,7 +133,6 @@ func (s *Server) registerRoutes() {
 	}
 }
 
-
 // middleware applies global middleware to the request handler.
 func (s *Server) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

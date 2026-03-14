@@ -225,6 +225,7 @@ func (ea *EpisodingAgent) processEpisodes(ctx context.Context) error {
 				RawMemoryIDs: []string{},
 				MemoryIDs:    []string{},
 				State:        store.EpisodeStateOpen,
+				Project:      raw.Project,
 				CreatedAt:    time.Now(),
 				UpdatedAt:    time.Now(),
 			}
@@ -237,6 +238,9 @@ func (ea *EpisodingAgent) processEpisodes(ctx context.Context) error {
 
 		// Add raw memory to episode
 		openEp.RawMemoryIDs = append(openEp.RawMemoryIDs, raw.ID)
+		if openEp.Project == "" && raw.Project != "" {
+			openEp.Project = raw.Project
+		}
 		openEp.EndTime = raw.Timestamp
 		openEp.DurationSec = int(openEp.EndTime.Sub(openEp.StartTime).Seconds())
 		openEp.UpdatedAt = time.Now()
@@ -506,4 +510,3 @@ func parseEpisodeSynthesis(response string) episodeSynthesis {
 	}
 	return result
 }
-

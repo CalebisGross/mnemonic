@@ -645,6 +645,26 @@
         .timeline-type-btn[data-type="learning"].active { border-color: rgba(16,185,129,0.3); }
         .timeline-type-btn[data-type="general"] { background: rgba(148,163,184,0.08); color: var(--text-muted); }
         .timeline-type-btn[data-type="general"].active { border-color: rgba(148,163,184,0.2); }
+        .timeline-project-filters { display: flex; gap: 4px; margin-left: 8px; }
+        .timeline-project-btn {
+            padding: 3px 8px; border-radius: 10px;
+            font-size: 0.68rem; font-weight: 500;
+            cursor: pointer; border: 1px solid transparent;
+            transition: all 0.15s; opacity: 0.5;
+            background: rgba(59,130,246,0.12); color: var(--accent-blue);
+        }
+        .timeline-project-btn.active { opacity: 1; border-color: rgba(59,130,246,0.3); }
+        .timeline-search-wrap {
+            margin-left: auto; position: relative; display: flex; align-items: center;
+        }
+        .timeline-search-clear {
+            position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: var(--text-dim); cursor: pointer;
+            font-size: 0.85rem; line-height: 1; padding: 2px 4px; display: none;
+        }
+        .timeline-search-clear:hover { color: var(--text-primary); }
+        .timeline-search-wrap.has-value .timeline-search-clear { display: block; }
+        .timeline-search-wrap.has-value .timeline-search { padding-right: 24px; }
 
         .timeline-body {
             flex: 1; overflow-y: auto; overflow-x: hidden;
@@ -724,6 +744,19 @@
         .tl-card-type.ct-learning { background: rgba(16,185,129,0.12); color: var(--accent-green); }
         .tl-card-type.ct-general { background: rgba(148,163,184,0.08); color: var(--text-muted); }
 
+        .tl-card-project {
+            padding: 1px 7px; border-radius: 8px;
+            font-size: 0.67rem; font-weight: 500;
+            background: rgba(59, 130, 246, 0.1); color: var(--accent-blue);
+            cursor: pointer; transition: background 0.15s;
+            flex-shrink: 0;
+        }
+        .tl-card-project:hover { background: rgba(59, 130, 246, 0.2); }
+        .tl-card-project.concept-active { background: rgba(6,182,212,0.2); color: var(--accent-cyan); }
+        .tl-card-project.concept-selected {
+            background: rgba(6,182,212,0.3); color: var(--accent-cyan);
+            box-shadow: 0 0 0 1px var(--accent-cyan);
+        }
         .tl-card-title {
             font-size: 0.9rem; font-weight: 500; color: var(--text-primary);
             flex: 1; line-height: 1.4;
@@ -1157,6 +1190,7 @@
             .timeline-body { padding: 0 16px 40px; }
             .timeline-search { width: 140px; }
             .timeline-type-filters { margin-left: 0; margin-top: 6px; }
+            .timeline-project-filters { margin-left: 0; margin-top: 4px; }
             .tl-card { margin-left: 16px; }
             .tl-card::before { left: -12px; }
             .tl-card::after { left: -8px; }
@@ -1304,7 +1338,11 @@
                             <button class="timeline-type-btn active" data-type="learning" onclick="toggleTimelineType(this)">learnings</button>
                             <button class="timeline-type-btn active" data-type="general" onclick="toggleTimelineType(this)">general</button>
                         </div>
-                        <input type="text" class="timeline-search" id="timelineSearch" placeholder="Filter timeline..." oninput="filterTimeline()">
+                        <div class="timeline-project-filters" id="timelineProjectFilters"></div>
+                        <div class="timeline-search-wrap" id="timelineSearchWrap">
+                            <input type="text" class="timeline-search" id="timelineSearch" placeholder="Filter timeline..." oninput="filterTimeline()">
+                            <button class="timeline-search-clear" onclick="clearTimelineSearch()" title="Clear search">&times;</button>
+                        </div>
                     </div>
                 </div>
                 <div class="timeline-body" id="timelineBody">
@@ -1610,7 +1648,7 @@
         document.querySelector('.nav-tab[data-view="' + name + '"]').classList.add('active');
         window.location.hash = name;
         if (name === 'explore' && !state.exploreLoaded[state.currentExploreTab]) loadExploreTab(state.currentExploreTab);
-        if (name === 'timeline' && !state.timelineInitialized) loadTimelineData(false);
+        if (name === 'timeline' && !state.timelineInitialized) { populateTimelineProjects(); loadTimelineData(false); }
         if (name === 'agent' && !state.agentLoaded) loadAgentData();
         if (name === 'llm' && !state.llmLoaded) loadLLMUsage();
     }
@@ -1962,6 +2000,7 @@
         range: 'all',
         types: { episode: true, decision: true, error: true, insight: true, learning: true, general: true },
         search: '',
+        projectFilter: '', // empty = all projects
         loading: false,
         allLoaded: false,
         episodeOffset: 0,
@@ -1989,6 +2028,44 @@
 
     function filterTimeline() {
         _timelineState.search = document.getElementById('timelineSearch').value.toLowerCase();
+        var wrap = document.getElementById('timelineSearchWrap');
+        wrap.classList.toggle('has-value', _timelineState.search.length > 0);
+        renderTimelineItems();
+    }
+
+    function clearTimelineSearch() {
+        var input = document.getElementById('timelineSearch');
+        input.value = '';
+        _timelineState.search = '';
+        document.getElementById('timelineSearchWrap').classList.remove('has-value');
+        input.focus();
+        renderTimelineItems();
+    }
+
+    function populateTimelineProjects() {
+        var container = document.getElementById('timelineProjectFilters');
+        container.innerHTML = '';
+        var projects = state.projectList || [];
+        if (projects.length === 0) return;
+        projects.forEach(function(p) {
+            var btn = document.createElement('button');
+            btn.className = 'timeline-project-btn';
+            btn.textContent = p;
+            btn.setAttribute('data-project', p);
+            btn.onclick = function() { toggleTimelineProject(p); };
+            container.appendChild(btn);
+        });
+    }
+
+    function toggleTimelineProject(project) {
+        if (_timelineState.projectFilter === project) {
+            _timelineState.projectFilter = '';
+        } else {
+            _timelineState.projectFilter = project;
+        }
+        document.querySelectorAll('.timeline-project-btn').forEach(function(btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-project') === _timelineState.projectFilter);
+        });
         renderTimelineItems();
     }
 
@@ -2010,8 +2087,10 @@
         var search = _timelineState.search;
         var types = _timelineState.types;
         var dayFilter = _timelineState.dayFilter;
+        var projectFilter = _timelineState.projectFilter;
         return _timelineState.items.filter(function(item) {
             if (!types[item._kind]) return false;
+            if (projectFilter && (item._project || '') !== projectFilter) return false;
             if (dayFilter) {
                 var d = new Date(item._date);
                 d.setHours(0, 0, 0, 0);
@@ -2079,13 +2158,19 @@
         var absTime = item._date.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' });
         var concepts = item._concepts || [];
         var source = item._source || '';
+        var project = item._project || '';
 
-        // Include source in data-concepts so hover-highlight works across source tags
-        var allTags = source ? [source].concat(concepts) : concepts;
+        // Include source and project in data-concepts so hover-highlight works across tags
+        var allTags = concepts.slice();
+        if (source) allTags.unshift(source);
+        if (project) allTags.unshift(project);
         var html = '<div class="tl-card tl-' + kind + '" data-id="' + escapeHtml(item._id) + '" onclick="expandTimelineCard(this)" ';
         html += 'data-concepts="' + escapeHtml(allTags.join(',')) + '">';
         html += '<div class="tl-card-head">';
         html += '<span class="tl-card-type ct-' + kind + '">' + escapeHtml(kind) + '</span>';
+        if (project) {
+            html += '<span class="tl-card-project" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(project) + '</span>';
+        }
         html += '<span class="tl-card-title">' + escapeHtml(item._title) + '</span>';
         if (item._tone) {
             html += '<span class="tl-card-tone">' + escapeHtml(item._tone) + '</span>';
@@ -2191,7 +2276,7 @@
         }
         highlightTimelineCards(_selectedTimelineTags);
         // Mark selected tag pills
-        document.querySelectorAll('.tl-concept, .tl-source').forEach(function(tag) {
+        document.querySelectorAll('.tl-concept, .tl-source, .tl-card-project').forEach(function(tag) {
             if (_selectedTimelineTags.has(tag.textContent)) {
                 tag.classList.add('concept-selected');
             } else {
@@ -2216,7 +2301,7 @@
                 card.classList.remove('highlighted');
             }
         });
-        document.querySelectorAll('.tl-concept, .tl-source').forEach(function(tag) {
+        document.querySelectorAll('.tl-concept, .tl-source, .tl-card-project').forEach(function(tag) {
             if (activeTags.has(tag.textContent)) {
                 tag.classList.add('concept-active');
             } else {
@@ -2229,7 +2314,7 @@
         document.querySelectorAll('.tl-card').forEach(function(card) {
             card.classList.remove('dimmed', 'highlighted');
         });
-        document.querySelectorAll('.tl-concept, .tl-source').forEach(function(tag) {
+        document.querySelectorAll('.tl-concept, .tl-source, .tl-card-project').forEach(function(tag) {
             tag.classList.remove('concept-active', 'concept-selected');
         });
     }
@@ -2268,6 +2353,7 @@
                     _salience: 0,
                     _fileCount: (ep.files_modified || []).length,
                     _eventCount: (ep.raw_memory_ids || []).length,
+                    _project: ep.project || '',
                     _raw: ep,
                 });
             });
@@ -2287,6 +2373,7 @@
                     _salience: m.salience || 0,
                     _fileCount: 0,
                     _eventCount: 0,
+                    _project: m.project || '',
                     _raw: m,
                 });
             });
@@ -2564,6 +2651,7 @@
                 opt.value = p; opt.textContent = p;
                 select.appendChild(opt);
             });
+            populateTimelineProjects();
         } catch (e) { console.error('Failed to load projects:', e); }
     }
 

@@ -62,8 +62,8 @@ type aggregateResult struct {
 type pipelineScenario struct {
 	Name      string
 	RawEvents []store.RawMemory
-	SignalIDs map[string]bool  // raw IDs that should survive as signal after pipeline
-	Queries   []pipelineQuery  // retrieval queries (run after full pipeline)
+	SignalIDs map[string]bool // raw IDs that should survive as signal after pipeline
+	Queries   []pipelineQuery // retrieval queries (run after full pipeline)
 }
 
 // pipelineQuery defines a query for pipeline scenarios.
@@ -75,11 +75,11 @@ type pipelineQuery struct {
 
 // pipelineResult holds results for a pipeline scenario.
 type pipelineResult struct {
-	Name              string
-	EncodedCount      int     // memories produced by encoding
-	EpisodeCount      int     // episodes created
-	SignalSurvival    float64 // fraction of signal raw events with active/fading memories
-	NoiseSuppression  float64 // fraction of noise raw events with fading/archived/merged memories
-	AvgAssociations   float64 // average associations per signal memory
-	QueryResults      []queryResult
+	Name             string
+	EncodedCount     int     // memories produced by encoding
+	EpisodeCount     int     // episodes created
+	SignalSurvival   float64 // fraction of signal raw events with active/fading memories
+	NoiseSuppression float64 // fraction of noise raw events with fading/archived/merged memories
+	AvgAssociations  float64 // average associations per signal memory
+	QueryResults     []queryResult
 }

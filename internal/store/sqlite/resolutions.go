@@ -126,7 +126,7 @@ func (s *SQLiteStore) SearchByEntity(ctx context.Context, name string, entityTyp
 	if err != nil {
 		return nil, fmt.Errorf("failed to search by entity: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var memories []store.Memory
 	for rows.Next() {

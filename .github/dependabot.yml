@@ -1,0 +1,28 @@
+version: 2
+
+updates:
+  # GitHub Actions — keep action versions current
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Go modules — flag outdated dependencies
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      go-minor:
+        update-types:
+          - "minor"
+          - "patch"

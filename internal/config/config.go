@@ -33,6 +33,7 @@ type Config struct {
 	API           APIConfig           `yaml:"api"`
 	Web           WebConfig           `yaml:"web"`
 	Logging       LoggingConfig       `yaml:"logging"`
+	Projects      []ProjectConfig     `yaml:"projects"`
 }
 
 // LLMConfig holds LLM provider settings.
@@ -509,6 +510,17 @@ func (c *Config) process(configDir string) error {
 	c.Logging.File, err = resolvePath(c.Logging.File, configDir)
 	if err != nil {
 		return fmt.Errorf("expanding logging.file: %w", err)
+	}
+
+	// Expand Project registry paths
+	for i := range c.Projects {
+		for j, p := range c.Projects[i].Paths {
+			expanded, err := resolvePath(p, configDir)
+			if err != nil {
+				return fmt.Errorf("expanding projects[%d].paths[%d]: %w", i, j, err)
+			}
+			c.Projects[i].Paths[j] = expanded
+		}
 	}
 
 	// Parse duration strings from raw YAML values

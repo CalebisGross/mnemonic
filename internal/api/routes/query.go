@@ -27,7 +27,7 @@ func HandleQuery(retriever *retrieval.RetrievalAgent, bus events.Bus, s store.St
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Parse request body
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		var reqBody QueryRequestBody
 		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 			log.Warn("failed to decode query request", "error", err)

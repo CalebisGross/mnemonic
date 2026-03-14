@@ -13,7 +13,7 @@ import (
 
 func TestCreateAndGetEpisode(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 	ep := store.Episode{
@@ -57,7 +57,7 @@ func TestCreateAndGetEpisode(t *testing.T) {
 
 func TestUpdateEpisode(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 	ep := store.Episode{
@@ -95,7 +95,7 @@ func TestUpdateEpisode(t *testing.T) {
 
 func TestListEpisodes(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
@@ -138,7 +138,7 @@ func TestListEpisodes(t *testing.T) {
 
 func TestGetOpenEpisode(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 	ep := store.Episode{
@@ -166,7 +166,7 @@ func TestGetOpenEpisode(t *testing.T) {
 
 func TestCloseEpisode(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 	ep := store.Episode{

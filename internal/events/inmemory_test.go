@@ -11,7 +11,7 @@ import (
 // TestSubscribePublish tests the basic subscribe and publish flow.
 func TestSubscribePublish(t *testing.T) {
 	bus := NewInMemoryBus(10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	received := make([]Event, 0)
 	var mu sync.Mutex
@@ -52,7 +52,7 @@ func TestSubscribePublish(t *testing.T) {
 // TestMultipleSubscribers tests that multiple subscribers for the same event type all receive events.
 func TestMultipleSubscribers(t *testing.T) {
 	bus := NewInMemoryBus(10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	count1 := 0
 	count2 := 0
@@ -113,7 +113,7 @@ func TestMultipleSubscribers(t *testing.T) {
 // TestUnsubscribe tests that unsubscribed handlers don't fire.
 func TestUnsubscribe(t *testing.T) {
 	bus := NewInMemoryBus(10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	count1 := 0
 	count2 := 0
@@ -175,7 +175,7 @@ func TestUnsubscribe(t *testing.T) {
 // TestPublishWithContextCancellation tests publishing with a cancelled context.
 func TestPublishWithContextCancellation(t *testing.T) {
 	bus := NewInMemoryBus(10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	count := 0
 	var mu sync.Mutex
@@ -296,7 +296,7 @@ func TestCloseStopsProcessing(t *testing.T) {
 // TestHandlerError tests that handler errors are logged but don't prevent other handlers from running.
 func TestHandlerError(t *testing.T) {
 	bus := NewInMemoryBus(10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	count1 := 0
 	count2 := 0
@@ -360,7 +360,7 @@ func TestHandlerError(t *testing.T) {
 // TestEventTypeFiltering tests that events are only sent to subscribers of the correct type.
 func TestEventTypeFiltering(t *testing.T) {
 	bus := NewInMemoryBus(10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	countType1 := 0
 	countType2 := 0
@@ -424,7 +424,7 @@ func TestEventTypeFiltering(t *testing.T) {
 // TestUnsubscribeInvalidID tests that unsubscribing an invalid ID is a no-op.
 func TestUnsubscribeInvalidID(t *testing.T) {
 	bus := NewInMemoryBus(10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	count := 0
 	var mu sync.Mutex
@@ -462,7 +462,7 @@ func TestUnsubscribeInvalidID(t *testing.T) {
 // TestNoSubscribersForEventType tests that publishing an event with no subscribers doesn't error.
 func TestNoSubscribersForEventType(t *testing.T) {
 	bus := NewInMemoryBus(10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	event := WatcherEvent{
 		Source: "test",
@@ -481,7 +481,7 @@ func TestNoSubscribersForEventType(t *testing.T) {
 func TestEventBufferFull(t *testing.T) {
 	// Create a small buffer size to trigger full condition
 	bus := NewInMemoryBus(1)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	// Block the dispatch by subscribing with a slow handler
 	blockChan := make(chan struct{})

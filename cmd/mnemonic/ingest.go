@@ -64,7 +64,7 @@ func ingestCommand(configPath string, args []string) {
 		fmt.Fprintf(os.Stderr, "Error opening store: %v\n", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	fmt.Printf("Ingesting %s...\n", absDir)
 

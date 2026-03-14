@@ -214,7 +214,7 @@ func (rt *rejectionTracker) loadPersisted() {
 		}
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	count := 0
 	scanner := bufio.NewScanner(f)
@@ -247,7 +247,7 @@ func (rt *rejectionTracker) appendPersisted(pattern string) {
 		rt.log.Warn("failed to persist learned exclusion", "pattern", pattern, "error", err)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.WriteString(pattern + "\n"); err != nil {
 		rt.log.Warn("failed to write learned exclusion", "pattern", pattern, "error", err)

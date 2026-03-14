@@ -328,9 +328,10 @@ func (ca *ConsolidationAgent) decaySalience(ctx context.Context) (decayed, proce
 		attrs, attrErr := ca.store.GetMemoryAttributes(ctx, mem.ID)
 		if attrErr == nil {
 			// Critical/important memories decay slower
-			if attrs.Significance == "critical" {
+			switch attrs.Significance {
+			case "critical":
 				newSalience = float32(float64(mem.Salience) * math.Pow(effectiveDecay, 0.8)) // 20% slower
-			} else if attrs.Significance == "important" {
+			case "important":
 				newSalience = float32(float64(mem.Salience) * math.Pow(effectiveDecay, 0.9)) // 10% slower
 			}
 			// Successful satisfying memories have learning value
@@ -607,6 +608,9 @@ Respond with ONLY a JSON object:
 		}
 	}
 
+	// Inherit project from cluster — use the most common non-empty project
+	project := inferProjectFromCluster(cluster)
+
 	now := time.Now()
 	return store.Memory{
 		ID:           uuid.New().String(),
@@ -621,9 +625,29 @@ Respond with ONLY a JSON object:
 		LastAccessed: time.Time{},
 		State:        store.MemoryStateActive,
 		Source:       "consolidation",
+		Project:      project,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}, nil
+}
+
+// inferProjectFromCluster returns the most common non-empty project in a cluster.
+func inferProjectFromCluster(cluster []store.Memory) string {
+	counts := make(map[string]int)
+	for _, m := range cluster {
+		if m.Project != "" {
+			counts[m.Project]++
+		}
+	}
+	var best string
+	var bestCount int
+	for p, c := range counts {
+		if c > bestCount {
+			best = p
+			bestCount = c
+		}
+	}
+	return best
 }
 
 // ============================================================================
@@ -1026,7 +1050,7 @@ func (ca *ConsolidationAgent) identifyPattern(ctx context.Context, cluster []sto
 	allConcepts := make(map[string]bool)
 	for i, mem := range cluster {
 		qualityInfo := fmt.Sprintf("salience:%.2f, accessed:%d", mem.Salience, mem.AccessCount)
-		summaries.WriteString(fmt.Sprintf("%d. [%s] %s (concepts: %s)\n", i+1, qualityInfo, mem.Summary, strings.Join(mem.Concepts, ", ")))
+		fmt.Fprintf(&summaries, "%d. [%s] %s (concepts: %s)\n", i+1, qualityInfo, mem.Summary, strings.Join(mem.Concepts, ", "))
 		for _, c := range mem.Concepts {
 			allConcepts[c] = true
 		}
@@ -1193,7 +1217,6 @@ func (ca *ConsolidationAgent) logReport(report *CycleReport) {
 		"patterns_decayed", report.PatternsDecayed,
 	)
 }
-
 
 // isDuplicate returns true if two items are near-duplicates based on title Jaccard and embedding cosine.
 // For short titles (<=4 words in either), requires BOTH signals to exceed thresholds to avoid false positives.

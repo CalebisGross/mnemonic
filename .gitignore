@@ -2,6 +2,7 @@
 /mnemonic
 /bin/
 /benchmark
+/benchmark-quality
 
 # Databases
 *.db

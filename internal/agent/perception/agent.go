@@ -20,10 +20,16 @@ import (
 )
 
 // PerceptionConfig configures the perception agent.
+// ProjectResolver resolves file paths and names to canonical project names.
+type ProjectResolver interface {
+	Resolve(input string) string
+}
+
 type PerceptionConfig struct {
 	HeuristicConfig       HeuristicConfig
-	LLMGatingEnabled      bool   // if false, skip LLM and use heuristic score as salience
-	LearnedExclusionsPath string // file path for persisting learned watcher exclusions
+	LLMGatingEnabled      bool            // if false, skip LLM and use heuristic score as salience
+	LearnedExclusionsPath string          // file path for persisting learned watcher exclusions
+	ProjectResolver       ProjectResolver // optional: maps paths to canonical project names
 }
 
 // PerceptionAgent orchestrates the perception pipeline: watchers → heuristic → LLM → memory.
@@ -272,7 +278,7 @@ func (pa *PerceptionAgent) processEvent(ctx context.Context, event Event) {
 		HeuristicScore:  heuristicResult.Score,
 		InitialSalience: salience,
 		Processed:       false,
-		Project:         inferProjectFromPath(event.Path),
+		Project:         pa.resolveProject(event.Path),
 	}
 
 	// 4. Write to store
@@ -470,6 +476,14 @@ func inferProjectFromPath(path string) string {
 		}
 	}
 	return ""
+}
+
+// resolveProject uses the configured ProjectResolver if available, falling back to inferProjectFromPath.
+func (pa *PerceptionAgent) resolveProject(path string) string {
+	if pa.cfg.ProjectResolver != nil {
+		return pa.cfg.ProjectResolver.Resolve(path)
+	}
+	return inferProjectFromPath(path)
 }
 
 // Ensure PerceptionAgent implements agent.Agent interface.

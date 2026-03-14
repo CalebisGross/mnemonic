@@ -104,7 +104,7 @@ func (s *SQLiteStore) GetProjectSummary(ctx context.Context, project string) (ma
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT concepts FROM memories WHERE project = ? AND state = 'active' ORDER BY salience DESC LIMIT 20`, project)
 	if err == nil {
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		conceptCounts := make(map[string]int)
 		for rows.Next() {
 			var conceptsStr string
@@ -137,7 +137,7 @@ func (s *SQLiteStore) ListProjects(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list projects: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var projects []string
 	for rows.Next() {

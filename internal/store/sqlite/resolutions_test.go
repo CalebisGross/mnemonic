@@ -12,7 +12,7 @@ import (
 
 func TestWriteAndGetMemoryResolution(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 	// Create prerequisite raw memory and memory
@@ -61,7 +61,7 @@ func TestWriteAndGetMemoryResolution(t *testing.T) {
 
 func TestWriteAndGetConceptSet(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 	writeRawForMemory(t, s, "raw-cs-1")
@@ -114,7 +114,7 @@ func TestWriteAndGetConceptSet(t *testing.T) {
 
 func TestWriteAndGetMemoryAttributes(t *testing.T) {
 	s := createTestStore(t)
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	ctx := context.Background()
 	writeRawForMemory(t, s, "raw-attr-1")

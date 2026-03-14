@@ -287,4 +287,3 @@ func scorePipelineQuery(q pipelineQuery, resp retrieval.QueryResponse) queryResu
 
 	return qr
 }
-

@@ -33,7 +33,7 @@ type FeedbackResponse struct {
 func HandleFeedback(s store.Store, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		var req FeedbackRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

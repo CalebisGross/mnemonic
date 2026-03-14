@@ -38,6 +38,11 @@ type rpcError struct {
 	Message string `json:"message"`
 }
 
+// ProjectResolver resolves paths and names to canonical project names.
+type ProjectResolver interface {
+	Resolve(input string) string
+}
+
 // MCPServer implements the Model Context Protocol over JSON-RPC 2.0
 type MCPServer struct {
 	store           store.Store
@@ -47,15 +52,23 @@ type MCPServer struct {
 	version         string // binary version, injected from main
 	sessionID       string // auto-generated per MCP server lifetime
 	project         string // auto-detected from working directory
+	resolver        ProjectResolver
 	coachingFile    string // path for coach_local_llm writes
 	excludePatterns []string
 	maxContentBytes int
 }
 
 // NewMCPServer creates a new MCP server with the given dependencies.
-func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, log *slog.Logger, version string, coachingFile string, excludePatterns []string, maxContentBytes int) *MCPServer {
+func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, log *slog.Logger, version string, coachingFile string, excludePatterns []string, maxContentBytes int, resolver ProjectResolver) *MCPServer {
 	// Auto-detect project from working directory
-	project := detectProject()
+	wd, _ := os.Getwd()
+	var project string
+	if resolver != nil {
+		project = resolver.Resolve(wd)
+	}
+	if project == "" {
+		project = detectProject()
+	}
 
 	// Generate session ID for this MCP server lifetime
 	sessionID := fmt.Sprintf("mcp-%s", uuid.New().String()[:8])
@@ -70,6 +83,7 @@ func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, lo
 		version:         version,
 		sessionID:       sessionID,
 		project:         project,
+		resolver:        resolver,
 		coachingFile:    coachingFile,
 		excludePatterns: excludePatterns,
 		maxContentBytes: maxContentBytes,
@@ -88,6 +102,16 @@ func detectProject() string {
 		return parts[len(parts)-1]
 	}
 	return ""
+}
+
+// resolveProjectName resolves a user-supplied project name through the resolver.
+func (srv *MCPServer) resolveProjectName(name string) string {
+	if srv.resolver != nil && name != "" {
+		if resolved := srv.resolver.Resolve(name); resolved != "" {
+			return resolved
+		}
+	}
+	return name
 }
 
 // Run starts the MCP server, reading JSON-RPC requests from stdin and writing responses to stdout.
@@ -247,7 +271,7 @@ func (srv *MCPServer) handleRemember(ctx context.Context, args map[string]interf
 
 	project := srv.project
 	if p, ok := args["project"].(string); ok && p != "" {
-		project = p
+		project = srv.resolveProjectName(p)
 	}
 
 	raw := store.RawMemory{
@@ -502,7 +526,7 @@ func (srv *MCPServer) handleStatus(ctx context.Context, args map[string]interfac
 func (srv *MCPServer) handleRecallProject(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	project := srv.project
 	if p, ok := args["project"].(string); ok && p != "" {
-		project = p
+		project = srv.resolveProjectName(p)
 	}
 	if project == "" {
 		return nil, fmt.Errorf("project name is required (set project param or run from a project directory)")
@@ -962,30 +986,30 @@ func (srv *MCPServer) handleAuditEncodings(ctx context.Context, args map[string]
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Encoding Audit — last %dh, %d pair(s):\n\n", hoursBack, len(pairs)))
+	fmt.Fprintf(&sb, "Encoding Audit — last %dh, %d pair(s):\n\n", hoursBack, len(pairs))
 
 	for i, p := range pairs {
-		sb.WriteString(fmt.Sprintf("--- Pair %d ---\n", i+1))
-		sb.WriteString(fmt.Sprintf("RAW ID:      %s\n", p.raw.ID))
-		sb.WriteString(fmt.Sprintf("Source:      %s\n", p.raw.Source))
-		sb.WriteString(fmt.Sprintf("Type:        %s\n", p.raw.Type))
-		sb.WriteString(fmt.Sprintf("Timestamp:   %s\n", p.raw.Timestamp.Format("2006-01-02 15:04:05")))
+		fmt.Fprintf(&sb, "--- Pair %d ---\n", i+1)
+		fmt.Fprintf(&sb, "RAW ID:      %s\n", p.raw.ID)
+		fmt.Fprintf(&sb, "Source:      %s\n", p.raw.Source)
+		fmt.Fprintf(&sb, "Type:        %s\n", p.raw.Type)
+		fmt.Fprintf(&sb, "Timestamp:   %s\n", p.raw.Timestamp.Format("2006-01-02 15:04:05"))
 
 		rawContent := p.raw.Content
 		if len(rawContent) > 300 {
 			rawContent = rawContent[:300] + "..."
 		}
-		sb.WriteString(fmt.Sprintf("Raw Content: %s\n", rawContent))
+		fmt.Fprintf(&sb, "Raw Content: %s\n", rawContent)
 		sb.WriteString("\n")
 
 		if p.mem != nil {
-			sb.WriteString(fmt.Sprintf("ENCODED ID:  %s\n", p.mem.ID))
-			sb.WriteString(fmt.Sprintf("Summary:     %s\n", p.mem.Summary))
-			sb.WriteString(fmt.Sprintf("Concepts:    %v\n", p.mem.Concepts))
-			sb.WriteString(fmt.Sprintf("Salience:    %.2f\n", p.mem.Salience))
-			sb.WriteString(fmt.Sprintf("Content:     %s\n", p.mem.Content))
-			sb.WriteString(fmt.Sprintf("State:       %s\n", p.mem.State))
-			sb.WriteString(fmt.Sprintf("AccessCount: %d\n", p.mem.AccessCount))
+			fmt.Fprintf(&sb, "ENCODED ID:  %s\n", p.mem.ID)
+			fmt.Fprintf(&sb, "Summary:     %s\n", p.mem.Summary)
+			fmt.Fprintf(&sb, "Concepts:    %v\n", p.mem.Concepts)
+			fmt.Fprintf(&sb, "Salience:    %.2f\n", p.mem.Salience)
+			fmt.Fprintf(&sb, "Content:     %s\n", p.mem.Content)
+			fmt.Fprintf(&sb, "State:       %s\n", p.mem.State)
+			fmt.Fprintf(&sb, "AccessCount: %d\n", p.mem.AccessCount)
 		} else {
 			sb.WriteString("ENCODED:     (not yet encoded or encoding failed)\n")
 		}
@@ -1043,7 +1067,7 @@ func (srv *MCPServer) handleCoachLocalLLM(ctx context.Context, args map[string]i
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
 		// Cleanup temp file on rename failure
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return nil, fmt.Errorf("failed to finalize coaching file: %w", err)
 	}
 

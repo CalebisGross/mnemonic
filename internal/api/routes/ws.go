@@ -74,7 +74,7 @@ func HandleWebSocket(bus events.Bus, log *slog.Logger) http.HandlerFunc {
 			log.Error("websocket upgrade failed", "error", err, "remote_addr", r.RemoteAddr)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		defer activeWSConns.Add(-1)
 
 		log.Info("websocket connection established", "remote_addr", r.RemoteAddr)

@@ -108,7 +108,7 @@ func (p *LMStudioProvider) doWithRetry(req *http.Request) (*http.Response, error
 		// 5xx errors are retryable (server-side transient failures)
 		if resp.StatusCode >= 500 && attempt < maxRetries {
 			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			lastErr = fmt.Errorf("http %d: %s", resp.StatusCode, string(body))
 			continue
 		}
@@ -362,7 +362,7 @@ func (p *LMStudioProvider) Complete(ctx context.Context, req CompletionRequest) 
 			Cause:    err,
 		}
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	// Check HTTP status
 	if httpResp.StatusCode != http.StatusOK {
@@ -472,7 +472,7 @@ func (p *LMStudioProvider) BatchEmbed(ctx context.Context, texts []string) ([][]
 			Cause:    err,
 		}
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	// Check HTTP status
 	if httpResp.StatusCode != http.StatusOK {
@@ -517,7 +517,7 @@ func (p *LMStudioProvider) Health(ctx context.Context) error {
 			Cause:    err,
 		}
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	if httpResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(httpResp.Body)

@@ -17,7 +17,7 @@ func TestHealth_Success(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"data":[{"id":"model1"}]}`)
+		_, _ = fmt.Fprint(w, `{"data":[{"id":"model1"}]}`)
 	}))
 	defer srv.Close()
 
@@ -50,7 +50,7 @@ func TestHealth_ServerDown(t *testing.T) {
 func TestHealth_500(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, `{"error":"internal"}`)
+		_, _ = fmt.Fprint(w, `{"error":"internal"}`)
 	}))
 	defer srv.Close()
 
@@ -73,7 +73,7 @@ func TestEmbed_Success(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"data":[{"embedding":[0.1,0.2,0.3],"index":0}],"model":"test"}`)
+		_, _ = fmt.Fprint(w, `{"data":[{"embedding":[0.1,0.2,0.3],"index":0}],"model":"test"}`)
 	}))
 	defer srv.Close()
 
@@ -99,7 +99,7 @@ func TestEmbed_ServerError(t *testing.T) {
 	// The provider retries 500s up to 3 times via doWithRetry, so always return 500.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, `{"error":"boom"}`)
+		_, _ = fmt.Fprint(w, `{"error":"boom"}`)
 	}))
 	defer srv.Close()
 
@@ -144,7 +144,7 @@ func TestComplete_Success(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"choices":[{"message":{"content":"hello"},"finish_reason":"stop"}],"usage":{"total_tokens":5}}`)
+		_, _ = fmt.Fprint(w, `{"choices":[{"message":{"content":"hello"},"finish_reason":"stop"}],"usage":{"total_tokens":5}}`)
 	}))
 	defer srv.Close()
 
@@ -170,7 +170,7 @@ func TestComplete_Success(t *testing.T) {
 func TestComplete_NoChoices(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"choices":[],"usage":{"total_tokens":0}}`)
+		_, _ = fmt.Fprint(w, `{"choices":[],"usage":{"total_tokens":0}}`)
 	}))
 	defer srv.Close()
 
@@ -206,7 +206,7 @@ func TestConcurrencyLimiter(t *testing.T) {
 		// Block until released.
 		<-releaseHandler
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{"total_tokens":1}}`)
+		_, _ = fmt.Fprint(w, `{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{"total_tokens":1}}`)
 	}))
 	defer srv.Close()
 
@@ -252,7 +252,7 @@ func TestAuthHeader_Set(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"data":[{"id":"model1"}]}`)
+		_, _ = fmt.Fprint(w, `{"data":[{"id":"model1"}]}`)
 	}))
 	defer srv.Close()
 
@@ -270,7 +270,7 @@ func TestAuthHeader_NotSetWhenEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"data":[{"id":"model1"}]}`)
+		_, _ = fmt.Fprint(w, `{"data":[{"id":"model1"}]}`)
 	}))
 	defer srv.Close()
 

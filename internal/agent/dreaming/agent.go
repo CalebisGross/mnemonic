@@ -663,4 +663,3 @@ func averageMemoryEmbedding(memories []store.Memory) []float32 {
 	}
 	return agentutil.AverageVectors(vecs)
 }
-

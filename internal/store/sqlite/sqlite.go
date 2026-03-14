@@ -54,13 +54,13 @@ func NewSQLiteStore(dbPath string, busyTimeoutMs int) (*SQLiteStore, error) {
 
 	// Initialize the schema
 	if err := InitSchema(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
 	// Populate the in-memory embedding index from existing data
 	if err := s.loadEmbeddingIndex(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to load embedding index: %w", err)
 	}
 
@@ -79,7 +79,7 @@ func (s *SQLiteStore) CheckIntegrity(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("running integrity_check: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var problems []string
 	for rows.Next() {
@@ -115,7 +115,7 @@ func (s *SQLiteStore) loadEmbeddingIndex() error {
 	if err != nil {
 		return fmt.Errorf("failed to query embeddings: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var id string
@@ -286,7 +286,7 @@ func scanRawMemory(row *sql.Row) (store.RawMemory, error) {
 
 // scanRawMemoryRows scans multiple raw memory rows from rows.
 func scanRawMemoryRows(rows *sql.Rows) ([]store.RawMemory, error) {
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var rawMemories []store.RawMemory
 
 	for rows.Next() {
@@ -441,7 +441,7 @@ func scanMemory(row *sql.Row) (store.Memory, error) {
 
 // scanMemoryRows scans multiple memory rows from rows.
 func scanMemoryRows(rows *sql.Rows) ([]store.Memory, error) {
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var memories []store.Memory
 
 	for rows.Next() {
@@ -618,7 +618,7 @@ func (s *SQLiteStore) BatchWriteRaw(ctx context.Context, raws []store.RawMemory)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	for _, raw := range raws {
 		metadataStr, err := encodeMap(raw.Metadata)
@@ -1153,7 +1153,7 @@ func (s *SQLiteStore) GetAssociations(ctx context.Context, memoryID string) ([]s
 	if err != nil {
 		return nil, fmt.Errorf("failed to query associations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var associations []store.Association
 	for rows.Next() {
@@ -1406,7 +1406,7 @@ func (s *SQLiteStore) BatchMergeMemories(ctx context.Context, sourceIDs []string
 				&assoc.ActivationCount,
 			)
 			if err != nil {
-				rows.Close()
+				_ = rows.Close()
 				return fmt.Errorf("failed to scan association: %w", err)
 			}
 
@@ -1419,7 +1419,7 @@ func (s *SQLiteStore) BatchMergeMemories(ctx context.Context, sourceIDs []string
 
 			assocList = append(assocList, assoc)
 		}
-		rows.Close()
+		_ = rows.Close()
 
 		// Redirect each association
 		for _, assoc := range assocList {
@@ -1634,7 +1634,7 @@ func (s *SQLiteStore) ListAllAssociations(ctx context.Context) ([]store.Associat
 	if err != nil {
 		return nil, fmt.Errorf("failed to list associations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var associations []store.Association
 	for rows.Next() {
@@ -1704,7 +1704,7 @@ func (s *SQLiteStore) GetAssociationsForMemoryIDs(ctx context.Context, memoryIDs
 			var createdAt, lastActivated sql.NullString
 			if err := rows.Scan(&a.SourceID, &a.TargetID, &a.Strength, &a.RelationType,
 				&createdAt, &lastActivated, &a.ActivationCount); err != nil {
-				rows.Close()
+				_ = rows.Close()
 				return nil, fmt.Errorf("failed to scan association: %w", err)
 			}
 			// Only include if both endpoints are in our set.
@@ -1719,7 +1719,7 @@ func (s *SQLiteStore) GetAssociationsForMemoryIDs(ctx context.Context, memoryIDs
 			}
 			associations = append(associations, a)
 		}
-		rows.Close()
+		_ = rows.Close()
 		if err := rows.Err(); err != nil {
 			return nil, fmt.Errorf("rows error: %w", err)
 		}
@@ -1824,7 +1824,7 @@ func (s *SQLiteStore) ListMetaObservations(ctx context.Context, observationType 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list meta observations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var observations []store.MetaObservation
 	for rows.Next() {
@@ -1881,7 +1881,7 @@ func (s *SQLiteStore) GetSourceDistribution(ctx context.Context) (map[string]int
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source distribution: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	dist := make(map[string]int)
 	for rows.Next() {
@@ -1944,7 +1944,7 @@ func (s *SQLiteStore) GetLLMUsageSummary(ctx context.Context, since time.Time) (
 	if err != nil {
 		return summary, fmt.Errorf("querying LLM usage by agent: %w", err)
 	}
-	defer agentRows.Close()
+	defer func() { _ = agentRows.Close() }()
 	for agentRows.Next() {
 		var caller string
 		var au store.AgentUsage
@@ -1963,7 +1963,7 @@ func (s *SQLiteStore) GetLLMUsageSummary(ctx context.Context, since time.Time) (
 	if err != nil {
 		return summary, fmt.Errorf("querying LLM usage by operation: %w", err)
 	}
-	defer opRows.Close()
+	defer func() { _ = opRows.Close() }()
 	for opRows.Next() {
 		var op string
 		var count int
@@ -1991,7 +1991,7 @@ func (s *SQLiteStore) GetLLMUsageLog(ctx context.Context, limit int) ([]llm.LLMU
 	if err != nil {
 		return nil, fmt.Errorf("querying LLM usage log: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var records []llm.LLMUsageRecord
 	for rows.Next() {

@@ -139,7 +139,7 @@ func ReadFileContent(path string, maxBytes int, log *slog.Logger) string {
 		log.Debug("failed to open file for reading", "path", path, "err", err)
 		return ""
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	limitedReader := io.LimitReader(file, int64(maxBytes))
 	content, err := io.ReadAll(limitedReader)

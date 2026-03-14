@@ -74,7 +74,7 @@ func ExportJSON(ctx context.Context, s store.Store, outputPath string) error {
 	}
 
 	if err := os.Rename(tmpPath, outputPath); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("failed to rename temporary file: %w", err)
 	}
 
@@ -86,27 +86,27 @@ func ExportSQLite(ctx context.Context, dbPath string, outputPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open source database: %w", err)
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	tmpPath := outputPath + ".tmp"
 	dst, err := os.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dst.Close()
+	defer func() { _ = dst.Close() }()
 
 	if _, err := io.Copy(dst, src); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("failed to copy database: %w", err)
 	}
 
 	if err := dst.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("failed to close destination file: %w", err)
 	}
 
 	if err := os.Rename(tmpPath, outputPath); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("failed to rename temporary file: %w", err)
 	}
 

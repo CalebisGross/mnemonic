@@ -125,7 +125,7 @@ func (s *SQLiteStore) SearchPatternsByEmbedding(ctx context.Context, embedding [
 	if err != nil {
 		return nil, fmt.Errorf("failed to query pattern embeddings: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	type candidate struct {
 		id    string
@@ -230,7 +230,7 @@ func scanPattern(row *sql.Row) (store.Pattern, error) {
 
 // scanPatternRows scans multiple pattern rows.
 func scanPatternRows(rows *sql.Rows) ([]store.Pattern, error) {
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var patterns []store.Pattern
 
 	for rows.Next() {

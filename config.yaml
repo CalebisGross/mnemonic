@@ -1,6 +1,18 @@
 # Mnemonic Configuration File
 # All paths support ~ expansion for home directory
 
+# Project Registry
+# Maps directory paths and aliases to canonical project names.
+# The resolver ensures consistent naming regardless of working directory.
+projects:
+  - name: "mnemonic"
+    paths:
+      - "~/Projects/mem"
+    aliases:
+      - "mem"
+      - "sdk"
+      - "mnemonic-sdk"
+
 # LLM Provider Configuration
 # Supports any OpenAI-compatible API (LM Studio, Google Gemini, etc.)
 # For authenticated providers, set the LLM_API_KEY environment variable.

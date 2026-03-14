@@ -16,10 +16,10 @@ import (
 
 func TestConfigDecayRateAffectsSalienceDrop(t *testing.T) {
 	tests := []struct {
-		name         string
-		decayRate    float64
-		wantMinDrop  float32 // minimum salience drop expected
-		wantMaxDrop  float32 // maximum salience drop expected
+		name        string
+		decayRate   float64
+		wantMinDrop float32 // minimum salience drop expected
+		wantMaxDrop float32 // maximum salience drop expected
 	}{
 		// DecayRate 0.5: salience * 0.5^(recencyFactor*accessBonus) — big drop
 		{"aggressive_decay_0.5", 0.5, 0.2, 0.5},
@@ -166,7 +166,7 @@ func TestConfigRetentionWindowAffectsDeletion(t *testing.T) {
 		expectDelete    bool
 	}{
 		// Memory archived 100 days ago
-		{"90d_window_deletes", 90 * 24 * time.Hour, true},   // 100 > 90 → deleted
+		{"90d_window_deletes", 90 * 24 * time.Hour, true},    // 100 > 90 → deleted
 		{"120d_window_retains", 120 * 24 * time.Hour, false}, // 100 < 120 → retained
 	}
 

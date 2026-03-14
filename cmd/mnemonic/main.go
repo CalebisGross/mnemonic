@@ -260,7 +260,7 @@ func startCommand(configPath string) {
 	for i := 0; i < 3; i++ {
 		resp, err := apiGet(apiURL, cfg.API.Token)
 		if err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
 				healthy = true
 				break
@@ -314,7 +314,7 @@ func checkLLMFromAPI(healthURL, llmEndpoint, token string) {
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var health map[string]interface{}
 	if json.NewDecoder(resp.Body).Decode(&health) != nil {
@@ -417,7 +417,7 @@ func watchCommand(configPath string) {
 	if err != nil {
 		die(exitNetwork, fmt.Sprintf("connecting to daemon: %v", err), "mnemonic start")
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Handle Ctrl+C
 	sigChan := make(chan os.Signal, 1)
@@ -426,7 +426,7 @@ func watchCommand(configPath string) {
 	go func() {
 		<-sigChan
 		fmt.Printf("\n%sStopping event watch.%s\n", colorGray, colorReset)
-		conn.Close()
+		_ = conn.Close()
 		os.Exit(0)
 	}()
 
@@ -569,7 +569,7 @@ func statusCommand(configPath string) {
 	// Health check
 	healthResp, err := apiGet(apiBase+"/health", cfg.API.Token)
 	if err == nil {
-		defer healthResp.Body.Close()
+		defer func() { _ = healthResp.Body.Close() }()
 		if healthResp.StatusCode == http.StatusOK {
 			apiReachable = true
 			var health map[string]interface{}
@@ -603,7 +603,7 @@ func statusCommand(configPath string) {
 	if apiReachable {
 		statsResp, err := apiGet(apiBase+"/stats", cfg.API.Token)
 		if err == nil {
-			defer statsResp.Body.Close()
+			defer func() { _ = statsResp.Body.Close() }()
 			var data map[string]interface{}
 			if json.NewDecoder(statsResp.Body).Decode(&data) == nil {
 				s, _ := data["store"].(map[string]interface{})
@@ -631,7 +631,7 @@ func statusCommand(configPath string) {
 		// Fall back to direct DB access
 		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 		if err == nil {
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			ctx := context.Background()
 			stats, err := db.GetStatistics(ctx)
 			if err == nil {
@@ -651,7 +651,7 @@ func statusCommand(configPath string) {
 	{
 		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 		if err == nil {
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			ctx := context.Background()
 			var unprocessed int
 			row := db.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM raw_memories WHERE processed = 0")
@@ -676,7 +676,7 @@ func statusCommand(configPath string) {
 		fmt.Printf("    Enabled:        yes (every %s)\n", cfg.Consolidation.IntervalRaw)
 		db, err := sqlite.NewSQLiteStore(cfg.Store.DBPath, cfg.Store.BusyTimeoutMs)
 		if err == nil {
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			lastConsolidation := getLastConsolidation(db)
 			if lastConsolidation != "" {
 				fmt.Printf("    Last run:       %s\n", lastConsolidation)
@@ -836,7 +836,7 @@ func diagnoseCommand(configPath string) {
 			fail("Database", fmt.Sprintf("cannot open: %v", err))
 		} else {
 			diagDB = db
-			defer diagDB.Close()
+			defer func() { _ = diagDB.Close() }()
 			ctx := context.Background()
 
 			// Integrity check
@@ -1130,6 +1130,9 @@ func serveCommand(configPath string) {
 		fmt.Fprintf(os.Stderr, "Warning: %s\n", warn)
 	}
 
+	// Build project resolver from config
+	projectResolver := config.NewProjectResolver(cfg.Projects)
+
 	// Initialize logger
 	log, err := logger.New(logger.Config{
 		Level:  cfg.Logging.Level,
@@ -1224,7 +1227,7 @@ func serveCommand(configPath string) {
 
 	// Create event bus
 	bus := events.NewInMemoryBus(bufferSize)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	// Check LLM health (warn loudly if unavailable, don't fail startup)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.LLM.TimeoutSec)*time.Second)
@@ -1391,6 +1394,7 @@ func serveCommand(configPath string) {
 					},
 					LLMGatingEnabled:      cfg.Perception.LLMGatingEnabled,
 					LearnedExclusionsPath: cfg.Perception.LearnedExclusionsPath,
+					ProjectResolver:       projectResolver,
 				},
 				log,
 			)
@@ -1700,7 +1704,7 @@ func rememberCommand(configPath, text string) {
 	}
 
 	cfg, db, llmProvider, log := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
@@ -1738,7 +1742,7 @@ func rememberCommand(configPath, text string) {
 	defer encodeCancel()
 
 	bus := events.NewInMemoryBus(100)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	encoder := encoding.NewEncodingAgentWithConfig(db, llmProvider, log, encoding.EncodingConfig{
 		PollingInterval:         5 * time.Second,
@@ -1791,7 +1795,7 @@ func rememberCommand(configPath, text string) {
 // recallCommand retrieves memories matching a query.
 func recallCommand(configPath, query string) {
 	cfg, db, llmProvider, log := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
@@ -1837,11 +1841,11 @@ func recallCommand(configPath, query string) {
 // consolidateCommand runs a single memory consolidation cycle.
 func consolidateCommand(configPath string) {
 	cfg, db, llmProvider, log := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	bus := events.NewInMemoryBus(100)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	consolidator := consolidation.NewConsolidationAgent(db, llmProvider, consolidation.ConsolidationConfig{
 		Interval:            cfg.Consolidation.Interval,
@@ -1890,7 +1894,7 @@ func consolidateCommand(configPath string) {
 // exportCommand exports the memory store to a file.
 func exportCommand(configPath string, args []string) {
 	cfg, db, _, _ := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
@@ -1952,7 +1956,7 @@ func exportCommand(configPath string, args []string) {
 // importCommand imports memories from a JSON export file.
 func importCommand(configPath, filePath string, args []string) {
 	_, db, _, _ := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
@@ -1994,7 +1998,7 @@ func importCommand(configPath, filePath string, args []string) {
 // backupCommand creates a timestamped backup with retention.
 func backupCommand(configPath string) {
 	_, db, _, _ := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
@@ -2048,7 +2052,7 @@ func restoreCommand(configPath string, backupPath string) {
 	intCtx, intCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	intErr := testStore.CheckIntegrity(intCtx)
 	intCancel()
-	testStore.Close()
+	_ = testStore.Close()
 	if intErr != nil {
 		die(exitDatabase, fmt.Sprintf("backup file is corrupted: %v", intErr), "")
 	}
@@ -2154,7 +2158,7 @@ func purgeCommand(configPath string) {
 // bulk-marks them as processed, then archives any encoded memories derived from them.
 func cleanupCommand(configPath string, args []string) {
 	cfg, db, _, _ := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
@@ -2259,7 +2263,7 @@ func cleanupCommand(configPath string, args []string) {
 // insightsCommand displays recent metacognition observations.
 func insightsCommand(configPath string) {
 	_, db, _, _ := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
@@ -2339,11 +2343,11 @@ func formatDetailValue(val interface{}) string {
 // metaCycleCommand runs a single metacognition cycle and displays results.
 func metaCycleCommand(configPath string) {
 	_, db, llmProvider, log := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	bus := events.NewInMemoryBus(100)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	agent := metacognition.NewMetacognitionAgent(db, llmProvider, metacognition.MetacognitionConfig{
 		Interval: 24 * time.Hour, // doesn't matter for RunOnce
@@ -2391,11 +2395,11 @@ func metaCycleCommand(configPath string) {
 // dreamCycleCommand runs a single dream cycle and displays results.
 func dreamCycleCommand(configPath string) {
 	cfg, db, llmProvider, log := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	bus := events.NewInMemoryBus(100)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	agent := dreaming.NewDreamingAgent(db, llmProvider, dreaming.DreamingConfig{
 		Interval:               3 * time.Hour, // doesn't matter for RunOnce
@@ -2423,13 +2427,13 @@ func dreamCycleCommand(configPath string) {
 // mcpCommand runs the MCP server on stdin/stdout for AI agent integration.
 func mcpCommand(configPath string) {
 	cfg, db, llmProvider, log := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	bus := events.NewInMemoryBus(100)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	// Create encoding agent so remembered memories get encoded
 	encoder := encoding.NewEncodingAgentWithConfig(db, llmProvider, log, encoding.EncodingConfig{
@@ -2461,7 +2465,8 @@ func mcpCommand(configPath string) {
 		DualHitBonus:        float32(cfg.Retrieval.DualHitBonus),
 	}, log)
 
-	server := mcp.NewMCPServer(db, retriever, bus, log, Version, cfg.Coaching.CoachingFile, cfg.Perception.Filesystem.ExcludePatterns, cfg.Perception.Filesystem.MaxContentBytes)
+	mcpResolver := config.NewProjectResolver(cfg.Projects)
+	server := mcp.NewMCPServer(db, retriever, bus, log, Version, cfg.Coaching.CoachingFile, cfg.Perception.Filesystem.ExcludePatterns, cfg.Perception.Filesystem.MaxContentBytes, mcpResolver)
 
 	// Handle signal for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -2560,7 +2565,7 @@ EXIT CODES:
 // autopilotCommand shows what the system has been doing autonomously.
 func autopilotCommand(configPath string) {
 	_, db, _, _ := initRuntime(configPath)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 

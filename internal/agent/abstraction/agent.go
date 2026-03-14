@@ -717,7 +717,6 @@ func min32(a, b float32) float32 {
 	return b
 }
 
-
 // averagePatternEmbedding computes the element-wise average of pattern embeddings.
 func averagePatternEmbedding(patterns []store.Pattern) []float32 {
 	var withEmb [][]float32
@@ -739,4 +738,3 @@ func averageAbstractionEmbedding(abstractions []store.Abstraction) []float32 {
 	}
 	return agentutil.AverageVectors(withEmb)
 }
-

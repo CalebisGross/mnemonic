@@ -127,7 +127,7 @@ func (s *SQLiteStore) SearchAbstractionsByEmbedding(ctx context.Context, embeddi
 	if err != nil {
 		return nil, fmt.Errorf("failed to query abstraction embeddings: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	type candidate struct {
 		id    string
@@ -219,7 +219,7 @@ func scanAbstraction(row *sql.Row) (store.Abstraction, error) {
 
 // scanAbstractionRows scans multiple abstraction rows.
 func scanAbstractionRows(rows *sql.Rows) ([]store.Abstraction, error) {
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var abstractions []store.Abstraction
 
 	for rows.Next() {

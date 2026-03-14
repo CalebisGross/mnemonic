@@ -67,7 +67,7 @@ func HandleCreateMemory(s store.Store, bus events.Bus, log *slog.Logger) http.Ha
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Parse request body
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		var req CreateMemoryRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Warn("failed to decode create memory request", "error", err)
@@ -264,5 +264,3 @@ func HandleGetMemory(s store.Store, log *slog.Logger) http.HandlerFunc {
 		writeJSON(w, http.StatusOK, resp)
 	}
 }
-
-
