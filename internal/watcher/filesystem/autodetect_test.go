@@ -24,8 +24,8 @@ func TestDetectNoisyApps(t *testing.T) {
 		if pattern[0] != '.' {
 			t.Errorf("pattern should start with '.': got %q", pattern)
 		}
-		if pattern[len(pattern)-1] != '/' {
-			t.Errorf("pattern should end with '/': got %q", pattern)
+		if pattern[len(pattern)-1] != filepath.Separator {
+			t.Errorf("pattern should end with %q: got %q", string(filepath.Separator), pattern)
 		}
 	}
 }

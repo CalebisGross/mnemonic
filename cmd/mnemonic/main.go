@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -13,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -419,7 +421,7 @@ func watchCommand(configPath string) {
 
 	// Handle Ctrl+C
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, shutdownSignals()...)
 
 	go func() {
 		<-sigChan
@@ -997,10 +999,13 @@ func uninstallCommand() {
 // ============================================================================
 
 // startAgentWebServer starts the Python WebSocket agent server as a child process.
-// Returns the started Cmd for later cleanup, or nil if disabled/failed.
-func startAgentWebServer(cfg *config.Config, log *slog.Logger) *exec.Cmd {
+// Returns the started Cmd and a channel that receives the Wait() result when the
+// process exits. The caller must use the channel instead of calling cmd.Wait()
+// directly, since the background monitor goroutine owns the single Wait() call.
+// Returns (nil, nil) if disabled or failed to start.
+func startAgentWebServer(cfg *config.Config, log *slog.Logger) (*exec.Cmd, <-chan error) {
 	if !cfg.AgentSDK.Enabled || cfg.AgentSDK.EvolutionDir == "" {
-		return nil
+		return nil, nil
 	}
 
 	port := cfg.AgentSDK.WebPort
@@ -1012,19 +1017,26 @@ func startAgentWebServer(cfg *config.Config, log *slog.Logger) *exec.Cmd {
 	sdkDir := filepath.Dir(filepath.Dir(cfg.AgentSDK.EvolutionDir))
 
 	// Determine python binary: prefer explicit config, then venv Python (has
-	// all SDK deps installed), then uv, then system python3.
+	// all SDK deps installed), then uv, then system python3/python.
 	pythonBin := cfg.AgentSDK.PythonBin
 	if pythonBin == "" {
+		// Venv layout differs by platform: bin/python3 (Unix) vs Scripts/python.exe (Windows)
 		venvPython := filepath.Join(sdkDir, ".venv", "bin", "python3")
+		if runtime.GOOS == "windows" {
+			venvPython = filepath.Join(sdkDir, ".venv", "Scripts", "python.exe")
+		}
 		if _, err := os.Stat(venvPython); err == nil {
 			pythonBin = venvPython
 		} else if uvPath, err := exec.LookPath("uv"); err == nil {
 			pythonBin = uvPath
 		} else if py3, err := exec.LookPath("python3"); err == nil {
 			pythonBin = py3
+		} else if py, err := exec.LookPath("python"); err == nil {
+			// Windows typically has "python" not "python3"
+			pythonBin = py
 		} else {
 			log.Error("cannot find python3 or uv to start agent web server")
-			return nil
+			return nil, nil
 		}
 	}
 
@@ -1038,16 +1050,23 @@ func startAgentWebServer(cfg *config.Config, log *slog.Logger) *exec.Cmd {
 
 	// Resolve mnemonic binary and config paths relative to project root.
 	projectRoot := filepath.Dir(sdkDir)
+	binaryName := "mnemonic"
+	if runtime.GOOS == "windows" {
+		binaryName = "mnemonic.exe"
+	}
 	args = append(args,
 		"--port", fmt.Sprintf("%d", port),
 		"--mnemonic-config", filepath.Join(projectRoot, "config.yaml"),
-		"--mnemonic-binary", filepath.Join(projectRoot, "bin", "mnemonic"),
+		"--mnemonic-binary", filepath.Join(projectRoot, "bin", binaryName),
 	)
 
 	cmd := exec.Command(pythonBin, args...)
 	cmd.Dir = sdkDir
+
+	// Capture stderr so missing-dependency tracebacks don't pollute the console.
+	var stderrBuf bytes.Buffer
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = &stderrBuf
 
 	// Strip CLAUDECODE env var so the bundled Claude CLI doesn't refuse
 	// to start (nested session detection).
@@ -1062,15 +1081,44 @@ func startAgentWebServer(cfg *config.Config, log *slog.Logger) *exec.Cmd {
 
 	if err := cmd.Start(); err != nil {
 		log.Error("failed to start agent web server", "error", err, "python_bin", pythonBin)
-		return nil
+		return nil, nil
 	}
 
 	log.Info("agent web server started", "pid", cmd.Process.Pid, "port", port, "sdk_dir", sdkDir)
-	return cmd
+
+	// Monitor the process in background — if it exits quickly, log a clean warning
+	// instead of dumping a raw Python traceback. This goroutine owns the single
+	// cmd.Wait() call; the done channel lets the shutdown path wait for exit
+	// without calling Wait() a second time (which would race).
+	done := make(chan error, 1)
+	go func() {
+		err := cmd.Wait()
+		if err != nil {
+			stderr := strings.TrimSpace(stderrBuf.String())
+			if strings.Contains(stderr, "ModuleNotFoundError") || strings.Contains(stderr, "No module named") {
+				log.Warn("agent web server exited: missing Python dependency — install SDK requirements to enable",
+					"hint", "cd sdk && pip install -r requirements.txt")
+			} else {
+				log.Warn("agent web server exited unexpectedly", "error", err, "stderr", stderr)
+			}
+		}
+		done <- err
+	}()
+
+	return cmd, done
 }
 
 // serveCommand runs the mnemonic daemon.
 func serveCommand(configPath string) {
+	// If running as a Windows Service, delegate to the service handler.
+	if daemon.IsWindowsService() {
+		execPath, _ := os.Executable()
+		if err := daemon.RunAsService(execPath, configPath); err != nil {
+			die(exitGeneral, fmt.Sprintf("running as Windows service: %v", err), "")
+		}
+		return
+	}
+
 	// Load configuration
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -1531,11 +1579,11 @@ func serveCommand(configPath string) {
 	}
 
 	// --- Start agent web server (Python WebSocket) ---
-	agentWebCmd := startAgentWebServer(cfg, log)
+	agentWebCmd, agentWebDone := startAgentWebServer(cfg, log)
 
 	// Set up signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, shutdownSignals()...)
 
 	// Block until signal received
 	sig := <-sigChan
@@ -1544,17 +1592,22 @@ func serveCommand(configPath string) {
 	// Graceful shutdown: cancel root context to stop all agents
 	rootCancel()
 
-	// Stop agent web server if running
+	// Stop agent web server if running. Use agentWebDone (owned by the
+	// background goroutine) instead of calling cmd.Wait() a second time.
 	if agentWebCmd != nil && agentWebCmd.Process != nil {
 		log.Info("stopping agent web server", "pid", agentWebCmd.Process.Pid)
-		if err := agentWebCmd.Process.Signal(syscall.SIGTERM); err != nil {
-			log.Warn("failed to send SIGTERM to agent web server", "error", err)
+		// On Unix, send SIGTERM for graceful shutdown. On Windows, SIGTERM
+		// is not supported — go straight to Kill().
+		if runtime.GOOS != "windows" {
+			if err := agentWebCmd.Process.Signal(syscall.SIGTERM); err != nil {
+				log.Warn("failed to send SIGTERM to agent web server", "error", err)
+				_ = agentWebCmd.Process.Kill()
+			}
+		} else {
 			_ = agentWebCmd.Process.Kill()
 		}
-		done := make(chan error, 1)
-		go func() { done <- agentWebCmd.Wait() }()
 		select {
-		case <-done:
+		case <-agentWebDone:
 		case <-time.After(5 * time.Second):
 			log.Warn("agent web server did not exit in 5s, killing")
 			_ = agentWebCmd.Process.Kill()
@@ -2412,7 +2465,7 @@ func mcpCommand(configPath string) {
 
 	// Handle signal for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, shutdownSignals()...)
 	go func() {
 		<-sigChan
 		cancel()

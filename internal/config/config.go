@@ -621,7 +621,7 @@ func (c *Config) Validate() error {
 		}
 		for _, sensitive := range sensitiveDirs {
 			sensitiveDir := filepath.Join(home, sensitive)
-			if dir == sensitiveDir || strings.HasPrefix(dir, sensitiveDir+"/") {
+			if dir == sensitiveDir || strings.HasPrefix(dir, sensitiveDir+string(filepath.Separator)) {
 				return fmt.Errorf("perception.filesystem.watch_dirs contains sensitive directory %q — this may expose secrets", dir)
 			}
 		}

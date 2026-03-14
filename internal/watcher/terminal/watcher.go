@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -64,7 +65,17 @@ func NewTerminalWatcher(cfg Config, log *slog.Logger) (*TerminalWatcher, error) 
 		done:           make(chan struct{}),
 		excludeRegexps: excludeRegexps,
 		platformDetector: func() string {
-			return os.Getenv("SHELL")
+			if shell := os.Getenv("SHELL"); shell != "" {
+				return shell
+			}
+			if runtime.GOOS == "windows" {
+				// Git Bash on Windows sets MSYSTEM
+				if os.Getenv("MSYSTEM") != "" {
+					return "bash"
+				}
+				return "powershell"
+			}
+			return ""
 		},
 	}
 
@@ -167,6 +178,12 @@ func (tw *TerminalWatcher) getHistoryFilePath(shell string) (string, error) {
 		return filepath.Join(homeDir, ".zsh_history"), nil
 	case "fish":
 		return filepath.Join(homeDir, ".local", "share", "fish", "fish_history"), nil
+	case "powershell", "pwsh":
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			return "", fmt.Errorf("APPDATA environment variable not set")
+		}
+		return filepath.Join(appData, "Microsoft", "Windows", "PowerShell", "PSReadLine", "ConsoleHost_history.txt"), nil
 	default:
 		return filepath.Join(homeDir, ".bash_history"), nil // default to bash
 	}

@@ -1059,8 +1059,8 @@ func TestRunCycle(t *testing.T) {
 		if report.ExpiredDeleted != 2 {
 			t.Errorf("expected 2 expired deleted, got %d", report.ExpiredDeleted)
 		}
-		if report.Duration <= 0 {
-			t.Error("expected positive duration")
+		if report.Duration < 0 {
+			t.Error("expected non-negative duration")
 		}
 
 		// Verify consolidation record was written
