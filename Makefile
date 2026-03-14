@@ -1,7 +1,7 @@
 .PHONY: build run clean test fmt vet start stop restart status watch install uninstall export backup insights dream-cycle mcp benchmark benchmark-quality setup-hooks lint
 
 BUILD_DIR=bin
-VERSION=0.11.1 # x-release-please-version
+VERSION=0.12.0 # x-release-please-version
 LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION)"
 TAGS=-tags "sqlite_fts5"
 
