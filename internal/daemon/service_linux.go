@@ -166,6 +166,10 @@ func (m *systemdManager) Stop() error {
 	return exec.Command("systemctl", "--user", "stop", serviceName).Run()
 }
 
+func (m *systemdManager) Restart() error {
+	return exec.Command("systemctl", "--user", "restart", serviceName).Start()
+}
+
 func (m *systemdManager) ServiceName() string {
 	return "systemd"
 }
