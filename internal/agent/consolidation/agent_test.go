@@ -1213,3 +1213,67 @@ func TestExtractJSONFromResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateGistEmptySummaryFallback(t *testing.T) {
+	t.Run("LLM returns empty summary, fallback uses content", func(t *testing.T) {
+		ms := &mockStore{
+			batchMergeMemoriesFn: func(ctx context.Context, sourceIDs []string, gist store.Memory) error {
+				return nil
+			},
+		}
+		mlp := newMockLLMProvider()
+		mlp.completeFn = func(ctx context.Context, req llm.CompletionRequest) (llm.CompletionResponse, error) {
+			return llm.CompletionResponse{
+				Content: `{"summary":"","content":"important details about the merge"}`,
+			}, nil
+		}
+
+		ca := NewConsolidationAgent(ms, mlp, DefaultConfig(), slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+		cluster := []store.Memory{
+			{ID: "a", Summary: "mem A", Embedding: []float32{1, 0, 0}},
+			{ID: "b", Summary: "mem B", Embedding: []float32{1, 0, 0}},
+			{ID: "c", Summary: "mem C", Embedding: []float32{1, 0, 0}},
+		}
+
+		gist, err := ca.createGist(context.Background(), cluster)
+		if err != nil {
+			t.Fatalf("createGist failed: %v", err)
+		}
+		if gist.Summary == "" {
+			t.Error("expected non-empty summary from fallback, got empty string")
+		}
+		if gist.Summary != "important details about the merge" {
+			t.Errorf("expected summary to be truncated content, got %q", gist.Summary)
+		}
+	})
+
+	t.Run("LLM returns valid summary, no fallback needed", func(t *testing.T) {
+		ms := &mockStore{
+			batchMergeMemoriesFn: func(ctx context.Context, sourceIDs []string, gist store.Memory) error {
+				return nil
+			},
+		}
+		mlp := newMockLLMProvider()
+		mlp.completeFn = func(ctx context.Context, req llm.CompletionRequest) (llm.CompletionResponse, error) {
+			return llm.CompletionResponse{
+				Content: `{"summary":"consolidated insight","content":"details"}`,
+			}, nil
+		}
+
+		ca := NewConsolidationAgent(ms, mlp, DefaultConfig(), slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+		cluster := []store.Memory{
+			{ID: "a", Summary: "mem A", Embedding: []float32{1, 0, 0}},
+			{ID: "b", Summary: "mem B", Embedding: []float32{1, 0, 0}},
+		}
+
+		gist, err := ca.createGist(context.Background(), cluster)
+		if err != nil {
+			t.Fatalf("createGist failed: %v", err)
+		}
+		if gist.Summary != "consolidated insight" {
+			t.Errorf("expected 'consolidated insight', got %q", gist.Summary)
+		}
+	})
+}

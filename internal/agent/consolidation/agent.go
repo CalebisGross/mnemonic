@@ -608,6 +608,11 @@ Respond with ONLY a JSON object:
 		}
 	}
 
+	// Fallback: if LLM returned an empty summary, truncate content (matches encoding agent)
+	if gistSummary == "" {
+		gistSummary = agentutil.Truncate(gistContent, 100)
+	}
+
 	// Inherit project from cluster — use the most common non-empty project
 	project := inferProjectFromCluster(cluster)
 
