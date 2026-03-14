@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  test-matrix:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -28,6 +28,19 @@ jobs:
         shell: bash
         run: CGO_ENABLED=1 go test -tags sqlite_fts5 -race -count=1 ./...
 
+  # Gate job — preserves the "test" check name for branch protection rules.
+  test:
+    needs: [test-matrix]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check matrix results
+        run: |
+          if [ "${{ needs.test-matrix.result }}" != "success" ]; then
+            echo "Test matrix failed: ${{ needs.test-matrix.result }}"
+            exit 1
+          fi
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -42,7 +55,7 @@ jobs:
         with:
           version: latest
 
-  build:
+  build-matrix:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -57,3 +70,16 @@ jobs:
       - name: Build
         shell: bash
         run: CGO_ENABLED=1 go build -tags sqlite_fts5 -ldflags "-s -w" -o bin/mnemonic ./cmd/mnemonic
+
+  # Gate job — preserves the "build" check name for branch protection rules.
+  build:
+    needs: [build-matrix]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check matrix results
+        run: |
+          if [ "${{ needs.build-matrix.result }}" != "success" ]; then
+            echo "Build matrix failed: ${{ needs.build-matrix.result }}"
+            exit 1
+          fi

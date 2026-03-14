@@ -421,7 +421,7 @@ func watchCommand(configPath string) {
 
 	// Handle Ctrl+C
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt)
+	signal.Notify(sigChan, shutdownSignals()...)
 
 	go func() {
 		<-sigChan
@@ -1576,7 +1576,7 @@ func serveCommand(configPath string) {
 
 	// Set up signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt)
+	signal.Notify(sigChan, shutdownSignals()...)
 
 	// Block until signal received
 	sig := <-sigChan
@@ -2453,7 +2453,7 @@ func mcpCommand(configPath string) {
 
 	// Handle signal for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt)
+	signal.Notify(sigChan, shutdownSignals()...)
 	go func() {
 		<-sigChan
 		cancel()

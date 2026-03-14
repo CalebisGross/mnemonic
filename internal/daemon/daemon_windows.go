@@ -87,7 +87,9 @@ func Stop() error {
 	}
 	defer windows.CloseHandle(handle)
 
-	// Terminate the process
+	// TerminateProcess is a hard kill (no graceful shutdown). GenerateConsoleCtrlEvent
+	// is not viable here because the daemon runs in a separate process group
+	// (CREATE_NEW_PROCESS_GROUP), and ctrl events cannot cross process groups.
 	if err := windows.TerminateProcess(handle, 1); err != nil {
 		_ = RemovePID()
 		return fmt.Errorf("terminating process: %w", err)

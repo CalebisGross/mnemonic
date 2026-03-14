@@ -102,10 +102,8 @@ func (m *windowsServiceManager) Install(execPath, configPath string) error {
 		{Type: mgr.ServiceRestart, Delay: 10 * time.Second},
 		{Type: mgr.NoAction, Delay: 0},
 	}
-	if err := s.SetRecoveryActions(recoveryActions, 86400); err != nil {
-		// Non-fatal: recovery config is optional
-		_ = err
-	}
+	// Best-effort: recovery config is optional, ignore errors.
+	_ = s.SetRecoveryActions(recoveryActions, 86400)
 
 	return nil
 }
@@ -201,11 +199,16 @@ type mnemonicService struct {
 	configPath string
 }
 
+// Execute implements the Windows Service handler. It spawns a child "mnemonic serve"
+// process rather than running serve logic in-process. The child is not detected as a
+// Windows Service (SCM pipe detection fails for child processes), so it runs the full
+// daemon lifecycle normally. This keeps SCM management separate from application logic.
+// TODO: refactor to run serve logic directly in Execute() to avoid the two-process model.
 func (s *mnemonicService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
 	const accepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 
-	// Start the serve process
+	// Start the serve process as a child (see comment above for rationale).
 	cmd := exec.Command(s.execPath, "--config", s.configPath, "serve")
 	if err := cmd.Start(); err != nil {
 		return true, 1
