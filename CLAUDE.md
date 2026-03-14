@@ -74,7 +74,7 @@ scripts/               Utility scripts
 |----------|--------|
 | macOS ARM | Full support (primary dev platform) |
 | Linux x86_64 | Supported — `serve`, `install`, `start`, `stop`, `uninstall` all work via systemd |
-| Windows | Not yet supported |
+| Windows x86_64 | Supported — `serve`, `install`, `start`, `stop`, `uninstall` work via Windows Services |
 
 ## Known Issues
 

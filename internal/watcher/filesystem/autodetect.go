@@ -69,6 +69,18 @@ var knownNoisyApps = []knownNoisyApp{
 	{Dir: "1Password", Description: "1Password state"},
 }
 
+// windowsBaseDirs returns the base directories to scan on Windows.
+func windowsBaseDirs() []string {
+	var dirs []string
+	if appData := os.Getenv("APPDATA"); appData != "" {
+		dirs = append(dirs, appData)
+	}
+	if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+		dirs = append(dirs, localAppData)
+	}
+	return dirs
+}
+
 // linuxBaseDirs returns the XDG base directories to scan on Linux.
 func linuxBaseDirs(home string) []string {
 	return []string{
@@ -101,6 +113,8 @@ func DetectNoisyApps(log *slog.Logger) []string {
 		baseDirs = linuxBaseDirs(home)
 	case "darwin":
 		baseDirs = darwinBaseDirs(home)
+	case "windows":
+		baseDirs = windowsBaseDirs()
 	default:
 		log.Debug("auto-detect: unsupported platform, skipping", "os", runtime.GOOS)
 		return nil
@@ -116,8 +130,8 @@ func DetectNoisyApps(log *slog.Logger) []string {
 				// Use the path relative to home for the exclusion pattern,
 				// with trailing slash to match the substring convention
 				relPattern := "." + candidate[len(home):]
-				if relPattern[len(relPattern)-1] != '/' {
-					relPattern += "/"
+				if relPattern[len(relPattern)-1] != filepath.Separator {
+					relPattern += string(filepath.Separator)
 				}
 				detected = append(detected, relPattern)
 				log.Info("auto-detected noisy app",

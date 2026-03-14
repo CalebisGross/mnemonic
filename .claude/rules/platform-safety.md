@@ -18,7 +18,7 @@ Never ship code that breaks an existing platform. If it works on macOS today, it
 |----------|--------|
 | macOS ARM/x86 | Full support (primary dev) |
 | Linux x86_64 | Supported (daemon + serve) |
-| Windows | Not yet — but code must compile |
+| Windows x86_64 | Supported (serve + Windows Services) |
 
 ## Before Merging
 

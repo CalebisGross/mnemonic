@@ -1,10 +1,35 @@
 .PHONY: build run clean test fmt vet start stop restart status watch install uninstall export backup insights dream-cycle mcp benchmark benchmark-quality setup-hooks lint
 
-BINARY=mnemonic
 BUILD_DIR=bin
 VERSION=0.10.0 # x-release-please-version
 LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION)"
 TAGS=-tags "sqlite_fts5"
+
+# --- Platform detection ---
+# Detect Windows via uname (works in MSYS2, Git Bash, and CI).
+UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
+ifneq (,$(findstring MINGW,$(UNAME_S)))
+    IS_WINDOWS=1
+else ifneq (,$(findstring MSYS,$(UNAME_S)))
+    IS_WINDOWS=1
+else ifneq (,$(findstring Windows,$(UNAME_S)))
+    IS_WINDOWS=1
+endif
+
+ifdef IS_WINDOWS
+    BINARY=mnemonic.exe
+    # MSYS2 make remaps TEMP/HOME to POSIX paths that native Windows tools
+    # (Go, GCC) cannot resolve. Convert them back to Windows-native paths.
+    # All vars use ?= so they can be overridden from the environment.
+    WIN_TEMP   ?= $(shell cygpath -w "$${TEMP:-/tmp}")
+    export TEMP    := $(WIN_TEMP)
+    export TMP     := $(WIN_TEMP)
+    export GOTMPDIR ?= $(WIN_TEMP)
+    export GOPATH  ?= $(shell cygpath -w "$${HOME}/go")
+    export GOCACHE ?= $(shell cygpath -w "$${LOCALAPPDATA:-$${HOME}/AppData/Local}/go-build")
+else
+    BINARY=mnemonic
+endif
 
 build:
 	@mkdir -p $(BUILD_DIR)

@@ -79,51 +79,54 @@ func extractPrefix(path string) string {
 		return ""
 	}
 
+	sep := string(filepath.Separator)
+
 	// Ensure path is under home
 	if !strings.HasPrefix(path, home) {
 		return ""
 	}
 
 	rel := path[len(home):]
-	if len(rel) > 0 && rel[0] == '/' {
+	if len(rel) > 0 && (rel[0] == '/' || rel[0] == filepath.Separator) {
 		rel = rel[1:]
 	}
 
-	// Known base directories with their depth (how many levels before app dir)
+	// Known base directories with their depth (how many levels before app dir).
+	// Prefixes use filepath.Join so separators match the platform.
 	bases := []struct {
 		prefix string
 		depth  int // number of path segments in the base prefix
 	}{
-		{prefix: ".config/", depth: 1},
-		{prefix: ".local/share/", depth: 2},
-		{prefix: "Library/Application Support/", depth: 2},
-		{prefix: "Library/Caches/", depth: 2},
+		{prefix: ".config" + sep, depth: 1},
+		{prefix: filepath.Join(".local", "share") + sep, depth: 2},
+		{prefix: filepath.Join("Library", "Application Support") + sep, depth: 2},
+		{prefix: filepath.Join("Library", "Caches") + sep, depth: 2},
 	}
 
 	for _, base := range bases {
 		if strings.HasPrefix(rel, base.prefix) {
 			after := rel[len(base.prefix):]
 			// Get the first directory component after the base
-			idx := strings.Index(after, "/")
+			idx := strings.IndexByte(after, filepath.Separator)
 			if idx <= 0 {
 				continue
 			}
 			appDir := after[:idx]
-			return "." + "/" + rel[:len(base.prefix)+len(appDir)] + "/"
+			return "." + sep + rel[:len(base.prefix)+len(appDir)] + sep
 		}
 	}
 
 	// Fallback: detect common project-level noise directories anywhere in the path.
 	// E.g., "Projects/foo/.venv/lib/python3.12/..." → "./Projects/foo/.venv/"
 	noiseDirs := []string{
-		".venv/", "venv/", "node_modules/", "__pycache__/",
-		"site-packages/", ".tox/", ".mypy_cache/", ".ruff_cache/", ".pytest_cache/",
-		".egg-info/", ".eggs/",
+		".venv" + sep, "venv" + sep, "node_modules" + sep, "__pycache__" + sep,
+		"site-packages" + sep, ".tox" + sep, ".mypy_cache" + sep, ".ruff_cache" + sep, ".pytest_cache" + sep,
+		".egg-info" + sep, ".eggs" + sep,
 	}
 	for _, noiseDir := range noiseDirs {
 		idx := strings.Index(rel, noiseDir)
 		if idx > 0 {
-			return "./" + rel[:idx+len(noiseDir)]
+			return "." + sep + rel[:idx+len(noiseDir)]
 		}
 	}
 

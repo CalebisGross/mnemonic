@@ -18,6 +18,9 @@ func TestExtractPrefix(t *testing.T) {
 		t.Fatalf("could not get home dir: %v", err)
 	}
 
+	// sep builds expected patterns with the platform's native separator.
+	sep := string(filepath.Separator)
+
 	tests := []struct {
 		name string
 		path string
@@ -25,47 +28,47 @@ func TestExtractPrefix(t *testing.T) {
 	}{
 		{
 			name: "config app dir",
-			path: filepath.Join(home, ".config/Code/User/settings.json"),
-			want: "./.config/Code/",
+			path: filepath.Join(home, ".config", "Code", "User", "settings.json"),
+			want: "." + sep + filepath.Join(".config", "Code") + sep,
 		},
 		{
 			name: "local share app dir",
-			path: filepath.Join(home, ".local/share/gnome-shell/extensions/foo"),
-			want: "./.local/share/gnome-shell/",
+			path: filepath.Join(home, ".local", "share", "gnome-shell", "extensions", "foo"),
+			want: "." + sep + filepath.Join(".local", "share", "gnome-shell") + sep,
 		},
 		{
 			name: "not under home",
-			path: "/tmp/foo/bar",
+			path: filepath.Join(string(filepath.Separator), "tmp", "foo", "bar"),
 			want: "",
 		},
 		{
 			name: "no recognizable base",
-			path: filepath.Join(home, "Documents/projects/foo.go"),
+			path: filepath.Join(home, "Documents", "projects", "foo.go"),
 			want: "",
 		},
 		{
 			name: "config dir with no app subdir",
-			path: filepath.Join(home, ".config/somefile"),
+			path: filepath.Join(home, ".config", "somefile"),
 			want: "",
 		},
 		{
 			name: "project venv",
-			path: filepath.Join(home, "Projects/felixlm/.venv/lib/python3.12/site-packages/pip/config.py"),
-			want: "./Projects/felixlm/.venv/",
+			path: filepath.Join(home, "Projects", "felixlm", ".venv", "lib", "python3.12", "site-packages", "pip", "config.py"),
+			want: "." + sep + filepath.Join("Projects", "felixlm", ".venv") + sep,
 		},
 		{
 			name: "project node_modules",
-			path: filepath.Join(home, "Projects/webapp/node_modules/express/lib/router.js"),
-			want: "./Projects/webapp/node_modules/",
+			path: filepath.Join(home, "Projects", "webapp", "node_modules", "express", "lib", "router.js"),
+			want: "." + sep + filepath.Join("Projects", "webapp", "node_modules") + sep,
 		},
 		{
 			name: "project pycache",
-			path: filepath.Join(home, "Projects/myapp/__pycache__/module.cpython-312.pyc"),
-			want: "./Projects/myapp/__pycache__/",
+			path: filepath.Join(home, "Projects", "myapp", "__pycache__", "module.cpython-312.pyc"),
+			want: "." + sep + filepath.Join("Projects", "myapp", "__pycache__") + sep,
 		},
 		{
 			name: "normal project file (no noise dir)",
-			path: filepath.Join(home, "Projects/myapp/internal/server/handler.go"),
+			path: filepath.Join(home, "Projects", "myapp", "internal", "server", "handler.go"),
 			want: "",
 		},
 	}
@@ -86,6 +89,8 @@ func TestRejectionTracker_PromotesAfterThreshold(t *testing.T) {
 		t.Fatalf("could not get home dir: %v", err)
 	}
 
+	sep := string(filepath.Separator)
+
 	var promoted []string
 	onPromote := func(pattern string) {
 		promoted = append(promoted, pattern)
@@ -101,7 +106,7 @@ func TestRejectionTracker_PromotesAfterThreshold(t *testing.T) {
 		onPromote,
 	)
 
-	path := filepath.Join(home, ".config/Code/User/settings.json")
+	path := filepath.Join(home, ".config", "Code", "User", "settings.json")
 
 	// Record 4 rejections — should not promote yet
 	for i := 0; i < 4; i++ {
@@ -116,8 +121,9 @@ func TestRejectionTracker_PromotesAfterThreshold(t *testing.T) {
 	if len(promoted) != 1 {
 		t.Fatalf("expected 1 promotion after 5 rejections, got %d", len(promoted))
 	}
-	if promoted[0] != "./.config/Code/" {
-		t.Errorf("promoted pattern = %q, want %q", promoted[0], "./.config/Code/")
+	wantPattern := "." + sep + filepath.Join(".config", "Code") + sep
+	if promoted[0] != wantPattern {
+		t.Errorf("promoted pattern = %q, want %q", promoted[0], wantPattern)
 	}
 
 	// Further rejections for the same prefix should be no-ops
@@ -149,15 +155,15 @@ func TestRejectionTracker_MaxPromotedCap(t *testing.T) {
 	)
 
 	// Promote 2 distinct prefixes
-	rt.recordRejection(filepath.Join(home, ".config/AppA/file"))
-	rt.recordRejection(filepath.Join(home, ".config/AppB/file"))
+	rt.recordRejection(filepath.Join(home, ".config", "AppA", "file"))
+	rt.recordRejection(filepath.Join(home, ".config", "AppB", "file"))
 
 	if len(promoted) != 2 {
 		t.Fatalf("expected 2 promotions, got %d", len(promoted))
 	}
 
 	// 3rd distinct prefix should be capped
-	rt.recordRejection(filepath.Join(home, ".config/AppC/file"))
+	rt.recordRejection(filepath.Join(home, ".config", "AppC", "file"))
 	if len(promoted) != 2 {
 		t.Errorf("expected cap at 2 promotions, got %d", len(promoted))
 	}
@@ -166,6 +172,8 @@ func TestRejectionTracker_MaxPromotedCap(t *testing.T) {
 func TestRejectionTracker_Persistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	persistPath := filepath.Join(tmpDir, "learned.txt")
+
+	sep := string(filepath.Separator)
 
 	var promoted []string
 	onPromote := func(pattern string) {
@@ -188,7 +196,7 @@ func TestRejectionTracker_Persistence(t *testing.T) {
 		testLogger(),
 		onPromote,
 	)
-	rt1.recordRejection(filepath.Join(home, ".config/Code/User/settings.json"))
+	rt1.recordRejection(filepath.Join(home, ".config", "Code", "User", "settings.json"))
 
 	if len(promoted) != 1 {
 		t.Fatalf("expected 1 promotion, got %d", len(promoted))
@@ -219,7 +227,8 @@ func TestRejectionTracker_Persistence(t *testing.T) {
 	if len(exclusions) != 1 {
 		t.Fatalf("expected 1 loaded exclusion, got %d", len(exclusions))
 	}
-	if exclusions[0] != "./.config/Code/" {
-		t.Errorf("loaded exclusion = %q, want %q", exclusions[0], "./.config/Code/")
+	wantExclusion := "." + sep + filepath.Join(".config", "Code") + sep
+	if exclusions[0] != wantExclusion {
+		t.Errorf("loaded exclusion = %q, want %q", exclusions[0], wantExclusion)
 	}
 }

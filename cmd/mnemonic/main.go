@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -13,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -419,7 +421,7 @@ func watchCommand(configPath string) {
 
 	// Handle Ctrl+C
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, os.Interrupt)
 
 	go func() {
 		<-sigChan
@@ -1012,16 +1014,23 @@ func startAgentWebServer(cfg *config.Config, log *slog.Logger) *exec.Cmd {
 	sdkDir := filepath.Dir(filepath.Dir(cfg.AgentSDK.EvolutionDir))
 
 	// Determine python binary: prefer explicit config, then venv Python (has
-	// all SDK deps installed), then uv, then system python3.
+	// all SDK deps installed), then uv, then system python3/python.
 	pythonBin := cfg.AgentSDK.PythonBin
 	if pythonBin == "" {
+		// Venv layout differs by platform: bin/python3 (Unix) vs Scripts/python.exe (Windows)
 		venvPython := filepath.Join(sdkDir, ".venv", "bin", "python3")
+		if runtime.GOOS == "windows" {
+			venvPython = filepath.Join(sdkDir, ".venv", "Scripts", "python.exe")
+		}
 		if _, err := os.Stat(venvPython); err == nil {
 			pythonBin = venvPython
 		} else if uvPath, err := exec.LookPath("uv"); err == nil {
 			pythonBin = uvPath
 		} else if py3, err := exec.LookPath("python3"); err == nil {
 			pythonBin = py3
+		} else if py, err := exec.LookPath("python"); err == nil {
+			// Windows typically has "python" not "python3"
+			pythonBin = py
 		} else {
 			log.Error("cannot find python3 or uv to start agent web server")
 			return nil
@@ -1038,16 +1047,23 @@ func startAgentWebServer(cfg *config.Config, log *slog.Logger) *exec.Cmd {
 
 	// Resolve mnemonic binary and config paths relative to project root.
 	projectRoot := filepath.Dir(sdkDir)
+	binaryName := "mnemonic"
+	if runtime.GOOS == "windows" {
+		binaryName = "mnemonic.exe"
+	}
 	args = append(args,
 		"--port", fmt.Sprintf("%d", port),
 		"--mnemonic-config", filepath.Join(projectRoot, "config.yaml"),
-		"--mnemonic-binary", filepath.Join(projectRoot, "bin", "mnemonic"),
+		"--mnemonic-binary", filepath.Join(projectRoot, "bin", binaryName),
 	)
 
 	cmd := exec.Command(pythonBin, args...)
 	cmd.Dir = sdkDir
+
+	// Capture stderr so missing-dependency tracebacks don't pollute the console.
+	var stderrBuf bytes.Buffer
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = &stderrBuf
 
 	// Strip CLAUDECODE env var so the bundled Claude CLI doesn't refuse
 	// to start (nested session detection).
@@ -1066,11 +1082,36 @@ func startAgentWebServer(cfg *config.Config, log *slog.Logger) *exec.Cmd {
 	}
 
 	log.Info("agent web server started", "pid", cmd.Process.Pid, "port", port, "sdk_dir", sdkDir)
+
+	// Monitor the process in background — if it exits quickly, log a clean warning
+	// instead of dumping a raw Python traceback.
+	go func() {
+		err := cmd.Wait()
+		if err != nil {
+			stderr := strings.TrimSpace(stderrBuf.String())
+			if strings.Contains(stderr, "ModuleNotFoundError") || strings.Contains(stderr, "No module named") {
+				log.Warn("agent web server exited: missing Python dependency — install SDK requirements to enable",
+					"hint", "cd sdk && pip install -r requirements.txt")
+			} else {
+				log.Warn("agent web server exited unexpectedly", "error", err, "stderr", stderr)
+			}
+		}
+	}()
+
 	return cmd
 }
 
 // serveCommand runs the mnemonic daemon.
 func serveCommand(configPath string) {
+	// If running as a Windows Service, delegate to the service handler.
+	if daemon.IsWindowsService() {
+		execPath, _ := os.Executable()
+		if err := daemon.RunAsService(execPath, configPath); err != nil {
+			die(exitGeneral, fmt.Sprintf("running as Windows service: %v", err), "")
+		}
+		return
+	}
+
 	// Load configuration
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -1535,7 +1576,7 @@ func serveCommand(configPath string) {
 
 	// Set up signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, os.Interrupt)
 
 	// Block until signal received
 	sig := <-sigChan
@@ -2412,7 +2453,7 @@ func mcpCommand(configPath string) {
 
 	// Handle signal for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, os.Interrupt)
 	go func() {
 		<-sigChan
 		cancel()

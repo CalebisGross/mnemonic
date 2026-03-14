@@ -70,15 +70,19 @@ func TestPathExpansionTilde(t *testing.T) {
 }
 
 func TestResolvePathRelativeToConfigDir(t *testing.T) {
-	configDir := "/etc/mnemonic"
+	// Use a temp directory as the config dir so paths are valid on all platforms.
+	configDir := t.TempDir()
+
+	relPath := filepath.Join("data", "memory.db")
+	absPath := filepath.Join(configDir, "existing", "memory.db")
 
 	tests := []struct {
 		name     string
 		path     string
 		expected string
 	}{
-		{"relative_path", "data/memory.db", "/etc/mnemonic/data/memory.db"},
-		{"absolute_path_unchanged", "/var/lib/memory.db", "/var/lib/memory.db"},
+		{"relative_path", relPath, filepath.Join(configDir, relPath)},
+		{"absolute_path_unchanged", absPath, absPath},
 	}
 
 	for _, tc := range tests {
