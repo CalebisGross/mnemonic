@@ -18,15 +18,24 @@ endif
 
 ifdef IS_WINDOWS
     BINARY=mnemonic.exe
-    # MSYS2 make remaps TEMP/HOME to POSIX paths that native Windows tools
-    # (Go, GCC) cannot resolve. Convert them back to Windows-native paths.
-    # All vars use ?= so they can be overridden from the environment.
-    WIN_TEMP   ?= $(shell cygpath -w "$${TEMP:-/tmp}")
+    # MSYS2/Git Bash make does not inherit Windows env vars (USERPROFILE,
+    # LOCALAPPDATA) and its built-in HOME (/home/<user>) maps to the wrong
+    # Windows path via cygpath (e.g. C:\Program Files\Git\home\<user>).
+    # Read the real USERPROFILE from the registry; fall back to cygpath ~.
+    WIN_HOME   := $(shell cat '/proc/registry/HKEY_CURRENT_USER/Volatile Environment/USERPROFILE' 2>/dev/null | tr -d '\0\r')
+    ifeq ($(WIN_HOME),)
+        WIN_HOME := $(shell cygpath -w ~)
+    endif
+    # MSYS2 make remaps TEMP to a POSIX path that native Windows tools
+    # (Go, GCC) cannot resolve. Convert it back to a Windows-native path.
+    WIN_TEMP   := $(shell cygpath -w "$${TEMP:-/tmp}")
     export TEMP    := $(WIN_TEMP)
     export TMP     := $(WIN_TEMP)
+    # Use ?= so users can override Go tool paths from the environment.
     export GOTMPDIR ?= $(WIN_TEMP)
-    export GOPATH  ?= $(shell cygpath -w "$${HOME}/go")
-    export GOCACHE ?= $(shell cygpath -w "$${LOCALAPPDATA:-$${HOME}/AppData/Local}/go-build")
+    export GOPATH  ?= $(WIN_HOME)\go
+    export GOCACHE ?= $(WIN_HOME)\AppData\Local\go-build
+    export GOMODCACHE ?= $(WIN_HOME)\go\pkg\mod
 else
     BINARY=mnemonic
 endif
