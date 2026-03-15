@@ -4,6 +4,15 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.14.1](https://github.com/AppSprout-dev/mnemonic/compare/v0.14.0...v0.14.1) (2026-03-14)
+
+
+### Bug Fixes
+
+* improve update badge contrast and readability ([0ecad1c](https://github.com/AppSprout-dev/mnemonic/commit/0ecad1ca86cb457754607bea1f1290fa9f443a91))
+* update badge visibility and daemon restart ([e8fe843](https://github.com/AppSprout-dev/mnemonic/commit/e8fe843ea3befc575d563fab3eec3cdc1fc40339))
+* update badge visibility and daemon restart logic ([da0d41c](https://github.com/AppSprout-dev/mnemonic/commit/da0d41c29115eb3a19743e1e346bab9619d25997))
+
 ## [0.14.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.13.0...v0.14.0) (2026-03-14)
 
 
