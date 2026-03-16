@@ -4,6 +4,19 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.14.2](https://github.com/AppSprout-dev/mnemonic/compare/v0.14.1...v0.14.2) (2026-03-16)
+
+
+### Bug Fixes
+
+* add missing source column to memory scan queries ([8442ab7](https://github.com/AppSprout-dev/mnemonic/commit/8442ab75c7416a5262bccfc13d27db8644b797ce))
+* dashboard update button restarts daemon via PID fallback ([569e9e7](https://github.com/AppSprout-dev/mnemonic/commit/569e9e78dbe9314fcc5887b95d599e23c257cf22))
+* dashboard update button restarts daemon via PID fallback ([625fa09](https://github.com/AppSprout-dev/mnemonic/commit/625fa0923c6691aaa929a7fd5931b6735b2c91c0))
+* refresh activity panel timestamps every 30 seconds ([e050813](https://github.com/AppSprout-dev/mnemonic/commit/e0508130247b1b5de7e56f53a821d729b839b164))
+* refresh activity panel timestamps every 30s ([d781408](https://github.com/AppSprout-dev/mnemonic/commit/d78140804a9c3aa5fccc3eb7fcfc663ac775e4a7))
+* resolve 5 daemon bugs from system audit ([5d75f46](https://github.com/AppSprout-dev/mnemonic/commit/5d75f46dc8185b27ed24eb7880d6cd9b1a0ab43c))
+* resolve memory scan error + 5 daemon bugs from system audit ([ef915c9](https://github.com/AppSprout-dev/mnemonic/commit/ef915c9c6bc05d3bcf29b66a1da6bd11f1aea0c7))
+
 ## [0.14.1](https://github.com/AppSprout-dev/mnemonic/compare/v0.14.0...v0.14.1) (2026-03-14)
 
 
