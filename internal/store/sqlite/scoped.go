@@ -29,7 +29,7 @@ func (s *SQLiteStore) SearchByProject(ctx context.Context, project string, query
 	ftsQuery := `
 	SELECT m.id, m.raw_id, m.timestamp, m.content, m.summary, m.concepts, m.embedding,
 	       m.salience, m.access_count, m.last_accessed, m.state, m.gist_of, m.episode_id,
-	       m.project, m.session_id, m.created_at, m.updated_at
+	       m.source, m.project, m.session_id, m.created_at, m.updated_at
 	FROM memories m
 	WHERE m.project = ?
 	AND m.rowid IN (SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?)
