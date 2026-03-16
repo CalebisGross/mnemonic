@@ -1627,7 +1627,9 @@ func serveCommand(configPath string) {
 			IngestExcludePatterns: cfg.Perception.Filesystem.ExcludePatterns,
 			IngestMaxContentBytes: cfg.Perception.Filesystem.MaxContentBytes,
 			Version:               Version,
+			ConfigPath:            configPath,
 			ServiceRestarter:      daemon.NewServiceManager(),
+			PIDRestart:            daemon.PIDRestart,
 			Log:                   log,
 		}
 		// Only set Consolidator if it's non-nil (avoids Go nil-interface trap)

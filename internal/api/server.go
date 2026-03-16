@@ -37,7 +37,9 @@ type ServerDeps struct {
 	IngestExcludePatterns []string
 	IngestMaxContentBytes int
 	Version               string
+	ConfigPath            string                  // config file path for PID-based restart
 	ServiceRestarter      routes.ServiceRestarter // can be nil if not installed as service
+	PIDRestart            routes.PIDRestartFunc   // fallback restart when service manager unavailable
 	Log                   *slog.Logger
 }
 
@@ -81,7 +83,7 @@ func (s *Server) registerRoutes() {
 
 	// Self-update
 	s.mux.HandleFunc("GET /api/v1/system/update-check", routes.HandleUpdateCheck(s.deps.Version, s.deps.Log))
-	s.mux.HandleFunc("POST /api/v1/system/update", routes.HandleUpdate(s.deps.Version, s.deps.ServiceRestarter, s.deps.Log))
+	s.mux.HandleFunc("POST /api/v1/system/update", routes.HandleUpdate(s.deps.Version, s.deps.ServiceRestarter, s.deps.PIDRestart, s.deps.ConfigPath, s.deps.Log))
 
 	// Memory CRUD
 	s.mux.HandleFunc("POST /api/v1/memories", routes.HandleCreateMemory(s.deps.Store, s.deps.Bus, s.deps.Log))

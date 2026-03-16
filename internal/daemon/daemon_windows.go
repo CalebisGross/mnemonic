@@ -71,6 +71,25 @@ func Start(execPath string, configPath string) (int, error) {
 	return pid, nil
 }
 
+// PIDRestart spawns a detached background process that waits for the current
+// daemon to exit, then starts the new binary. This is the fallback restart
+// mechanism when the daemon is not running as a Windows Service.
+func PIDRestart(execPath, configPath string) error {
+	// Wait 3 seconds for the old process to die, then start the new one.
+	script := fmt.Sprintf(
+		`timeout /t 3 /nobreak >nul && "%s" --config "%s" start`,
+		execPath, configPath,
+	)
+	cmd := exec.Command("cmd", "/C", script)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW,
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("spawning restart script: %w", err)
+	}
+	return nil
+}
+
 // Stop stops the daemon process.
 // Windows does not support SIGTERM, so we terminate the process directly.
 func Stop() error {

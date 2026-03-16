@@ -3777,11 +3777,15 @@
 
         try {
             var data = await fetchJSON('/system/update', { method: 'POST' });
-            if (data.status === 'updated') {
+            if (data.status === 'updated' && data.restart_pending) {
                 badge.textContent = 'Restarting...';
                 showToast('Updated to v' + data.new_version + ' — restarting...', 'success');
                 // The daemon will restart; WebSocket reconnect will pick up the new version
                 // After reconnect, loadStats will update navVersion and checkForUpdate will hide the badge
+            } else if (data.status === 'updated' && !data.restart_pending) {
+                badge.textContent = 'Restart needed';
+                badge.className = 'update-badge';
+                showToast(data.message || 'Updated — restart the daemon manually', 'warning');
             } else if (data.status === 'up_to_date') {
                 badge.style.display = 'none';
                 showToast('Already up to date', 'success');

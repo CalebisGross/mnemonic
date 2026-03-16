@@ -75,6 +75,30 @@ func Start(execPath string, configPath string) (int, error) {
 	return pid, nil
 }
 
+// PIDRestart spawns a detached background script that waits for the current
+// daemon process to exit, then starts the new binary. This is the fallback
+// restart mechanism when no platform service manager (launchd/systemd) is
+// installed. The caller should initiate a graceful shutdown after calling this.
+func PIDRestart(execPath, configPath string) error {
+	pid, err := ReadPID()
+	if err != nil {
+		return fmt.Errorf("reading PID file: %w", err)
+	}
+
+	// Spawn a detached shell that waits for the old process to die, then starts the new one.
+	// Uses "serve" (not "start") to avoid double-forking — the script IS the supervisor.
+	script := fmt.Sprintf(
+		`while kill -0 %d 2>/dev/null; do sleep 0.5; done; exec "%s" --config "%s" start`,
+		pid, execPath, configPath,
+	)
+	cmd := exec.Command("sh", "-c", script)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("spawning restart script: %w", err)
+	}
+	return nil
+}
+
 // Stop stops the daemon process by sending SIGTERM and waiting for it to exit.
 // If it doesn't exit within 5 seconds, sends SIGKILL.
 func Stop() error {

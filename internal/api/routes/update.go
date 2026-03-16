@@ -63,9 +63,14 @@ func HandleUpdateCheck(version string, log *slog.Logger) http.HandlerFunc {
 	}
 }
 
+// PIDRestartFunc is a fallback restart function for when no platform service
+// manager is installed. It receives the binary path and config path, spawns a
+// background process to restart the daemon, and returns.
+type PIDRestartFunc func(execPath, configPath string) error
+
 // HandleUpdate returns an HTTP handler that downloads and installs an available update.
-// If svc is non-nil and installed, the daemon will be restarted after the update.
-func HandleUpdate(version string, svc ServiceRestarter, log *slog.Logger) http.HandlerFunc {
+// It tries the platform service manager first, then falls back to PID-based restart.
+func HandleUpdate(version string, svc ServiceRestarter, pidRestart PIDRestartFunc, configPath string, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Info("update requested via API")
 
@@ -98,8 +103,9 @@ func HandleUpdate(version string, svc ServiceRestarter, log *slog.Logger) http.H
 
 		log.Info("update installed", "previous", result.PreviousVersion, "new", result.NewVersion, "binary", result.BinaryPath)
 
-		// Determine if we can restart
-		canRestart := svc != nil && svc.IsInstalled()
+		// Determine restart strategy: service manager first, then PID fallback
+		useServiceManager := svc != nil && svc.IsInstalled()
+		canRestart := useServiceManager || pidRestart != nil
 
 		resp := UpdateResponse{
 			Status:          "updated",
@@ -115,15 +121,21 @@ func HandleUpdate(version string, svc ServiceRestarter, log *slog.Logger) http.H
 		// Send response before restarting
 		writeJSON(w, http.StatusOK, resp)
 
-		// Restart the daemon in the background if possible.
-		// Restart() must be non-blocking (e.g. spawns systemctl restart)
-		// so the HTTP response has time to flush before the process dies.
-		if canRestart {
+		// Restart the daemon in the background.
+		if useServiceManager {
 			go func() {
 				time.Sleep(500 * time.Millisecond)
-				log.Info("restarting daemon after update")
+				log.Info("restarting daemon via service manager")
 				if err := svc.Restart(); err != nil {
-					log.Error("failed to restart daemon after update", "error", err)
+					log.Error("failed to restart daemon via service manager", "error", err)
+				}
+			}()
+		} else if pidRestart != nil {
+			go func() {
+				time.Sleep(500 * time.Millisecond)
+				log.Info("restarting daemon via PID fallback")
+				if err := pidRestart(result.BinaryPath, configPath); err != nil {
+					log.Error("failed to restart daemon via PID fallback", "error", err)
 				}
 			}()
 		}
