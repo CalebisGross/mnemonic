@@ -46,7 +46,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           ARCHIVE="mnemonic_${VERSION}_${{ matrix.name }}.tar.gz"
-          tar czf "${ARCHIVE}" mnemonic README.md LICENSE config.yaml docs/
+          tar czf "${ARCHIVE}" mnemonic README.md LICENSE config.example.yaml docs/
           echo "ARCHIVE=${ARCHIVE}" >> $GITHUB_ENV
 
       - name: Upload artifact
