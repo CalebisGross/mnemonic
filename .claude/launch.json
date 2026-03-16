@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mnemonic-daemon",
+      "runtimeExecutable": "make",
+      "runtimeArgs": ["run"],
+      "port": 9999,
+      "autoPort": false
+    },
+    {
+      "name": "agent-web",
+      "runtimeExecutable": "./sdk/.venv/bin/python3",
+      "runtimeArgs": ["-m", "agent.web", "--port", "9998"],
+      "port": 9998,
+      "autoPort": false
+    }
+  ]
+}

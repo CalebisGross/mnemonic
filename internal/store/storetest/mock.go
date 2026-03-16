@@ -223,6 +223,9 @@ func (MockStore) UpdateAbstraction(context.Context, store.Abstraction) error { r
 func (MockStore) ListAbstractions(context.Context, int, int) ([]store.Abstraction, error) {
 	return nil, nil
 }
+func (MockStore) ListAbstractionsByState(context.Context, string, int) ([]store.Abstraction, error) {
+	return nil, nil
+}
 func (MockStore) SearchAbstractionsByEmbedding(context.Context, []float32, int) ([]store.Abstraction, error) {
 	return nil, nil
 }

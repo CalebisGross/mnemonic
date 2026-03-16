@@ -116,6 +116,17 @@ func (s *SQLiteStore) ListAbstractions(ctx context.Context, level int, limit int
 	return scanAbstractionRows(rows)
 }
 
+// ListAbstractionsByState lists abstractions filtered by state (e.g. "active", "fading", "archived").
+// Pass level=0 equivalent: returns all levels for the given state.
+func (s *SQLiteStore) ListAbstractionsByState(ctx context.Context, state string, limit int) ([]store.Abstraction, error) {
+	query := `SELECT ` + abstractionColumns + ` FROM abstractions WHERE state = ? ORDER BY confidence DESC LIMIT ?`
+	rows, err := s.db.QueryContext(ctx, query, state, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list abstractions by state: %w", err)
+	}
+	return scanAbstractionRows(rows)
+}
+
 // SearchAbstractionsByEmbedding finds active abstractions most similar to the given embedding.
 func (s *SQLiteStore) SearchAbstractionsByEmbedding(ctx context.Context, embedding []float32, limit int) ([]store.Abstraction, error) {
 	if len(embedding) == 0 {

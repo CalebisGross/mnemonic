@@ -215,7 +215,7 @@ func (aa *AbstractionAgent) synthesizePrinciples(ctx context.Context, report *Cy
 		// Dedup: compare the synthesized principle's own embedding against existing ones.
 		// Using 0.85 threshold since both are text-derived embeddings in the same space.
 		if len(principle.Embedding) > 0 {
-			if match := findSimilarAbstraction(existingPrinciples, principle.Embedding, 0.85); match != nil {
+			if match := findSimilarAbstraction(existingPrinciples, principle.Embedding, principle.Title, 0.85); match != nil {
 				// Strengthen the existing principle instead of creating a duplicate
 				match.Confidence = min32(match.Confidence+0.05, 1.0)
 				match.AccessCount++
@@ -307,7 +307,7 @@ func (aa *AbstractionAgent) synthesizeAxioms(ctx context.Context, report *CycleR
 
 		// Dedup: compare the synthesized axiom's own embedding against existing ones
 		if len(axiom.Embedding) > 0 {
-			if match := findSimilarAbstraction(existingAxioms, axiom.Embedding, 0.85); match != nil {
+			if match := findSimilarAbstraction(existingAxioms, axiom.Embedding, axiom.Title, 0.85); match != nil {
 				match.Confidence = min32(match.Confidence+0.05, 1.0)
 				match.AccessCount++
 				match.UpdatedAt = time.Now()
@@ -700,14 +700,54 @@ func clusterAbstractions(abstractions []store.Abstraction, threshold float32) []
 	return clusters
 }
 
-// findSimilarAbstraction returns the first existing abstraction with embedding similarity >= threshold, or nil.
-func findSimilarAbstraction(existing []store.Abstraction, embedding []float32, threshold float32) *store.Abstraction {
+// findSimilarAbstraction returns the first existing abstraction with embedding similarity >= threshold
+// or high title similarity, checking both active and fading states.
+func findSimilarAbstraction(existing []store.Abstraction, embedding []float32, title string, threshold float32) *store.Abstraction {
 	for i, abs := range existing {
-		if len(abs.Embedding) > 0 && abs.State == "active" && agentutil.CosineSimilarity(abs.Embedding, embedding) >= threshold {
+		if abs.State != "active" && abs.State != "fading" {
+			continue
+		}
+		// Embedding similarity check
+		if len(abs.Embedding) > 0 && len(embedding) > 0 && agentutil.CosineSimilarity(abs.Embedding, embedding) >= threshold {
+			return &existing[i]
+		}
+		// Title similarity fallback (word-level Jaccard)
+		if title != "" && abs.Title != "" && titleJaccard(title, abs.Title) >= 0.6 {
 			return &existing[i]
 		}
 	}
 	return nil
+}
+
+// titleJaccard computes word-level Jaccard similarity between two titles.
+func titleJaccard(a, b string) float32 {
+	wordsA := strings.Fields(strings.ToLower(a))
+	wordsB := strings.Fields(strings.ToLower(b))
+	if len(wordsA) == 0 || len(wordsB) == 0 {
+		return 0
+	}
+	setA := make(map[string]bool, len(wordsA))
+	for _, w := range wordsA {
+		setA[w] = true
+	}
+	intersection := 0
+	setB := make(map[string]bool, len(wordsB))
+	for _, w := range wordsB {
+		setB[w] = true
+		if setA[w] {
+			intersection++
+		}
+	}
+	union := len(setA)
+	for w := range setB {
+		if !setA[w] {
+			union++
+		}
+	}
+	if union == 0 {
+		return 0
+	}
+	return float32(intersection) / float32(union)
 }
 
 func min32(a, b float32) float32 {

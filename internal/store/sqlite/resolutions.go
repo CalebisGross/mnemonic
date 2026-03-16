@@ -108,7 +108,7 @@ func (s *SQLiteStore) SearchByEntity(ctx context.Context, name string, entityTyp
 	// Use JSON path matching with LIKE for SQLite compatibility
 	query := `SELECT m.id, m.raw_id, m.timestamp, m.content, m.summary, m.concepts,
 		m.embedding, m.salience, m.access_count, m.last_accessed, m.state,
-		m.gist_of, m.episode_id, m.project, m.session_id, m.created_at, m.updated_at
+		m.gist_of, m.episode_id, m.source, m.project, m.session_id, m.created_at, m.updated_at
 		FROM memories m
 		JOIN concept_sets cs ON cs.memory_id = m.id
 		WHERE cs.entities LIKE ?`
@@ -130,46 +130,13 @@ func (s *SQLiteStore) SearchByEntity(ctx context.Context, name string, entityTyp
 
 	var memories []store.Memory
 	for rows.Next() {
-		mem, err := scanMemoryWithEpisode(rows)
+		mem, err := scanMemoryFrom(rows)
 		if err != nil {
 			return nil, err
 		}
 		memories = append(memories, mem)
 	}
 	return memories, rows.Err()
-}
-
-// scanMemoryWithEpisode scans a memory row that includes the episode_id column.
-func scanMemoryWithEpisode(rows *sql.Rows) (store.Memory, error) {
-	var mem store.Memory
-	var timestampStr, createdStr, updatedStr string
-	var lastAccessedStr sql.NullString
-	var conceptsStr, gistOfStr string
-	var embeddingBlob []byte
-	var episodeID sql.NullString
-
-	err := rows.Scan(
-		&mem.ID, &mem.RawID, &timestampStr, &mem.Content, &mem.Summary,
-		&conceptsStr, &embeddingBlob, &mem.Salience, &mem.AccessCount,
-		&lastAccessedStr, &mem.State, &gistOfStr, &episodeID,
-		&createdStr, &updatedStr,
-	)
-	if err != nil {
-		return mem, fmt.Errorf("failed to scan memory: %w", err)
-	}
-
-	mem.Timestamp, _ = time.Parse(time.RFC3339, timestampStr)
-	mem.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
-	mem.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
-	if lastAccessedStr.Valid {
-		mem.LastAccessed, _ = time.Parse(time.RFC3339, lastAccessedStr.String)
-	}
-	mem.Concepts, _ = decodeStringSlice(conceptsStr)
-	mem.GistOf, _ = decodeStringSlice(gistOfStr)
-	mem.Embedding = decodeEmbedding(embeddingBlob)
-	mem.EpisodeID = episodeID.String
-
-	return mem, nil
 }
 
 // --- Memory Attributes operations ---

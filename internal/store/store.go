@@ -394,6 +394,7 @@ type Store interface {
 	GetAbstraction(ctx context.Context, id string) (Abstraction, error)
 	UpdateAbstraction(ctx context.Context, a Abstraction) error
 	ListAbstractions(ctx context.Context, level int, limit int) ([]Abstraction, error)
+	ListAbstractionsByState(ctx context.Context, state string, limit int) ([]Abstraction, error)
 	SearchAbstractionsByEmbedding(ctx context.Context, embedding []float32, limit int) ([]Abstraction, error)
 	ArchiveAllAbstractions(ctx context.Context) (int, error)
 

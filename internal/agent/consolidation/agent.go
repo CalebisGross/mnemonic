@@ -180,7 +180,9 @@ type CycleReport struct {
 	PatternsExtracted        int
 	ExpiredDeleted           int
 	AbstractionsDeduplicated int
+	AbstractionsZombied      int
 	PatternsDecayed          int
+	PatternsDeduplicated     int
 }
 
 // runCycle executes the full consolidation pipeline.
@@ -251,12 +253,26 @@ func (ca *ConsolidationAgent) runCycle(ctx context.Context) (*CycleReport, error
 	}
 	report.AbstractionsDeduplicated = abstDeduped
 
+	// Step 7b: Archive zombie abstractions (near-zero confidence)
+	zombied, err := ca.archiveZombieAbstractions(ctx)
+	if err != nil {
+		ca.log.Warn("zombie abstraction archival failed", "error", err)
+	}
+	report.AbstractionsZombied = zombied
+
 	// Step 8: Decay stale pattern strength
 	patternsDecayed, err := ca.decayPatterns(ctx)
 	if err != nil {
 		ca.log.Warn("pattern decay failed", "error", err)
 	}
 	report.PatternsDecayed = patternsDecayed
+
+	// Step 9: Deduplicate near-identical patterns
+	patternsDeduped, err := ca.dedupPatterns(ctx)
+	if err != nil {
+		ca.log.Warn("pattern dedup failed", "error", err)
+	}
+	report.PatternsDeduplicated = patternsDeduped
 
 	// Record the cycle
 	report.Duration = time.Since(startTime)
@@ -780,7 +796,12 @@ func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, cluste
 				if increment > 0.15 {
 					increment = 0.15 // cap single-cycle increment
 				}
-				existing.Strength = min32(existing.Strength+increment, 1.0)
+				// Cap at 0.95 unless pattern has strong evidence (>10 unique memories)
+				maxStrength := float32(0.95)
+				if len(existing.EvidenceIDs) > 10 {
+					maxStrength = 1.0
+				}
+				existing.Strength = min32(existing.Strength+increment, maxStrength)
 			}
 			existing.AccessCount++
 			existing.LastAccessed = time.Now()
@@ -807,7 +828,7 @@ func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, cluste
 		// Two signals: embedding cosine >= 0.80 OR title Jaccard >= 0.6.
 		// This catches duplicates where embeddings differ but titles are near-identical.
 		if len(pattern.Embedding) > 0 {
-			existingPatterns, searchErr := ca.store.SearchPatternsByEmbedding(ctx, pattern.Embedding, 3)
+			existingPatterns, searchErr := ca.store.SearchPatternsByEmbedding(ctx, pattern.Embedding, 5)
 			if searchErr == nil {
 				foundDup := false
 				for i := range existingPatterns {
@@ -817,7 +838,7 @@ func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, cluste
 					}
 					embSim := agentutil.CosineSimilarity(pattern.Embedding, ep.Embedding)
 					titleSim := normalizedTitleSimilarity(pattern.Title, ep.Title)
-					if isDuplicate(pattern.Title, ep.Title, pattern.Embedding, ep.Embedding, 0.6, 0.80) {
+					if isDuplicate(pattern.Title, ep.Title, pattern.Embedding, ep.Embedding, 0.5, 0.75) {
 						for _, mem := range cluster {
 							if !containsString(ep.EvidenceIDs, mem.ID) {
 								ep.EvidenceIDs = append(ep.EvidenceIDs, mem.ID)
@@ -1219,6 +1240,7 @@ func (ca *ConsolidationAgent) logReport(report *CycleReport) {
 		"patterns", report.PatternsExtracted,
 		"expired_deleted", report.ExpiredDeleted,
 		"abstractions_deduped", report.AbstractionsDeduplicated,
+		"abstractions_zombied", report.AbstractionsZombied,
 		"patterns_decayed", report.PatternsDecayed,
 	)
 }
@@ -1349,6 +1371,52 @@ func (ca *ConsolidationAgent) dedupAbstractions(ctx context.Context) (int, error
 	return archived, nil
 }
 
+// archiveZombieAbstractions transitions near-zero confidence abstractions:
+// active with confidence < 0.01 → fading, fading with confidence < 0.001 → archived.
+func (ca *ConsolidationAgent) archiveZombieAbstractions(ctx context.Context) (int, error) {
+	transitioned := 0
+
+	// Active abstractions with near-zero confidence → fading
+	active, err := ca.store.ListAbstractionsByState(ctx, "active", 1000)
+	if err != nil {
+		return 0, fmt.Errorf("listing active abstractions: %w", err)
+	}
+	for _, a := range active {
+		if a.Confidence < 0.01 {
+			a.State = "fading"
+			a.UpdatedAt = time.Now()
+			if err := ca.store.UpdateAbstraction(ctx, a); err != nil {
+				ca.log.Warn("failed to fade zombie abstraction", "id", a.ID, "confidence", a.Confidence, "error", err)
+				continue
+			}
+			transitioned++
+		}
+	}
+
+	// Fading abstractions with near-zero confidence → archived
+	fading, err := ca.store.ListAbstractionsByState(ctx, "fading", 1000)
+	if err != nil {
+		return transitioned, fmt.Errorf("listing fading abstractions: %w", err)
+	}
+	for _, a := range fading {
+		if a.Confidence < 0.001 {
+			a.State = "archived"
+			a.UpdatedAt = time.Now()
+			if err := ca.store.UpdateAbstraction(ctx, a); err != nil {
+				ca.log.Warn("failed to archive zombie abstraction", "id", a.ID, "confidence", a.Confidence, "error", err)
+				continue
+			}
+			transitioned++
+		}
+	}
+
+	if transitioned > 0 {
+		ca.log.Info("archived zombie abstractions", "transitioned", transitioned)
+	}
+
+	return transitioned, nil
+}
+
 // decayPatterns applies strength decay to patterns that haven't been accessed recently
 // and whose evidence memories are mostly archived/fading.
 func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
@@ -1364,35 +1432,37 @@ func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
 			continue
 		}
 
-		// No decay if accessed or created within 7 days
+		// Apply baseline decay to ALL patterns (prevents permanent saturation at 1.0)
+		p.Strength *= 0.998
+
+		// Additional evidence-based decay for patterns not accessed within 7 days
 		recency := p.LastAccessed
 		if recency.IsZero() {
 			recency = p.CreatedAt
 		}
-		if !recency.IsZero() && time.Since(recency).Hours() < 168 {
-			continue
-		}
+		stale := recency.IsZero() || time.Since(recency).Hours() >= 168
 
-		// Check evidence health
-		totalEvidence := len(p.EvidenceIDs)
-		if totalEvidence == 0 {
-			p.Strength *= 0.90
-		} else {
-			activeEvidence := 0
-			for _, memID := range p.EvidenceIDs {
-				mem, err := ca.store.GetMemory(ctx, memID)
-				if err == nil && (mem.State == store.MemoryStateActive || mem.State == store.MemoryStateFading) {
-					activeEvidence++
+		if stale {
+			totalEvidence := len(p.EvidenceIDs)
+			if totalEvidence == 0 {
+				p.Strength *= 0.90
+			} else {
+				activeEvidence := 0
+				for _, memID := range p.EvidenceIDs {
+					mem, err := ca.store.GetMemory(ctx, memID)
+					if err == nil && (mem.State == store.MemoryStateActive || mem.State == store.MemoryStateFading) {
+						activeEvidence++
+					}
 				}
-			}
-			evidenceRatio := float32(activeEvidence) / float32(totalEvidence)
-			switch {
-			case evidenceRatio >= 0.5:
-				p.Strength *= 0.98 // gentle — evidence mostly alive
-			case evidenceRatio >= 0.2:
-				p.Strength *= 0.95 // moderate
-			default:
-				p.Strength *= 0.90 // aggressive — most evidence gone
+				evidenceRatio := float32(activeEvidence) / float32(totalEvidence)
+				switch {
+				case evidenceRatio >= 0.5:
+					p.Strength *= 0.98 // gentle — evidence mostly alive
+				case evidenceRatio >= 0.2:
+					p.Strength *= 0.95 // moderate
+				default:
+					p.Strength *= 0.90 // aggressive — most evidence gone
+				}
 			}
 		}
 
@@ -1413,4 +1483,72 @@ func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
 		ca.log.Info("pattern strength decay applied", "patterns_decayed", decayed)
 	}
 	return decayed, nil
+}
+
+// dedupPatterns compares all active patterns pairwise and merges near-duplicates.
+// The newer pattern is archived; its evidence IDs are transferred to the older one.
+func (ca *ConsolidationAgent) dedupPatterns(ctx context.Context) (int, error) {
+	patterns, err := ca.store.ListPatterns(ctx, "", 500)
+	if err != nil {
+		return 0, fmt.Errorf("listing patterns for dedup: %w", err)
+	}
+
+	// Filter to active only
+	var active []store.Pattern
+	for _, p := range patterns {
+		if p.State == "active" {
+			active = append(active, p)
+		}
+	}
+
+	archived := 0
+	archivedIDs := make(map[string]bool)
+
+	for i := 0; i < len(active); i++ {
+		if archivedIDs[active[i].ID] {
+			continue
+		}
+		for j := i + 1; j < len(active); j++ {
+			if archivedIDs[active[j].ID] {
+				continue
+			}
+			if isDuplicate(active[i].Title, active[j].Title, active[i].Embedding, active[j].Embedding, 0.5, 0.75) {
+				// Keep older (i), archive newer (j)
+				canonical := &active[i]
+				dup := &active[j]
+
+				// Transfer evidence IDs
+				for _, eid := range dup.EvidenceIDs {
+					if !containsString(canonical.EvidenceIDs, eid) {
+						canonical.EvidenceIDs = append(canonical.EvidenceIDs, eid)
+					}
+				}
+				// Keep the higher strength
+				if dup.Strength > canonical.Strength {
+					canonical.Strength = dup.Strength
+				}
+				canonical.UpdatedAt = time.Now()
+				if err := ca.store.UpdatePattern(ctx, *canonical); err != nil {
+					ca.log.Warn("failed to update canonical pattern", "id", canonical.ID, "error", err)
+					continue
+				}
+
+				dup.State = "archived"
+				dup.UpdatedAt = time.Now()
+				if err := ca.store.UpdatePattern(ctx, *dup); err != nil {
+					ca.log.Warn("failed to archive duplicate pattern", "id", dup.ID, "error", err)
+					continue
+				}
+				archivedIDs[dup.ID] = true
+				archived++
+				ca.log.Debug("deduped pattern",
+					"canonical", canonical.Title, "duplicate", dup.Title)
+			}
+		}
+	}
+
+	if archived > 0 {
+		ca.log.Info("pattern dedup completed", "archived", archived)
+	}
+	return archived, nil
 }

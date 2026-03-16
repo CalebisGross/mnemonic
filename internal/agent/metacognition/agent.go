@@ -296,6 +296,21 @@ func (ma *MetacognitionAgent) analyzeRecallEffectiveness(ctx context.Context) *s
 	deadRatio := float64(len(deadMemories)) / float64(stats.ActiveMemories)
 
 	if deadRatio <= 0.2 {
+		// Check if the most recent recall_effectiveness observation was a warning/critical.
+		// If so, emit an "info" observation to supersede it and stop the reactor from firing.
+		recent, err := ma.store.ListMetaObservations(ctx, "recall_effectiveness", 1)
+		if err == nil && len(recent) > 0 && (recent[0].Severity == "warning" || recent[0].Severity == "critical") {
+			return &store.MetaObservation{
+				ObservationType: "recall_effectiveness",
+				Severity:        "info",
+				Details: map[string]interface{}{
+					"dead_count":   len(deadMemories),
+					"dead_ratio":   deadRatio,
+					"total_active": stats.ActiveMemories,
+					"message":      "dead ratio recovered to healthy level",
+				},
+			}
+		}
 		return nil
 	}
 
