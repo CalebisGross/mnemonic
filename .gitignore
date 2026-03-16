@@ -29,6 +29,9 @@ sdk/agent/evolution/sessions.json
 sdk/agent/evolution/changelog.md
 sdk/agent/evolution/conversations/
 
+# Machine-specific config (copy config.example.yaml to config.yaml)
+config.yaml
+
 # IDE / local config
 .claude/settings.local.json
 .claude/plans/

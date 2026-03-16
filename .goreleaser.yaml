@@ -33,7 +33,7 @@ archives:
     files:
       - README.md
       - LICENSE
-      - config.yaml
+      - config.example.yaml
       - docs/*
 
 checksum:

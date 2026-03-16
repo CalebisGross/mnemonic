@@ -1,4 +1,6 @@
 # Mnemonic Configuration File
+# Copy this file to config.yaml and adjust for your machine:
+#   cp config.example.yaml config.yaml
 # All paths support ~ expansion for home directory
 
 # Project Registry
@@ -20,17 +22,17 @@ llm:
   # Endpoint URL for the LLM API
   # LM Studio (local):  "http://localhost:1234/v1"
   # Google Gemini:       "https://generativelanguage.googleapis.com/v1beta/openai"
-  endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
+  endpoint: "http://localhost:1234/v1"
 
   # Model name for chat/conversation
   # LM Studio:  "qwen/qwen3.5-9b"
-  # Gemini:     "gemini-3.1-flash-lite-preview"
-  chat_model: "gemini-3-flash-preview"
+  # Gemini:     "gemini-3-flash-preview"
+  chat_model: "qwen/qwen3.5-9b"
 
   # Model name for embeddings
   # LM Studio:  "text-embedding-embeddinggemma-300m-qat"
   # Gemini:     "gemini-embedding-2-preview"
-  embedding_model: "gemini-embedding-2-preview"
+  embedding_model: "text-embedding-embeddinggemma-300m-qat"
 
   # Maximum tokens in model responses (thinking models need headroom for reasoning)
   max_tokens: 8192
