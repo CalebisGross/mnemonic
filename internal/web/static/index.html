@@ -2563,7 +2563,7 @@
         var container = document.getElementById('eventsContainer');
         var el = document.createElement('div');
         el.className = 'event-item';
-        el.innerHTML = '<div class="event-dot ' + (dotColors[type] || 'cyan') + '"></div><div class="event-body"><div class="event-type">' + escapeHtml(type.replace(/_/g, ' ')) + '</div><div class="event-desc">' + escapeHtml(description) + '</div><div class="event-time">' + relativeTime(new Date(timestamp)) + '</div></div>';
+        el.innerHTML = '<div class="event-dot ' + (dotColors[type] || 'cyan') + '"></div><div class="event-body"><div class="event-type">' + escapeHtml(type.replace(/_/g, ' ')) + '</div><div class="event-desc">' + escapeHtml(description) + '</div><div class="event-time" data-ts="' + new Date(timestamp).toISOString() + '">' + relativeTime(new Date(timestamp)) + '</div></div>';
         container.prepend(el);
         while (container.children.length > CONFIG.MAX_EVENTS) container.removeChild(container.lastChild);
         if (!state.drawerOpen) { state.unreadEvents++; updateBadge(); }
@@ -3804,6 +3804,11 @@
         setInterval(loadStats, CONFIG.STATS_POLL);
         setInterval(loadInsights, CONFIG.INSIGHTS_POLL);
         setInterval(checkForUpdate, 3600000); // Check for updates every hour
+        setInterval(function() {
+            document.querySelectorAll('.event-time[data-ts]').forEach(function(el) {
+                el.textContent = relativeTime(new Date(el.getAttribute('data-ts')));
+            });
+        }, 30000); // Refresh event timestamps every 30s
         handleHash();
     }
 
