@@ -4,6 +4,30 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.15.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.14.2...v0.15.0) (2026-03-17)
+
+
+### Features
+
+* add PDF and DOCX extraction to ingest pipeline ([83b9ce0](https://github.com/AppSprout-dev/mnemonic/commit/83b9ce0395a6c3103b0245a5a5b4bb9d884f2f2d))
+* add PDF and DOCX extraction to ingest pipeline ([b8c1c2c](https://github.com/AppSprout-dev/mnemonic/commit/b8c1c2c5b3e3792b29b7080ab8d5006be6a46e75)), closes [#158](https://github.com/AppSprout-dev/mnemonic/issues/158)
+* add PPTX, RTF, and ODT extractors to ingest pipeline ([50b37f9](https://github.com/AppSprout-dev/mnemonic/commit/50b37f9b282d8bd7bd8c761fbafc01c4c8f0ed3a))
+* add PPTX, RTF, and ODT extractors to ingest pipeline ([9761469](https://github.com/AppSprout-dev/mnemonic/commit/9761469dbba6e1b5f06d1446a5df8f72f3fa2c5c)), closes [#160](https://github.com/AppSprout-dev/mnemonic/issues/160)
+* add retrieval comparison benchmark and fix spread activation bug ([84a73f8](https://github.com/AppSprout-dev/mnemonic/commit/84a73f8171920acbb0a3ab12d863ebf3705e8b24))
+* add training data capture pipeline for bespoke local LLM ([69baf19](https://github.com/AppSprout-dev/mnemonic/commit/69baf1976a213f99439a91ecf8b60248e1f01df7))
+* migrate SQLite driver from mattn/go-sqlite3 to modernc.org/sqlite ([3ad7d70](https://github.com/AppSprout-dev/mnemonic/commit/3ad7d7091a8ce65e70df53e6c66d21c8c8aa5e7e))
+* migrate to pure-Go SQLite driver (drop CGO requirement) ([4a01daf](https://github.com/AppSprout-dev/mnemonic/commit/4a01daf9a95800953172ee7aefe9af513d0b3f3b))
+* retrieval comparison benchmark + spread activation fix ([8ecf3ab](https://github.com/AppSprout-dev/mnemonic/commit/8ecf3abf4b803a4ceede34246e74b4224b4aa822))
+* training data capture pipeline for bespoke local LLM ([09b5911](https://github.com/AppSprout-dev/mnemonic/commit/09b5911ae5bf991444e330356a958ccade9224cd))
+
+
+### Bug Fixes
+
+* aggregate LLM chart data server-side for accurate time bucketing ([fe06fb7](https://github.com/AppSprout-dev/mnemonic/commit/fe06fb7cb786725b77c523ab8432441e9da0e33c))
+* aggregate LLM chart data server-side for accurate time bucketing ([5add9b0](https://github.com/AppSprout-dev/mnemonic/commit/5add9b0a69e208fc203557a06634b98a84dd448d))
+* deduplicate filesystem events from atomic saves ([3a4e132](https://github.com/AppSprout-dev/mnemonic/commit/3a4e13222fa51341728b20ccf5e9c45dac878891))
+* use reciprocal rank scoring in FTS merge to preserve BM25 ordering ([136f49d](https://github.com/AppSprout-dev/mnemonic/commit/136f49dbafb7b509df635f6e230ee768bda8e081))
+
 ## [0.14.2](https://github.com/AppSprout-dev/mnemonic/compare/v0.14.1...v0.14.2) (2026-03-16)
 
 
