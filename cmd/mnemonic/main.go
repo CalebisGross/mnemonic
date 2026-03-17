@@ -1335,9 +1335,14 @@ func serveCommand(configPath string) {
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	defer rootCancel()
 
-	// Instrumented provider wrapper — gives each agent its own usage tracking
+	// Instrumented provider wrapper — gives each agent its own usage tracking.
+	// If training data capture is enabled, wrap with TrainingCaptureProvider too.
 	wrap := func(caller string) llm.Provider {
-		return llm.NewInstrumentedProvider(llmProvider, memStore, caller, cfg.LLM.ChatModel)
+		var p llm.Provider = llm.NewInstrumentedProvider(llmProvider, memStore, caller, cfg.LLM.ChatModel)
+		if cfg.Training.CaptureEnabled && cfg.Training.CaptureDir != "" {
+			p = llm.NewTrainingCaptureProvider(p, caller, cfg.Training.CaptureDir)
+		}
+		return p
 	}
 
 	// --- Start episoding agent (groups raw events into episodes) ---
@@ -1740,7 +1745,8 @@ func serveCommand(configPath string) {
 // ============================================================================
 
 // initRuntime loads config, opens store and LLM for CLI commands.
-func initRuntime(configPath string) (*config.Config, *sqlite.SQLiteStore, *llm.LMStudioProvider, *slog.Logger) {
+// The returned Provider includes training data capture if enabled in config.
+func initRuntime(configPath string) (*config.Config, *sqlite.SQLiteStore, llm.Provider, *slog.Logger) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		die(exitConfig, fmt.Sprintf("loading config: %v", err), "mnemonic diagnose")
@@ -1758,7 +1764,7 @@ func initRuntime(configPath string) (*config.Config, *sqlite.SQLiteStore, *llm.L
 		die(exitDatabase, fmt.Sprintf("opening database: %v", err), "mnemonic diagnose")
 	}
 
-	llmProvider := llm.NewLMStudioProvider(
+	var provider llm.Provider = llm.NewLMStudioProvider(
 		cfg.LLM.Endpoint,
 		cfg.LLM.ChatModel,
 		cfg.LLM.EmbeddingModel,
@@ -1767,7 +1773,12 @@ func initRuntime(configPath string) (*config.Config, *sqlite.SQLiteStore, *llm.L
 		cfg.LLM.MaxConcurrent,
 	)
 
-	return cfg, db, llmProvider, log
+	// Wrap with training data capture if enabled
+	if cfg.Training.CaptureEnabled && cfg.Training.CaptureDir != "" {
+		provider = llm.NewTrainingCaptureProvider(provider, "cli", cfg.Training.CaptureDir)
+	}
+
+	return cfg, db, provider, log
 }
 
 // rememberCommand stores text in the memory system.

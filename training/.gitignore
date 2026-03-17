@@ -1,0 +1,23 @@
+# Model checkpoints (large binary files)
+checkpoints/
+
+# Training data (generated, not committed)
+data/raw/
+data/validated/
+data/rejected/
+data/eval/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Experiment artifacts
+*.pt
+*.safetensors
+*.gguf
+autoresearch_results.tsv
+
+# Weights & Biases
+wandb/

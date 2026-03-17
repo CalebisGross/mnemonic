@@ -29,6 +29,7 @@ type Config struct {
 	Orchestrator  OrchestratorConfig  `yaml:"orchestrator"`
 	MCP           MCPConfig           `yaml:"mcp"`
 	AgentSDK      AgentSDKConfig      `yaml:"agent_sdk"`
+	Training      TrainingConfig      `yaml:"training"`
 	Coaching      CoachingConfig      `yaml:"coaching"`
 	API           APIConfig           `yaml:"api"`
 	Web           WebConfig           `yaml:"web"`
@@ -231,6 +232,12 @@ type APIConfig struct {
 // WebConfig holds web UI settings.
 type WebConfig struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+// TrainingConfig holds settings for LLM training data capture.
+type TrainingConfig struct {
+	CaptureEnabled bool   `yaml:"capture_enabled"` // enable full request/response capture for training data
+	CaptureDir     string `yaml:"capture_dir"`     // directory for captured JSONL files (default: ~/.mnemonic/training-data)
 }
 
 // CoachingConfig holds settings for the Claude→local LLM coaching system.
@@ -459,6 +466,10 @@ func Default() *Config {
 			EvolutionDir: "",
 			WebPort:      9998,
 		},
+		Training: TrainingConfig{
+			CaptureEnabled: false,
+			CaptureDir:     "~/.mnemonic/training-data",
+		},
 		Coaching: CoachingConfig{
 			CoachingFile: "~/.mnemonic/coaching.yaml",
 		},
@@ -551,6 +562,14 @@ func (c *Config) process(configDir string) error {
 		c.AgentSDK.EvolutionDir, err = resolvePath(c.AgentSDK.EvolutionDir, configDir)
 		if err != nil {
 			return fmt.Errorf("expanding agent_sdk.evolution_dir: %w", err)
+		}
+	}
+
+	// Expand Training capture dir
+	if c.Training.CaptureDir != "" {
+		c.Training.CaptureDir, err = resolvePath(c.Training.CaptureDir, configDir)
+		if err != nil {
+			return fmt.Errorf("expanding training.capture_dir: %w", err)
 		}
 	}
 
