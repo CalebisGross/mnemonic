@@ -600,6 +600,7 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 		ID:           memoryID,
 		RawID:        raw.ID,
 		Timestamp:    raw.Timestamp,
+		Type:         raw.Type,
 		Content:      compression.Content,
 		Summary:      compression.Summary,
 		Concepts:     compression.Concepts,
