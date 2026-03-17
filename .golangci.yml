@@ -2,8 +2,6 @@ version: "2"
 
 run:
   timeout: 5m
-  build-tags:
-    - sqlite_fts5
 
 linters:
   enable:

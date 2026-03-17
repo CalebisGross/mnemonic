@@ -2,10 +2,10 @@
 
 ## Build Requirements
 
-- ALL builds: `CGO_ENABLED=1` (for SQLite via mattn/go-sqlite3)
-- ALL builds: `-tags sqlite_fts5` (for full-text search)
+- SQLite driver: pure-Go `modernc.org/sqlite` — no CGO required for SQLite
+- Note: macOS builds still use CGO for `fsevents` (filesystem watcher), but this is automatic
 - Version injected via ldflags: `-X main.Version=$(VERSION)`
-- Use `make build` / `make test` to get these right automatically
+- Use `make build` / `make test` — no special flags needed
 
 ## Code Style
 
@@ -38,7 +38,7 @@
 
 ## Testing
 
-- Tests require the same build tags: `CGO_ENABLED=1 go test -tags sqlite_fts5 ./...`
+- Tests: `go test ./...` (no special flags needed)
 - Test files go next to the code they test: `foo_test.go` alongside `foo.go`
 - Use table-driven tests where applicable
 

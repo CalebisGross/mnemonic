@@ -22,11 +22,11 @@ jobs:
 
       - name: Vet
         shell: bash
-        run: CGO_ENABLED=1 go vet -tags sqlite_fts5 ./...
+        run: go vet ./...
 
       - name: Test
         shell: bash
-        run: CGO_ENABLED=1 go test -tags sqlite_fts5 -race -count=1 ./...
+        run: go test -race -count=1 ./...
 
   # Gate job — preserves the "test" check name for branch protection rules.
   test:
@@ -69,7 +69,7 @@ jobs:
 
       - name: Build
         shell: bash
-        run: CGO_ENABLED=1 go build -tags sqlite_fts5 -ldflags "-s -w" -o bin/mnemonic ./cmd/mnemonic
+        run: go build -ldflags "-s -w" -o bin/mnemonic ./cmd/mnemonic
 
   # Gate job — preserves the "build" check name for branch protection rules.
   build:

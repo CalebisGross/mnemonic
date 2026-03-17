@@ -349,8 +349,8 @@ func learningScenario() scenario {
 			Timestamp: now.Add(-30 * time.Minute), CreatedAt: now.Add(-30 * time.Minute), UpdatedAt: now.Add(-30 * time.Minute),
 		}},
 		{Label: "signal", Memory: store.Memory{
-			ID: "learn-7", Summary: "CGO_ENABLED=1 required for mattn/go-sqlite3 — won't link otherwise",
-			Content:   "The mattn/go-sqlite3 driver uses cgo. Without CGO_ENABLED=1, you get a linker error. Also need the sqlite_fts5 build tag for full-text search support. Easy to forget when switching machines.",
+			ID: "learn-7", Summary: "Pure-Go SQLite driver modernc.org/sqlite eliminates CGO requirement",
+			Content:   "Migrated from mattn/go-sqlite3 (CGO) to modernc.org/sqlite (pure Go). No more CGO_ENABLED=1 or -tags sqlite_fts5 needed. Builds are simpler and cross-compilation just works. FTS5 is included by default.",
 			Concepts:  []string{"CGO", "Go", "SQLite", "build", "learning"},
 			Embedding: syntheticEmbedding(22, dims, 0.1), Salience: 0.6, State: "active",
 			Timestamp: now.Add(-15 * time.Minute), CreatedAt: now.Add(-15 * time.Minute), UpdatedAt: now.Add(-15 * time.Minute),

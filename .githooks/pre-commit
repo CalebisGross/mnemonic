@@ -15,7 +15,7 @@ echo "  fmt: ok"
 
 # Vet
 echo "  vet: running..."
-CGO_ENABLED=1 go vet -tags sqlite_fts5 ./... 2>&1
+go vet ./... 2>&1
 echo "  vet: ok"
 
 # Lint (if golangci-lint is installed)
@@ -29,7 +29,7 @@ fi
 
 # Build check
 echo "  build: running..."
-CGO_ENABLED=1 go build -tags sqlite_fts5 -o /dev/null ./cmd/mnemonic 2>&1
+go build -o /dev/null ./cmd/mnemonic 2>&1
 echo "  build: ok"
 
 echo "=== All checks passed ==="

@@ -17,7 +17,7 @@ fi
 
 jq -n '{
   hookSpecificOutput: {
-    additionalContext: "Go file modified. Remember: builds require CGO_ENABLED=1 and -tags sqlite_fts5. Run `make build` or `make test` to verify."
+    additionalContext: "Go file modified. Run `make build` or `make test` to verify."
   }
 }'
 exit 0

@@ -33,7 +33,7 @@ sudo mv mnemonic /usr/local/bin/
 # Download mnemonic_windows_amd64.tar.gz from GitHub Releases
 ```
 
-Or [build from source](#development) (requires Go 1.23+ and CGO).
+Or [build from source](#development) (requires Go 1.23+).
 
 **Configure and run:**
 
@@ -235,7 +235,7 @@ make clean          # Remove binaries
 make setup-hooks    # Configure git pre-commit hooks
 ```
 
-All builds require `CGO_ENABLED=1` and `-tags sqlite_fts5`.
+SQLite uses a pure-Go driver (`modernc.org/sqlite`) — no CGO or special build tags required.
 
 ## Documentation
 

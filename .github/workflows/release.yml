@@ -35,12 +35,11 @@ jobs:
 
       - name: Build
         env:
-          CGO_ENABLED: "1"
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          go build -tags sqlite_fts5 -ldflags "-s -w -X main.Version=${VERSION}" -o mnemonic ./cmd/mnemonic
+          go build -ldflags "-s -w -X main.Version=${VERSION}" -o mnemonic ./cmd/mnemonic
 
       - name: Package
         run: |
