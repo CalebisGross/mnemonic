@@ -937,3 +937,34 @@ func TestMarkRawProcessed(t *testing.T) {
 		t.Fatal("expected raw memory to be marked processed")
 	}
 }
+
+func TestSanitizeFTSQuery(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"empty", "", ""},
+		{"single word", "mnemonic", "mnemonic*"},
+		{"multiple words", "memory search", "memory* OR search*"},
+		{"stop words filtered", "the memory is good", "memory* OR good*"},
+		{"short words filtered", "a x memory", "memory*"},
+		{"colon in middle stripped", "lm:studio", "lmstudio*"},
+		{"colon at edge stripped", "lm:", "lm*"},
+		{"hyphen stripped", "felix-lm", "felixlm*"},
+		{"parentheses stripped", "(memory)", "memory*"},
+		{"mixed punctuation", "hello! world? foo:bar", "hello* OR world* OR foobar*"},
+		{"all stop words", "the a an and or", ""},
+		{"all short words", "a x i", ""},
+		{"preserves digits", "v3 gpt4", "v3* OR gpt4*"},
+		{"FTS operators neutralized", "NOT NEAR memory", "not* OR near* OR memory*"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeFTSQuery(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeFTSQuery(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

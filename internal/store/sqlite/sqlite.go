@@ -985,6 +985,8 @@ var ftsStopWords = map[string]bool{
 
 // sanitizeFTSQuery converts a raw query string into safe FTS5 syntax.
 // Uses prefix matching (word*) for stemming-like behavior and filters stop words.
+// Strips all non-alphanumeric characters to prevent FTS5 metacharacters
+// (colons, parentheses, etc.) from being interpreted as operators.
 func sanitizeFTSQuery(query string) string {
 	words := strings.Fields(query)
 	if len(words) == 0 {
@@ -992,12 +994,20 @@ func sanitizeFTSQuery(query string) string {
 	}
 	terms := make([]string, 0, len(words))
 	for _, w := range words {
-		w = strings.Trim(w, "\"'.,!?;:")
-		w = strings.ToLower(w)
-		if w == "" || len(w) < 2 || ftsStopWords[w] {
+		// Strip ALL non-alphanumeric chars — not just edges.
+		// FTS5 treats ":" as column filter, "+" / "^" / "-" / "()" as operators.
+		// Keeping only alphanumeric prevents any metacharacter injection.
+		cleaned := strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+				return r
+			}
+			return -1
+		}, w)
+		cleaned = strings.ToLower(cleaned)
+		if cleaned == "" || len(cleaned) < 2 || ftsStopWords[cleaned] {
 			continue
 		}
-		terms = append(terms, w+"*")
+		terms = append(terms, cleaned+"*")
 	}
 	if len(terms) == 0 {
 		return ""
