@@ -451,6 +451,14 @@ agent_sdk:
   # Port for the Python WebSocket chat server (default: 9998)
   web_port: 9998
 
+# Training Data Capture
+# Captures full LLM request/response pairs as JSONL for fine-tuning a bespoke local model.
+# Data is written to capture_dir as daily JSONL files (e.g., capture_2026-03-17.jsonl).
+# Enable this when you want to collect training data from the running daemon.
+training:
+  capture_enabled: false
+  capture_dir: "~/.mnemonic/training-data"
+
 # Coaching Configuration (Claude teaches the local LLM)
 coaching:
   # Path to the YAML file Claude writes to improve local LLM prompts.
