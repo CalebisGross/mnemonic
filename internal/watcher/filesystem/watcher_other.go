@@ -512,7 +512,7 @@ func (fw *FilesystemWatcher) enqueueEvent(event fsnotify.Event) {
 		existingTimer.Stop()
 	}
 
-	fw.debounce[path] = time.AfterFunc(500*time.Millisecond, func() {
+	fw.debounce[path] = time.AfterFunc(800*time.Millisecond, func() {
 		fw.sendEvent(event)
 		fw.dbMutex.Lock()
 		delete(fw.debounce, path)

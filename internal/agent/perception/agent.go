@@ -2,6 +2,8 @@ package perception
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -32,6 +34,12 @@ type PerceptionConfig struct {
 	ProjectResolver       ProjectResolver // optional: maps paths to canonical project names
 }
 
+// recentContentTTL is how long to remember content hashes for dedup.
+// This prevents duplicate raw memories when the filesystem watcher emits
+// multiple events for the same file content within a short window
+// (e.g., atomic saves producing Created+Renamed then Modified events).
+const recentContentTTL = 5 * time.Second
+
 // PerceptionAgent orchestrates the perception pipeline: watchers → heuristic → LLM → memory.
 type PerceptionAgent struct {
 	name             string
@@ -48,6 +56,11 @@ type PerceptionAgent struct {
 	cancelFunc       context.CancelFunc
 	processingWg     sync.WaitGroup
 	watcherStopChans []chan struct{} // one per watcher goroutine
+
+	// Content-hash dedup: prevents creating duplicate raw memories when the
+	// watcher emits multiple events for the same file with identical content.
+	recentContentMu sync.Mutex
+	recentContent   map[string]time.Time // hash(source+path+content) → timestamp
 }
 
 // NewPerceptionAgent creates a new perception agent with the given dependencies.
@@ -86,6 +99,7 @@ func (pa *PerceptionAgent) Start(ctx context.Context, bus events.Bus) error {
 	pa.cancelFunc = cancelFunc
 	pa.bus = bus
 	pa.running = true
+	pa.recentContent = make(map[string]time.Time)
 	pa.heuristicFilter = NewHeuristicFilter(pa.cfg.HeuristicConfig, pa.log)
 	pa.rejectionTracker = newRejectionTracker(
 		rejectionTrackerConfig{
@@ -113,6 +127,10 @@ func (pa *PerceptionAgent) Start(ctx context.Context, bus events.Bus) error {
 			pa.promoteExclusion(pattern)
 		}
 	}
+
+	// Launch cleanup goroutine for content-hash dedup map
+	pa.processingWg.Add(1)
+	go pa.cleanupRecentContent(ctx)
 
 	// Launch a processing goroutine for each watcher
 	for i, w := range pa.watchers {
@@ -222,8 +240,58 @@ func (pa *PerceptionAgent) processWatcherEvents(
 	}
 }
 
+// contentHash returns a dedup key for a filesystem event based on source, path, and content.
+func contentHash(source, path, content string) string {
+	h := sha256.New()
+	h.Write([]byte(source))
+	h.Write([]byte{0})
+	h.Write([]byte(path))
+	h.Write([]byte{0})
+	h.Write([]byte(content))
+	return hex.EncodeToString(h.Sum(nil)[:16]) // 128 bits is plenty for dedup
+}
+
+// cleanupRecentContent periodically evicts expired entries from the dedup map.
+func (pa *PerceptionAgent) cleanupRecentContent(ctx context.Context) {
+	defer pa.processingWg.Done()
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			now := time.Now()
+			pa.recentContentMu.Lock()
+			for k, ts := range pa.recentContent {
+				if now.Sub(ts) > recentContentTTL {
+					delete(pa.recentContent, k)
+				}
+			}
+			pa.recentContentMu.Unlock()
+		}
+	}
+}
+
 // processEvent processes a single event through the perception pipeline.
 func (pa *PerceptionAgent) processEvent(ctx context.Context, event Event) {
+	// 0. Content-hash dedup: skip if we recently created a raw memory with
+	// identical source+path+content. This catches duplicate filesystem events
+	// that slip through the watcher's debounce (e.g., atomic saves producing
+	// multiple FSEvents batches).
+	if event.Source == "filesystem" && event.Content != "" {
+		hash := contentHash(event.Source, event.Path, event.Content)
+		pa.recentContentMu.Lock()
+		if _, exists := pa.recentContent[hash]; exists {
+			pa.recentContentMu.Unlock()
+			pa.log.Debug("dedup: skipping duplicate filesystem event",
+				"path", event.Path, "type", event.Type)
+			return
+		}
+		pa.recentContent[hash] = time.Now()
+		pa.recentContentMu.Unlock()
+	}
+
 	// 1. Run heuristic filter
 	heuristicResult := pa.heuristicFilter.Evaluate(event)
 	if !heuristicResult.Pass {

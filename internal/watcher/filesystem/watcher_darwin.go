@@ -170,7 +170,12 @@ func (fw *FilesystemWatcher) processEvent(event fsevents.Event) {
 		return // Not an event type we care about
 	}
 
-	// Debounce: coalesce rapid changes to the same path
+	// Debounce: coalesce rapid changes to the same path.
+	// macOS editors (VSCode, vim, JetBrains) do atomic saves that produce
+	// multiple FSEvents (Created+Renamed, then Modified) across separate
+	// batches. The FSEvents Latency is 500ms, so a second batch can arrive
+	// 500-600ms after the first. We use a 800ms debounce to reliably
+	// coalesce these into a single event.
 	fw.dbMutex.Lock()
 	if existingTimer, ok := fw.debounce[path]; ok {
 		existingTimer.Stop()
@@ -180,7 +185,7 @@ func (fw *FilesystemWatcher) processEvent(event fsevents.Event) {
 	capturedType := eventType
 	capturedPath := path
 
-	fw.debounce[path] = time.AfterFunc(300*time.Millisecond, func() {
+	fw.debounce[path] = time.AfterFunc(800*time.Millisecond, func() {
 		fw.sendEvent(capturedPath, capturedType)
 		fw.dbMutex.Lock()
 		delete(fw.debounce, capturedPath)
