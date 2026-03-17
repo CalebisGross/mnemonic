@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/mnemonic.png" alt="mnemonic" width="600">
+</p>
+
 # Mnemonic
 
 **Memory that thinks.**

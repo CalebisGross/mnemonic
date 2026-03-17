@@ -40,3 +40,11 @@ sdk/agent/evolution/.decay_stamp
 
 # Training data (large downloads, not shipped)
 training/data/
+
+# Training artifacts (generated at runtime)
+wandb/
+checkpoints/
+training/sweep_results.tsv
+comparison-results.md
+benchmark-results.md
+sweep-results.md
