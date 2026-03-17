@@ -1023,7 +1023,7 @@ func (s *SQLiteStore) SearchByFullText(ctx context.Context, query string, limit 
 	}
 
 	ftsQuery := `
-	SELECT m.id, m.raw_id, m.timestamp, m.content, m.summary, m.concepts, m.embedding,
+	SELECT m.id, m.raw_id, m.timestamp, m.type, m.content, m.summary, m.concepts, m.embedding,
 	       m.salience, m.access_count, m.last_accessed, m.state, m.gist_of, m.episode_id,
 	       m.source, m.project, m.session_id, m.created_at, m.updated_at
 	FROM memories m
