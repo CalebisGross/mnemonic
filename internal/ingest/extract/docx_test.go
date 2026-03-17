@@ -115,7 +115,7 @@ func TestDOCXExtractInvalidFile(t *testing.T) {
 func TestGroupParagraphs(t *testing.T) {
 	// Test with short paragraphs that fit in one chunk
 	short := []string{"hello", "world", "foo"}
-	chunks := groupParagraphs(short)
+	chunks := GroupParagraphs(short)
 	if len(chunks) != 1 {
 		t.Errorf("expected 1 chunk for short paragraphs, got %d", len(chunks))
 	}
@@ -130,7 +130,7 @@ func TestGroupParagraphs(t *testing.T) {
 		}
 		long = append(long, p)
 	}
-	chunks = groupParagraphs(long)
+	chunks = GroupParagraphs(long)
 	if len(chunks) < 2 {
 		t.Errorf("expected multiple chunks for long paragraphs, got %d", len(chunks))
 	}

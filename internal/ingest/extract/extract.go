@@ -53,6 +53,41 @@ func (r *Registry) HasExtractor(ext string) bool {
 	return ok
 }
 
+// ChunkTarget is the target chunk size in characters for paragraph grouping.
+const ChunkTarget = 2000
+
+// GroupParagraphs groups consecutive paragraphs into chunks of approximately
+// ChunkTarget characters. Each chunk gets a sequential number (1-based).
+func GroupParagraphs(paragraphs []string) []Chunk {
+	var chunks []Chunk
+	var current strings.Builder
+	chunkNum := 1
+
+	for _, p := range paragraphs {
+		if current.Len() > 0 && current.Len()+len(p)+1 > ChunkTarget {
+			chunks = append(chunks, Chunk{
+				Text:       current.String(),
+				PageNumber: chunkNum,
+			})
+			chunkNum++
+			current.Reset()
+		}
+		if current.Len() > 0 {
+			current.WriteByte('\n')
+		}
+		current.WriteString(p)
+	}
+
+	if current.Len() > 0 {
+		chunks = append(chunks, Chunk{
+			Text:       current.String(),
+			PageNumber: chunkNum,
+		})
+	}
+
+	return chunks
+}
+
 // WordCount returns the number of whitespace-delimited tokens in text.
 func WordCount(text string) int {
 	return len(strings.Fields(text))

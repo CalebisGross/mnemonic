@@ -9,8 +9,6 @@ import (
 	"github.com/fumiama/go-docx"
 )
 
-const docxChunkTarget = 2000 // target chunk size in characters
-
 // DOCXExtractor extracts text from .docx files using a pure-Go library.
 type DOCXExtractor struct{}
 
@@ -55,7 +53,7 @@ func (d *DOCXExtractor) Extract(path string, maxBytes int, log *slog.Logger) (Re
 	fullText := strings.Join(paragraphs, "\n")
 
 	// Group paragraphs into chunks of ~docxChunkTarget characters
-	chunks := groupParagraphs(paragraphs)
+	chunks := GroupParagraphs(paragraphs)
 
 	metadata := map[string]any{
 		"extracted": true,
@@ -67,40 +65,4 @@ func (d *DOCXExtractor) Extract(path string, maxBytes int, log *slog.Logger) (Re
 		Chunks:   chunks,
 		Metadata: metadata,
 	}, nil
-}
-
-// groupParagraphs groups consecutive paragraphs into chunks of approximately
-// docxChunkTarget characters. Each chunk gets a sequential number (1-based)
-// since DOCX files don't have page numbers.
-func groupParagraphs(paragraphs []string) []Chunk {
-	var chunks []Chunk
-	var current strings.Builder
-	chunkNum := 1
-
-	for _, p := range paragraphs {
-		// If adding this paragraph would exceed the target and we already
-		// have content, flush the current chunk first.
-		if current.Len() > 0 && current.Len()+len(p)+1 > docxChunkTarget {
-			chunks = append(chunks, Chunk{
-				Text:       current.String(),
-				PageNumber: chunkNum,
-			})
-			chunkNum++
-			current.Reset()
-		}
-		if current.Len() > 0 {
-			current.WriteByte('\n')
-		}
-		current.WriteString(p)
-	}
-
-	// Flush remaining content
-	if current.Len() > 0 {
-		chunks = append(chunks, Chunk{
-			Text:       current.String(),
-			PageNumber: chunkNum,
-		})
-	}
-
-	return chunks
 }

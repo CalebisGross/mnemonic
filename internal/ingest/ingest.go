@@ -259,7 +259,18 @@ func buildExtractorRegistry(log *slog.Logger) *extract.Registry {
 
 	docxExt := &extract.DOCXExtractor{}
 	registry.Register(".docx", docxExt)
-	log.Info("DOCX extraction enabled")
+
+	pptxExt := &extract.PPTXExtractor{}
+	registry.Register(".pptx", pptxExt)
+
+	rtfExt := &extract.RTFExtractor{}
+	registry.Register(".rtf", rtfExt)
+
+	odtExt := &extract.ODTExtractor{}
+	registry.Register(".odt", odtExt)
+
+	log.Info("document extraction enabled",
+		"formats", "pdf,docx,pptx,rtf,odt")
 
 	return registry
 }
