@@ -67,6 +67,7 @@ func main() {
 		report    string
 		llmMode   bool
 		sweepFile string
+		compare   bool
 		setFlags  setFlagList
 	)
 
@@ -75,6 +76,7 @@ func main() {
 	flag.StringVar(&report, "report", "", "output format: 'markdown' writes benchmark-results.md")
 	flag.BoolVar(&llmMode, "llm", false, "use real LLM for embeddings (requires LM Studio)")
 	flag.StringVar(&sweepFile, "sweep", "", "path to sweep YAML file for parameter tuning")
+	flag.BoolVar(&compare, "compare", false, "run comparison benchmark: FTS vs Vector vs Hybrid vs Mnemonic")
 	flag.Var(&setFlags, "set", "override a config parameter (repeatable, format: key=value)")
 	flag.Parse()
 
@@ -135,6 +137,36 @@ func main() {
 				fmt.Println("  Sweep report written to sweep-results.md")
 			}
 		}
+		fmt.Println()
+		os.Exit(0)
+	}
+
+	// Comparison mode: run all approaches against all scenarios.
+	if compare {
+		cfg := defaultBenchConfig()
+		if len(overrides) > 0 {
+			if overrideErr := applyOverrides(&cfg, overrides); overrideErr != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", overrideErr)
+				os.Exit(1)
+			}
+		}
+
+		compReport, compErr := runComparison(ctx, scenarios, cfg, cycles, verbose, log)
+		if compErr != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", compErr)
+			os.Exit(1)
+		}
+
+		printComparisonReport(compReport)
+
+		if report == "markdown" {
+			if writeErr := writeComparisonMarkdown(compReport); writeErr != nil {
+				fmt.Fprintf(os.Stderr, "Error writing comparison report: %v\n", writeErr)
+			} else {
+				fmt.Println("  Comparison report written to comparison-results.md")
+			}
+		}
+
 		fmt.Println()
 		os.Exit(0)
 	}
@@ -350,16 +382,12 @@ func runScenario(
 }
 
 // scoreQuery computes IR metrics for a single query result.
-func scoreQuery(q benchmarkQuery, resp retrieval.QueryResponse, labeled []labeledMemory) queryResult {
-	labelMap := make(map[string]string, len(labeled))
-	for _, lm := range labeled {
-		labelMap[lm.Memory.ID] = lm.Label
-	}
-
+func scoreQuery(q benchmarkQuery, resp retrieval.QueryResponse, _ []labeledMemory) queryResult {
 	qr := queryResult{Query: q.Query}
-	k := 5
-	if len(resp.Memories) < k {
-		k = len(resp.Memories)
+	const requestedK = 5
+	actualK := len(resp.Memories)
+	if actualK > requestedK {
+		actualK = requestedK
 	}
 
 	expectedSet := make(map[string]bool, len(q.ExpectedIDs))
@@ -372,7 +400,7 @@ func scoreQuery(q benchmarkQuery, resp retrieval.QueryResponse, labeled []labele
 	dcg := 0.0
 	firstRelevantRank := 0
 
-	for i := 0; i < k; i++ {
+	for i := 0; i < actualK; i++ {
 		memID := resp.Memories[i].Memory.ID
 		isRelevant := expectedSet[memID]
 
@@ -385,9 +413,8 @@ func scoreQuery(q benchmarkQuery, resp retrieval.QueryResponse, labeled []labele
 		}
 	}
 
-	if k > 0 {
-		qr.PrecisionAtK = float64(relevantInK) / float64(k)
-	}
+	// Always divide by requestedK, not actualK.
+	qr.PrecisionAtK = float64(relevantInK) / float64(requestedK)
 	if totalRelevant > 0 {
 		qr.RecallAtK = float64(relevantInK) / float64(totalRelevant)
 	}
@@ -397,8 +424,8 @@ func scoreQuery(q benchmarkQuery, resp retrieval.QueryResponse, labeled []labele
 
 	idealDCG := 0.0
 	idealK := totalRelevant
-	if idealK > k {
-		idealK = k
+	if idealK > requestedK {
+		idealK = requestedK
 	}
 	for i := 0; i < idealK; i++ {
 		idealDCG += 1.0 / math.Log2(float64(i+2))

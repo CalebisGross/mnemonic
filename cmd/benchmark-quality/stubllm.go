@@ -24,26 +24,29 @@ var vocabulary = map[string]int{
 	"sql": 4, "bash": 5, "html": 6, "css": 7, "rust": 8, "java": 9,
 	// Infrastructure
 	"docker": 10, "git": 11, "linux": 12, "macos": 13, "systemd": 14,
-	"build": 15, "ci": 16, "deployment": 17, "kubernetes": 18,
+	"build": 15, "ci": 16, "deployment": 17, "deploy": 17, "kubernetes": 18,
 	// Dev activities
 	"debugging": 19, "debug": 19, "testing": 20, "test": 20,
 	"refactoring": 21, "refactor": 21, "configuration": 22, "config": 22,
 	"migration": 23, "documentation": 24, "review": 25,
 	// Code domains
-	"api": 26, "database": 27, "db": 27, "sqlite": 27,
-	"filesystem": 28, "file": 28, "networking": 29, "network": 29,
-	"security": 30, "authentication": 31, "auth": 31,
+	"api": 26, "database": 27, "db": 27, "sqlite": 27, "postgres": 27, "postgresql": 27,
+	"filesystem": 28, "file": 28, "networking": 29, "network": 29, "connection": 29,
+	"security": 30, "authentication": 31, "auth": 31, "login": 31, "session": 31,
 	"performance": 32, "logging": 33, "log": 33, "ui": 34, "cli": 35,
+	"latency": 32, "throughput": 32, "slow": 32, "fast": 32, "speed": 32,
 	// Memory system
 	"memory": 36, "encoding": 37, "retrieval": 38, "embedding": 39,
 	"agent": 40, "llm": 41, "daemon": 42, "mcp": 43, "watcher": 44,
-	// Project context
-	"decision": 45, "error": 46, "bug": 46, "fix": 47,
+	// Project context — with synonyms
+	"decision": 45, "chose": 45, "choose": 45, "selected": 45, "picked": 45, "choice": 45,
+	"error": 46, "bug": 46, "issue": 46, "problem": 46, "defect": 46, "incident": 46, "outage": 46,
+	"fix": 47, "fixed": 47, "resolve": 47, "resolved": 47, "solution": 47, "repair": 47, "patch": 47, "workaround": 47,
 	"insight": 48, "learning": 49, "planning": 50, "research": 51,
-	"dependency": 52, "schema": 53, "config_yaml": 54,
+	"dependency": 52, "library": 52, "module": 52, "schema": 53, "config_yaml": 54,
 	// Common nouns
 	"server": 55, "client": 56, "request": 57, "response": 58,
-	"cache": 59, "queue": 60, "event": 61, "handler": 62,
+	"cache": 59, "redis": 59, "memcached": 59, "queue": 60, "event": 61, "handler": 62,
 	"middleware": 63, "route": 64, "endpoint": 65,
 	"function": 66, "method": 67, "interface": 68, "struct": 69,
 	"channel": 70, "goroutine": 71, "mutex": 72, "context": 73,
@@ -51,20 +54,20 @@ var vocabulary = map[string]int{
 	"create": 74, "read": 75, "update": 76, "delete": 77,
 	"query": 78, "search": 79, "filter": 80, "sort": 81,
 	"parse": 82, "validate": 83, "transform": 84, "serialize": 85,
-	// Qualities
-	"nil": 86, "null": 86, "panic": 87, "crash": 87,
+	// Qualities — with synonyms
+	"nil": 86, "null": 86, "panic": 87, "crash": 87, "failure": 87, "failed": 87, "broken": 87,
 	"timeout": 88, "retry": 89, "fallback": 90, "graceful": 91,
-	"concurrent": 92, "async": 93, "sync": 94,
+	"concurrent": 92, "concurrency": 92, "pool": 92, "async": 93, "sync": 94,
 	// Specific to mnemonic
 	"spread": 95, "activation": 96, "association": 97, "salience": 98,
 	"consolidation": 99, "decay": 100, "dreaming": 101, "abstraction": 102,
 	"episoding": 103, "metacognition": 104, "perception": 105,
 	"fts5": 106, "bm25": 107, "cosine": 108, "similarity": 109,
-	// General
-	"pattern": 110, "principle": 111, "axiom": 112,
+	// General — with synonyms
+	"pattern": 110, "principle": 111, "rule": 111, "guideline": 111, "axiom": 112,
 	"graph": 113, "node": 114, "edge": 115,
 	"threshold": 116, "weight": 117, "score": 118,
-	"architecture": 119, "design": 120, "tradeoff": 121,
+	"architecture": 119, "design": 120, "tradeoff": 121, "tradeoffs": 121,
 	// System noise vocabulary (distinct region)
 	"chrome": 122, "browser": 122, "clipboard": 123,
 	"desktop": 124, "gnome": 124, "notification": 125,

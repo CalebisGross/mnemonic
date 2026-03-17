@@ -232,7 +232,7 @@ func TestConfigMergeAlphaWeightsFTSvsEmbedding(t *testing.T) {
 	}
 
 	fts := []store.Memory{
-		{ID: "m1", Salience: 0.8}, // FTS score: 0.3 + 0.4*0.8 = 0.62
+		{ID: "m1", Salience: 0.8}, // FTS score: 0.7*1.0 + 0.3*0.8 = 0.94 (rank 1)
 	}
 	emb := []store.RetrievalResult{
 		{Memory: store.Memory{ID: "m1"}, Score: 0.3}, // embedding score: 0.3
@@ -248,10 +248,11 @@ func TestConfigMergeAlphaWeightsFTSvsEmbedding(t *testing.T) {
 			result := agent.mergeEntryPoints(fts, emb)
 
 			score := result["m1"]
-			// alpha=0: score = 0*0.3 + 1*0.62 + 0 = 0.62 (FTS dominated)
-			// alpha=1: score = 1*0.3 + 0*0.62 + 0 = 0.30 (embedding dominated)
+			// FTS score for rank 1 with salience 0.8: 0.7*1.0 + 0.3*0.8 = 0.94
+			// alpha=0: score = 0*0.3 + 1*0.94 + 0 = 0.94 (FTS dominated)
+			// alpha=1: score = 1*0.3 + 0*0.94 + 0 = 0.30 (embedding dominated)
 			if tc.alpha == 0.0 {
-				expected := float32(0.62)
+				expected := float32(0.94)
 				if abs32(score-expected) > 0.01 {
 					t.Errorf("alpha=0: expected score ~%.2f (FTS dominated), got %.4f", expected, score)
 				}
@@ -287,7 +288,8 @@ func TestConfigDualHitBonusAddsToScore(t *testing.T) {
 			result := agent.mergeEntryPoints(fts, emb)
 
 			// Score = alpha*emb + (1-alpha)*fts + bonus
-			ftsScore := float32(0.3 + 0.4*0.5) // 0.5
+			// FTS rank 1 with salience 0.5: 0.7*1.0 + 0.3*0.5 = 0.85
+			ftsScore := float32(0.7*1.0 + 0.3*0.5) // 0.85
 			expected := cfg.MergeAlpha*0.5 + (1-cfg.MergeAlpha)*ftsScore + tc.bonus
 			score := result["m1"]
 			if abs32(score-expected) > 0.001 {

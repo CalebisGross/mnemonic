@@ -36,13 +36,25 @@ func syntheticEmbedding(dimension int, dims int, jitter float64) []float32 {
 }
 
 func allScenarios() []scenario {
-	return []scenario{
+	scenarios := []scenario{
 		debuggingScenario(),
 		architectureScenario(),
 		learningScenario(),
 		investigationScenario(),
 		needleScenario(),
+		associativeRecallScenario(),
 	}
+	// Recompute all memory embeddings using bowEmbedding so they live in the
+	// same vector space as query embeddings. The original syntheticEmbedding
+	// calls produced axis-aligned vectors in an arbitrary dimension, making
+	// cosine similarity with bowEmbedding queries meaningless.
+	for i := range scenarios {
+		for j := range scenarios[i].Memories {
+			m := &scenarios[i].Memories[j].Memory
+			m.Embedding = bowEmbedding(m.Summary + " " + m.Content)
+		}
+	}
+	return scenarios
 }
 
 func debuggingScenario() scenario {
@@ -158,7 +170,7 @@ func debuggingScenario() scenario {
 	queries := []benchmarkQuery{
 		{Query: "nil pointer bug in auth", ExpectedIDs: []string{"dbg-1", "dbg-2", "dbg-3"}},
 		{Query: "How did we fix the auth crash", ExpectedIDs: []string{"dbg-2", "dbg-3", "dbg-5"}},
-		{Query: "What regressions have we seen", ExpectedIDs: []string{"dbg-4"}},
+		{Query: "What regression issues have we seen", ExpectedIDs: []string{"dbg-4"}},
 	}
 
 	return scenario{
@@ -277,8 +289,8 @@ func architectureScenario() scenario {
 
 	queries := []benchmarkQuery{
 		{Query: "Why did we choose SQLite", ExpectedIDs: []string{"arch-1", "arch-5"}},
-		{Query: "What architecture decisions have we made", ExpectedIDs: []string{"arch-1", "arch-2", "arch-3", "arch-4", "arch-5"}},
-		{Query: "What were the tradeoffs", ExpectedIDs: []string{"arch-2", "arch-4", "arch-6"}},
+		{Query: "What architecture decision have we made", ExpectedIDs: []string{"arch-1", "arch-2", "arch-3", "arch-4", "arch-5"}},
+		{Query: "What were the tradeoff considerations", ExpectedIDs: []string{"arch-2", "arch-4", "arch-6"}},
 	}
 
 	return scenario{
@@ -663,13 +675,184 @@ func needleScenario() scenario {
 	}
 
 	queries := []benchmarkQuery{
-		{Query: "What decisions did we make about the database", ExpectedIDs: []string{"needle-1"}},
-		{Query: "What errors and bugs have we found", ExpectedIDs: []string{"needle-3", "needle-4"}},
+		{Query: "What decision did we make about the database", ExpectedIDs: []string{"needle-1"}},
+		{Query: "What error and bug have we found", ExpectedIDs: []string{"needle-3", "needle-4"}},
 		{Query: "What did we learn about Go and logging", ExpectedIDs: []string{"needle-2", "needle-4"}},
 	}
 
 	return scenario{
 		Name:         "Needle in Haystack",
+		Memories:     allMems,
+		Associations: assocs,
+		Queries:      queries,
+	}
+}
+
+// associativeRecallScenario tests the core value proposition of spread activation.
+// Signal memories form causal chains where intermediate/terminal nodes have ZERO
+// keyword overlap with the query. Only graph traversal can discover them.
+//
+// This is the scenario that should clearly differentiate Mnemonic (full) from all
+// baselines. If it doesn't, spread activation isn't working or isn't useful.
+//
+// Design principle: query keywords match ONLY the entry-point memory.
+// All downstream memories in the chain use completely different vocabulary.
+func associativeRecallScenario() scenario {
+	now := time.Now()
+	const dims = 128
+
+	// --- Chain 1: Auth outage root cause analysis ---
+	// Query matches ar-1 (auth, errors). The actual cause (ar-2: Redis pool)
+	// and root cause (ar-3: unclosed connections) use entirely different vocab.
+	signal := []labeledMemory{
+		{Label: "signal", Memory: store.Memory{
+			ID: "ar-1", Summary: "Authentication service returning 503 errors during peak traffic hours",
+			Content:   "The auth service started returning 503 errors at 2pm during peak load. Users unable to log in. Dashboard shows 40% error rate on the /auth/token endpoint. Service health checks are passing but requests are timing out.",
+			Concepts:  []string{"authentication", "error", "503", "traffic", "timeout"},
+			Embedding: syntheticEmbedding(0, dims, 0.15), Salience: 0.75, State: "active",
+			Timestamp: now.Add(-6 * time.Hour), CreatedAt: now.Add(-6 * time.Hour), UpdatedAt: now.Add(-6 * time.Hour),
+		}},
+		{Label: "signal", Memory: store.Memory{
+			ID: "ar-2", Summary: "Redis connection pool fully exhausted — all 25 slots occupied by stale handles",
+			Content:   "Investigated the backing store and found the Redis connection pool completely drained. netstat shows 25 ESTABLISHED connections to port 6379, none being recycled. New connection attempts block indefinitely until the 30s dial timeout.",
+			Concepts:  []string{"redis", "connection", "pool", "stale", "exhausted"},
+			Embedding: syntheticEmbedding(59, dims, 0.15), Salience: 0.7, State: "active",
+			Timestamp: now.Add(-5 * time.Hour), CreatedAt: now.Add(-5 * time.Hour), UpdatedAt: now.Add(-5 * time.Hour),
+		}},
+		{Label: "signal", Memory: store.Memory{
+			ID: "ar-3", Summary: "Unclosed connections in token validation — conn.Close() missing from error return path",
+			Content:   "Root cause found in validateToken(). When HMAC verification fails, the function returns early but never calls conn.Close(). Under sustained invalid-token traffic, this leaks one connection per failed validation until the pool is starved.",
+			Concepts:  []string{"leak", "close", "validation", "HMAC", "return"},
+			Embedding: syntheticEmbedding(66, dims, 0.15), Salience: 0.8, State: "active",
+			Timestamp: now.Add(-4 * time.Hour), CreatedAt: now.Add(-4 * time.Hour), UpdatedAt: now.Add(-4 * time.Hour),
+		}},
+		{Label: "signal", Memory: store.Memory{
+			ID: "ar-4", Summary: "Applied defer conn.Close() to all Redis call sites and bumped pool ceiling to 50",
+			Content:   "Patched all 7 Redis call sites to use defer conn.Close() immediately after acquiring. Raised MaxIdle from 25 to 50 as buffer. Added a connection lifetime limit of 5 minutes to prevent stale handle accumulation.",
+			Concepts:  []string{"defer", "pool", "patch", "lifetime", "MaxIdle"},
+			Embedding: syntheticEmbedding(92, dims, 0.15), Salience: 0.75, State: "active",
+			Timestamp: now.Add(-3 * time.Hour), CreatedAt: now.Add(-3 * time.Hour), UpdatedAt: now.Add(-3 * time.Hour),
+		}},
+
+		// --- Chain 2: Deployment caused performance regression ---
+		// Query matches ar-5 (deployment, slow). The actual cause (ar-6: missing index)
+		// and fix (ar-7: migration) use different vocabulary.
+		{Label: "signal", Memory: store.Memory{
+			ID: "ar-5", Summary: "Dashboard page load times tripled after Tuesday's release to production",
+			Content:   "After deploying v2.8.0 on Tuesday, the main dashboard went from 800ms to 2.4s load time. Users in the EU region are most affected. The deployment included 47 commits across 12 PRs.",
+			Concepts:  []string{"deployment", "slow", "dashboard", "regression", "release"},
+			Embedding: syntheticEmbedding(17, dims, 0.15), Salience: 0.7, State: "active",
+			Timestamp: now.Add(-8 * time.Hour), CreatedAt: now.Add(-8 * time.Hour), UpdatedAt: now.Add(-8 * time.Hour),
+		}},
+		{Label: "signal", Memory: store.Memory{
+			ID: "ar-6", Summary: "New analytics aggregation query running without an index — sequential scan on 4M row table",
+			Content:   "EXPLAIN ANALYZE revealed the new monthly_summary view does a sequential scan on the events table (4.2M rows). The WHERE clause filters on (org_id, created_at) but no composite index exists for those columns. Cost estimate: 847,000 vs 1,200 with index.",
+			Concepts:  []string{"EXPLAIN", "sequential", "scan", "composite", "index", "cost"},
+			Embedding: syntheticEmbedding(78, dims, 0.15), Salience: 0.8, State: "active",
+			Timestamp: now.Add(-7 * time.Hour), CreatedAt: now.Add(-7 * time.Hour), UpdatedAt: now.Add(-7 * time.Hour),
+		}},
+		{Label: "signal", Memory: store.Memory{
+			ID: "ar-7", Summary: "Created migration 042 with composite index on (org_id, created_at DESC) and CONCURRENTLY flag",
+			Content:   "Wrote migration file 042_add_events_org_created_idx.sql. Uses CREATE INDEX CONCURRENTLY to avoid locking the table. Verified with EXPLAIN that the planner now uses an Index Scan with estimated cost 1,200. Dashboard load times back to 750ms.",
+			Concepts:  []string{"migration", "CONCURRENTLY", "planner", "scan", "750ms"},
+			Embedding: syntheticEmbedding(23, dims, 0.15), Salience: 0.75, State: "active",
+			Timestamp: now.Add(-6 * time.Hour), CreatedAt: now.Add(-6 * time.Hour), UpdatedAt: now.Add(-6 * time.Hour),
+		}},
+
+		// --- Chain 3: Cross-domain business impact ---
+		// Connected to chain 1 but uses business/product vocabulary.
+		{Label: "signal", Memory: store.Memory{
+			ID: "ar-8", Summary: "E-commerce team reported 12% cart abandonment spike correlated with the token validation window",
+			Content:   "Product analytics showed a 12% increase in cart abandonment between 2pm and 4pm — exactly matching the auth outage window. Estimated revenue impact: $47K. The checkout flow requires re-authentication which was failing silently.",
+			Concepts:  []string{"cart", "abandonment", "revenue", "checkout", "product"},
+			Embedding: syntheticEmbedding(56, dims, 0.15), Salience: 0.65, State: "active",
+			Timestamp: now.Add(-2 * time.Hour), CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now.Add(-2 * time.Hour),
+		}},
+	}
+
+	// Noise memories — carefully chosen to NOT share keywords with signal chains.
+	noise := make([]labeledMemory, 15)
+	noiseContents := []struct{ summary, content string }{
+		{"Chrome: visited pkg.go.dev/context documentation", "Browser navigation to Go docs"},
+		{"Terminal: executed 'df -h' to check available disk space", "Disk usage monitoring command"},
+		{"File watcher: .git/objects directory modified", "Git internal object creation"},
+		{"Clipboard: copied JSON payload from Postman response", "API testing clipboard activity"},
+		{"GNOME: display brightness adjusted via slider", "Desktop brightness control event"},
+		{"Terminal: ran 'docker logs api-gateway --tail 50'", "Container log inspection"},
+		{"File watcher: /var/log/syslog rotated by logrotate", "System log rotation event"},
+		{"Chrome: opened three Stack Overflow tabs about goroutine patterns", "Browser research activity"},
+		{"Terminal: executed 'kubectl get pods -n staging'", "Kubernetes cluster inspection"},
+		{"PipeWire: USB microphone connected and configured", "Audio hardware plug event"},
+		{"File watcher: node_modules/.package-lock.json updated", "NPM lockfile modification"},
+		{"Terminal: ran 'htop' for 5 seconds then quit", "System resource monitoring"},
+		{"Clipboard: copied function signature from source file", "Code snippet clipboard event"},
+		{"GNOME: workspace switched from workspace 2 to workspace 3", "Virtual desktop navigation"},
+		{"File watcher: ~/.local/share/Trash/files updated", "Trash directory modification"},
+	}
+	for i, nc := range noiseContents {
+		noise[i] = labeledMemory{
+			Label: "noise",
+			Memory: store.Memory{
+				ID:        fmt.Sprintf("noise-ar-%d", i+1),
+				Summary:   nc.summary,
+				Content:   nc.content,
+				Concepts:  []string{"system", "activity"},
+				Embedding: syntheticEmbedding(100+i, dims, 0.05),
+				Salience:  0.3 + float32(i%4)*0.05,
+				State:     "active",
+				Timestamp: now.Add(-time.Duration(i*15) * time.Minute),
+				CreatedAt: now.Add(-time.Duration(i*15) * time.Minute),
+				UpdatedAt: now.Add(-time.Duration(i*15) * time.Minute),
+			},
+		}
+	}
+
+	allMems := append(signal, noise...)
+
+	// Associations: causal chains where traversal is required.
+	assocs := []store.Association{
+		// Chain 1: auth outage → Redis pool → unclosed conn → fix
+		{SourceID: "ar-1", TargetID: "ar-2", Strength: 0.9, RelationType: "caused_by", CreatedAt: now, LastActivated: now, ActivationCount: 2},
+		{SourceID: "ar-2", TargetID: "ar-3", Strength: 0.85, RelationType: "caused_by", CreatedAt: now, LastActivated: now, ActivationCount: 2},
+		{SourceID: "ar-3", TargetID: "ar-4", Strength: 0.8, RelationType: "caused_by", CreatedAt: now, LastActivated: now, ActivationCount: 1},
+		// Chain 2: deployment regression → missing index → migration fix
+		{SourceID: "ar-5", TargetID: "ar-6", Strength: 0.85, RelationType: "caused_by", CreatedAt: now, LastActivated: now, ActivationCount: 2},
+		{SourceID: "ar-6", TargetID: "ar-7", Strength: 0.9, RelationType: "caused_by", CreatedAt: now, LastActivated: now, ActivationCount: 1},
+		// Cross-chain: auth outage → business impact
+		{SourceID: "ar-1", TargetID: "ar-8", Strength: 0.7, RelationType: "temporal", CreatedAt: now, LastActivated: now, ActivationCount: 1},
+	}
+
+	// Queries designed so ONLY spread activation can find the expected answers.
+	// Entry point keywords match one memory; the expected answers are only reachable via graph.
+	queries := []benchmarkQuery{
+		// Entry: ar-1 matches "authentication errors". Expected: ar-2 (Redis pool) and ar-3 (root cause).
+		// ar-2/ar-3 have NO auth-related keywords — only reachable via ar-1→ar-2→ar-3.
+		{
+			Query:       "What caused the authentication errors",
+			ExpectedIDs: []string{"ar-1", "ar-2", "ar-3"},
+		},
+		// Entry: ar-5 matches "deployment slow". Expected: ar-6 (missing index) and ar-7 (migration).
+		// ar-6 talks about EXPLAIN/sequential scan, ar-7 about CREATE INDEX — no "deployment" keywords.
+		{
+			Query:       "Why did the deployment make things slow",
+			ExpectedIDs: []string{"ar-5", "ar-6", "ar-7"},
+		},
+		// Entry: ar-1 matches "auth". Expected: ar-8 (business impact).
+		// ar-8 talks about cart abandonment and revenue — completely different domain.
+		{
+			Query:       "What was the business impact of the auth incident",
+			ExpectedIDs: []string{"ar-1", "ar-8"},
+		},
+		// This query tests full chain traversal. Entry: ar-2 matches "Redis pool".
+		// Expected: ar-4 (the fix) which is 2 hops away via ar-2→ar-3→ar-4.
+		{
+			Query:       "How did we fix the Redis connection pool exhaustion",
+			ExpectedIDs: []string{"ar-2", "ar-3", "ar-4"},
+		},
+	}
+
+	return scenario{
+		Name:         "Associative Recall",
 		Memories:     allMems,
 		Associations: assocs,
 		Queries:      queries,

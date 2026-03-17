@@ -270,13 +270,17 @@ func (ra *RetrievalAgent) mergeEntryPoints(ftsResults []store.Memory, embeddingR
 	ftsScores := make(map[string]float32)
 	embScores := make(map[string]float32)
 
-	// FTS results: normalize salience into a bounded relevance signal
-	for _, mem := range ftsResults {
+	// FTS results: use reciprocal rank to preserve BM25 ordering from SQLite,
+	// blended with salience as a secondary importance signal.
+	// Before this fix, all FTS results got ~0.49 after consolidation decay,
+	// discarding the BM25 rank-order information entirely.
+	for i, mem := range ftsResults {
+		rankScore := float32(1.0) / float32(i+1) // reciprocal rank: 1.0, 0.5, 0.33, ...
 		salience := mem.Salience
 		if salience <= 0 {
 			salience = 0.5
 		}
-		ftsScores[mem.ID] = 0.3 + 0.4*salience // maps [0,1] → [0.3, 0.7]
+		ftsScores[mem.ID] = 0.7*rankScore + 0.3*salience
 	}
 
 	// Embedding results: use cosine similarity directly
@@ -370,6 +374,14 @@ func (ra *RetrievalAgent) spreadActivation(ctx context.Context, entryPoints map[
 
 			// Propagate activation along associations
 			for _, assoc := range assocs {
+				// Determine the neighbor: the "other end" of the association.
+				// GetAssociations returns edges where memID is source OR target,
+				// so we must follow the edge to the opposite node.
+				neighborID := assoc.TargetID
+				if assoc.TargetID == memID {
+					neighborID = assoc.SourceID
+				}
+
 				// Calculate propagated activation with decay and type-based weight
 				decayFactor := float32(math.Pow(float64(ra.config.DecayFactor), float64(hop+1)))
 				typeWeight := getAssociationTypeWeight(assoc.RelationType)
@@ -378,29 +390,29 @@ func (ra *RetrievalAgent) spreadActivation(ctx context.Context, entryPoints map[
 				// Only propagate if above threshold
 				if propagated > ra.config.ActivationThreshold {
 					// Record that this association was traversed (Hebbian activation)
-					if err := ra.store.ActivateAssociation(ctx, memID, assoc.TargetID); err != nil {
-						ra.log.Warn("failed to activate association", "src", memID, "tgt", assoc.TargetID, "error", err)
+					if err := ra.store.ActivateAssociation(ctx, memID, neighborID); err != nil {
+						ra.log.Warn("failed to activate association", "src", memID, "tgt", neighborID, "error", err)
 					}
 
 					// Track traversal for feedback loop
 					traversed = append(traversed, store.TraversedAssoc{
 						SourceID: memID,
-						TargetID: assoc.TargetID,
+						TargetID: neighborID,
 					})
 
 					// Keep maximum activation if memory was seen before
 					existing := activationState{}
-					if state, ok := activated[assoc.TargetID]; ok {
+					if state, ok := activated[neighborID]; ok {
 						existing = state
 					}
 
 					if propagated > existing.activation {
-						activated[assoc.TargetID] = activationState{
+						activated[neighborID] = activationState{
 							activation:      propagated,
 							hopsReached:     hop + 1,
 							activationCount: assoc.ActivationCount,
 						}
-						nextFrontier[assoc.TargetID] = propagated
+						nextFrontier[neighborID] = propagated
 					}
 				}
 			}

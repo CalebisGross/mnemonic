@@ -296,12 +296,12 @@ func TestMergeEntryPoints(t *testing.T) {
 		if len(result) != 2 {
 			t.Fatalf("expected 2 entry points, got %d", len(result))
 		}
-		// FTS score = 0.3 + 0.4 * salience
-		expectedM1 := float32(0.3 + 0.4*0.9) // 0.66
+		// FTS score = 0.7 * (1/(rank)) + 0.3 * salience
+		expectedM1 := float32(0.7*1.0 + 0.3*0.9) // rank 1: 0.97
 		if abs32(result["m1"]-expectedM1) > 0.001 {
 			t.Errorf("expected m1 score ~%.3f, got %f", expectedM1, result["m1"])
 		}
-		expectedM2 := float32(0.3 + 0.4*0.6) // 0.54
+		expectedM2 := float32(0.7*0.5 + 0.3*0.6) // rank 2: 0.53
 		if abs32(result["m2"]-expectedM2) > 0.001 {
 			t.Errorf("expected m2 score ~%.3f, got %f", expectedM2, result["m2"])
 		}
@@ -340,13 +340,17 @@ func TestMergeEntryPoints(t *testing.T) {
 		if len(result) != 3 {
 			t.Fatalf("expected 3 entry points, got %d", len(result))
 		}
-		// m1: dual-hit: 0.6*0.8 + 0.4*(0.3+0.4*0.5) + 0.15 = 0.48 + 0.2 + 0.15 = 0.83
-		expectedM1 := float32(0.6*0.8 + 0.4*(0.3+0.4*0.5) + 0.15)
+		// m1 rank=1: fts = 0.7*1.0 + 0.3*0.5 = 0.85
+		// dual-hit: 0.6*0.8 + 0.4*0.85 + 0.15 = 0.48 + 0.34 + 0.15 = 0.97
+		ftsM1 := float32(0.7*1.0 + 0.3*0.5)
+		expectedM1 := 0.6*float32(0.8) + 0.4*ftsM1 + 0.15
 		if abs32(result["m1"]-expectedM1) > 0.001 {
 			t.Errorf("expected m1 score ~%.3f (dual-hit blend), got %f", expectedM1, result["m1"])
 		}
-		// m2: dual-hit: 0.6*0.3 + 0.4*(0.3+0.4*0.9) + 0.15 = 0.18 + 0.264 + 0.15 = 0.594
-		expectedM2 := float32(0.6*0.3 + 0.4*(0.3+0.4*0.9) + 0.15)
+		// m2 rank=2: fts = 0.7*0.5 + 0.3*0.9 = 0.62
+		// dual-hit: 0.6*0.3 + 0.4*0.62 + 0.15 = 0.18 + 0.248 + 0.15 = 0.578
+		ftsM2 := float32(0.7*0.5 + 0.3*0.9)
+		expectedM2 := 0.6*float32(0.3) + 0.4*ftsM2 + 0.15
 		if abs32(result["m2"]-expectedM2) > 0.001 {
 			t.Errorf("expected m2 score ~%.3f (dual-hit blend), got %f", expectedM2, result["m2"])
 		}
@@ -362,8 +366,8 @@ func TestMergeEntryPoints(t *testing.T) {
 		}
 		result := agent.mergeEntryPoints(fts, nil)
 
-		// Zero salience → default 0.5, FTS score = 0.3 + 0.4*0.5 = 0.5
-		expected := float32(0.3 + 0.4*0.5)
+		// Zero salience → default 0.5, rank 1: 0.7*1.0 + 0.3*0.5 = 0.85
+		expected := float32(0.7*1.0 + 0.3*0.5)
 		if abs32(result["m1"]-expected) > 0.001 {
 			t.Errorf("expected default score ~%.3f for zero-salience FTS result, got %f", expected, result["m1"])
 		}
