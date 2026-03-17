@@ -1012,6 +1012,9 @@
         }
         .update-badge:hover { opacity: 0.85; }
         .update-badge.updating { background: var(--text-dim); cursor: wait; animation: none; }
+        #navVersion:hover { color: var(--text-secondary); text-decoration: underline; }
+        .update-changelog { font-size: 0.7rem; margin-left: 6px; color: var(--text-dim); text-decoration: none; white-space: nowrap; }
+        .update-changelog:hover { color: var(--text-secondary); text-decoration: underline; }
         @keyframes badgePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 
         /* ── Loading ── */
@@ -1223,7 +1226,7 @@
     <div id="app">
         <!-- Nav -->
         <nav class="nav">
-            <div class="nav-brand"><span>&#9670;</span> Mnemonic <span id="navVersion" style="font-size:0.7rem;color:var(--text-dim);font-weight:400"></span><span id="navUpdateBadge" class="update-badge" style="display:none" onclick="triggerUpdate()" title="Click to update"></span></div>
+            <div class="nav-brand"><span>&#9670;</span> Mnemonic <a id="navVersion" href="https://github.com/AppSprout-dev/mnemonic/releases" target="_blank" rel="noopener" style="font-size:0.7rem;color:var(--text-dim);font-weight:400;text-decoration:none" title="View changelog"></a><span id="navUpdateBadge" class="update-badge" style="display:none" onclick="triggerUpdate()" title="Click to update"></span><a id="navChangelogLink" class="update-changelog" style="display:none" target="_blank" rel="noopener">What's new?</a></div>
             <div class="nav-tabs">
                 <button class="nav-tab active" data-view="recall" onclick="switchView('recall')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -2647,7 +2650,11 @@
             var dot = document.getElementById('navHealth');
             dot.className = health.status === 'ok' ? 'nav-health' : 'nav-health degraded';
             dot.title = health.status === 'ok' ? 'System healthy' : 'System degraded';
-            if (health.version) document.getElementById('navVersion').textContent = 'v' + health.version;
+            if (health.version) {
+                var vEl = document.getElementById('navVersion');
+                vEl.textContent = 'v' + health.version;
+                vEl.href = 'https://github.com/AppSprout-dev/mnemonic/releases/tag/v' + health.version;
+            }
             state.previousStats = stats;
         } catch (e) {
             document.getElementById('navHealth').className = 'nav-health down';
@@ -3744,13 +3751,19 @@
         try {
             var data = await fetchJSON('/system/update-check');
             var badge = document.getElementById('navUpdateBadge');
+            var changelog = document.getElementById('navChangelogLink');
             if (data.update_available) {
                 _updateInfo = data;
                 badge.textContent = 'v' + data.latest_version + ' available';
                 badge.style.display = 'inline-block';
+                if (data.release_url) {
+                    changelog.href = data.release_url;
+                    changelog.style.display = 'inline';
+                }
             } else {
                 _updateInfo = null;
                 badge.style.display = 'none';
+                changelog.style.display = 'none';
             }
         } catch (e) {
             // Silently ignore — update check is best-effort
