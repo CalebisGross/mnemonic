@@ -4,6 +4,24 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.17.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.16.0...v0.17.0) (2026-03-17)
+
+
+### Features
+
+* clickable version label + changelog link in dashboard ([b32c49c](https://github.com/AppSprout-dev/mnemonic/commit/b32c49caea6ba0b72286b49f6011462ee3cebebb))
+* make version label a clickable changelog link in dashboard ([e615d95](https://github.com/AppSprout-dev/mnemonic/commit/e615d95d6983b1580c0c8a8c79f1cc5696bf55b3))
+
+
+### Bug Fixes
+
+* add missing type column to SearchByFullText FTS query ([48c1d95](https://github.com/AppSprout-dev/mnemonic/commit/48c1d958f49cfecbb2f35f682c69cee64cf2a16b))
+* add missing type column to SearchByFullText FTS query ([fd82fb7](https://github.com/AppSprout-dev/mnemonic/commit/fd82fb7e802375d1c0b70bb48981a912fe6105dc))
+* propagate memory type from raw_memories to memories table and API ([c84fdbf](https://github.com/AppSprout-dev/mnemonic/commit/c84fdbff50d355deac382f058347546c97aec97d))
+* propagate memory type to API and web UI ([49d89c3](https://github.com/AppSprout-dev/mnemonic/commit/49d89c3f9cfd077355259812a7fbdd3e4ee8e720))
+* strip all non-alphanumeric chars in FTS query sanitizer ([52bb990](https://github.com/AppSprout-dev/mnemonic/commit/52bb990fe7897502bb12ec5663ac7fad0adf0908))
+* strip FTS5 metacharacters from query sanitizer ([9907c4b](https://github.com/AppSprout-dev/mnemonic/commit/9907c4bb319f10f615da73bbc3a0281ef9705184))
+
 ## [0.16.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.15.1...v0.16.0) (2026-03-17)
 
 
