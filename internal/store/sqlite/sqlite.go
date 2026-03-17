@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 
 	"github.com/appsprout-dev/mnemonic/internal/llm"
 	store "github.com/appsprout-dev/mnemonic/internal/store"
@@ -37,7 +37,7 @@ func NewSQLiteStore(dbPath string, busyTimeoutMs int) (*SQLiteStore, error) {
 	if busyTimeoutMs <= 0 {
 		busyTimeoutMs = 5000
 	}
-	db, err := sql.Open("sqlite3", fmt.Sprintf("%s?_busy_timeout=%d", dbPath, busyTimeoutMs))
+	db, err := sql.Open("sqlite", fmt.Sprintf("%s?_busy_timeout=%d", dbPath, busyTimeoutMs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

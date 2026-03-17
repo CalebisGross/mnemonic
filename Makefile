@@ -3,7 +3,7 @@
 BUILD_DIR=bin
 VERSION=0.14.2 # x-release-please-version
 LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION)"
-TAGS=-tags "sqlite_fts5"
+TAGS=
 
 # --- Platform detection ---
 # Detect Windows via uname (works in MSYS2, Git Bash, and CI).
@@ -42,13 +42,13 @@ endif
 
 build:
 	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=1 go build $(TAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY) ./cmd/mnemonic
+	go build $(TAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY) ./cmd/mnemonic
 
 run: build
 	./$(BUILD_DIR)/$(BINARY) --config config.yaml serve
 
 test:
-	CGO_ENABLED=1 go test $(TAGS) ./... -v
+	go test ./... -v
 
 fmt:
 	go fmt ./...
@@ -118,15 +118,15 @@ mcp: build
 
 # --- Benchmark ---
 benchmark:
-	CGO_ENABLED=1 go build $(TAGS) -o $(BUILD_DIR)/benchmark ./cmd/benchmark
+	go build $(TAGS) -o $(BUILD_DIR)/benchmark ./cmd/benchmark
 	@echo "Benchmark built. Run: ./$(BUILD_DIR)/benchmark (daemon must be running)"
 
 benchmark-quality:
-	CGO_ENABLED=1 go build $(TAGS) $(LDFLAGS) -o $(BUILD_DIR)/benchmark-quality ./cmd/benchmark-quality
+	go build $(TAGS) $(LDFLAGS) -o $(BUILD_DIR)/benchmark-quality ./cmd/benchmark-quality
 	@echo "Quality benchmark built. Run: ./$(BUILD_DIR)/benchmark-quality"
 
 benchmark-compare:
-	CGO_ENABLED=1 go build $(TAGS) $(LDFLAGS) -o $(BUILD_DIR)/benchmark-quality ./cmd/benchmark-quality
+	go build $(TAGS) $(LDFLAGS) -o $(BUILD_DIR)/benchmark-quality ./cmd/benchmark-quality
 	./$(BUILD_DIR)/benchmark-quality --compare --cycles 5 --verbose
 
 # --- Lint ---

@@ -4,11 +4,9 @@ Mnemonic is a local-first, air-gapped semantic memory system built in Go. It use
 
 ## Build & Test
 
-All Go builds require CGO and the FTS5 build tag:
-
 ```bash
-make build                    # CGO_ENABLED=1 go build -tags sqlite_fts5 ...
-make test                     # CGO_ENABLED=1 go test -tags sqlite_fts5 ./... -v
+make build                    # go build ...
+make test                     # go test ./... -v
 make check                    # go fmt + go vet
 make run                      # Build and run in foreground (serve mode)
 golangci-lint run             # Lint (uses .golangci.yml config)

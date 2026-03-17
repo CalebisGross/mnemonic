@@ -1,8 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(CGO_ENABLED=1 go build:*)",
-      "Bash(CGO_ENABLED=1 go test:*)",
       "Bash(go build:*)",
       "Bash(go test:*)",
       "Bash(go fmt:*)",

@@ -20,7 +20,7 @@ make build         # Compile binary to bin/mnemonic
 make test          # Run full test suite
 ```
 
-All builds require `CGO_ENABLED=1` and `-tags sqlite_fts5`. The Makefile handles this automatically.
+The Makefile handles all build configuration automatically. No special flags needed.
 
 ## Development Workflow
 
