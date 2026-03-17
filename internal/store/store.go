@@ -46,9 +46,10 @@ type Memory struct {
 	ID           string    `json:"id"`
 	RawID        string    `json:"raw_id"`
 	Timestamp    time.Time `json:"timestamp"`
-	Content      string    `json:"content"`  // compressed/encoded form
-	Summary      string    `json:"summary"`  // one-liner
-	Concepts     []string  `json:"concepts"` // extracted concepts
+	Type         string    `json:"type,omitempty"` // "decision", "error", "insight", "learning", "general", etc.
+	Content      string    `json:"content"`        // compressed/encoded form
+	Summary      string    `json:"summary"`        // one-liner
+	Concepts     []string  `json:"concepts"`       // extracted concepts
 	Embedding    []float32 `json:"embedding,omitempty"`
 	Salience     float32   `json:"salience"`
 	AccessCount  int       `json:"access_count"`

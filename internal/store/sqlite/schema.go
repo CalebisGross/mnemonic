@@ -252,6 +252,11 @@ CREATE INDEX IF NOT EXISTS idx_llm_usage_timestamp ON llm_usage(timestamp);
 CREATE INDEX IF NOT EXISTS idx_llm_usage_caller ON llm_usage(caller);
 `
 
+const migration008 = `
+-- Migration 008: Add type column to memories (propagated from raw_memories)
+-- This enables the web UI to filter memories by type (decision, error, insight, learning, general).
+`
+
 // InitSchema initializes the SQLite database schema by creating all tables,
 // indexes, and triggers if they don't already exist. It also configures
 // important PRAGMA settings for performance and safety.
@@ -367,6 +372,20 @@ func InitSchema(db *sql.DB) error {
 	if _, err := db.Exec(migration006); err != nil {
 		return fmt.Errorf("failed to apply migration 006: %w", err)
 	}
+
+	// Apply migration 008: Add type column to memories
+	if _, err := db.Exec(migration008); err != nil {
+		return fmt.Errorf("failed to apply migration 008: %w", err)
+	}
+	_, err = db.Exec(`ALTER TABLE memories ADD COLUMN type TEXT`)
+	if err != nil && !isAlterTableDuplicateColumn(err) {
+		return fmt.Errorf("failed to add memories.type column: %w", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_memory_type ON memories(type)`); err != nil {
+		return fmt.Errorf("failed to create idx_memory_type index: %w", err)
+	}
+	// Backfill type from raw_memories where possible
+	_, _ = db.Exec(`UPDATE memories SET type = (SELECT raw_memories.type FROM raw_memories WHERE raw_memories.id = memories.raw_id) WHERE type IS NULL AND raw_id IS NOT NULL AND raw_id != ''`)
 
 	return nil
 }
