@@ -37,3 +37,6 @@ config.yaml
 .claude/plans/
 .claude/projects/
 sdk/agent/evolution/.decay_stamp
+
+# Training data (large downloads, not shipped)
+training/data/

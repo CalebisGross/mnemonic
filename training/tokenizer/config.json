@@ -1,0 +1,11 @@
+{
+  "vocab_size": 32768,
+  "special_tokens": [
+    "<|endoftext|>",
+    "<|pad|>"
+  ],
+  "eos_token_id": 32767,
+  "pad_token_id": 1,
+  "training_chars": 770977349,
+  "training_docs": 323290
+}

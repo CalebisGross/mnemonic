@@ -1,0 +1,135 @@
+# Mnemonic-LM Pretraining Data Mix Configuration
+# Target: 10B tokens for 500M param Felix-LM v3 (~20:1 token-to-param ratio)
+
+target_tokens: 10_000_000_000
+seq_len: 2048
+shard_size: 100_000_000  # 100M tokens per shard file
+seed: 42
+vocab_size: 32768
+
+# Tokenizer (custom BPE, trained on our data mix)
+tokenizer_path: "training/tokenizer"
+
+# Per-source configuration
+sources:
+  pes2o_neuro:
+    weight: 0.22
+    description: "Cognitive neuroscience & psychology papers"
+    dataset: "allenai/peS2o"
+    streaming: true
+    fields_of_study:
+      - "Neuroscience"
+      - "Psychology"
+      - "Cognitive Science"
+      - "Philosophy"
+    keyword_filters:
+      - "memory consolidation"
+      - "encoding"
+      - "retrieval"
+      - "spread activation"
+      - "episodic memory"
+      - "semantic memory"
+      - "metacognition"
+      - "levels of processing"
+      - "salience"
+      - "attention"
+      - "working memory"
+      - "hippocampus"
+      - "schema theory"
+      - "long-term potentiation"
+      - "decay"
+      - "cognitive load"
+      - "pattern recognition"
+      - "associative memory"
+      - "consciousness"
+      - "neural correlates of consciousness"
+      - "global workspace theory"
+      - "integrated information theory"
+      - "qualia"
+      - "predictive processing"
+      - "predictive coding"
+      - "free energy principle"
+      - "default mode network"
+      - "mind wandering"
+
+  pes2o_cs:
+    weight: 0.10
+    description: "Computer science papers (IR, NLP, knowledge graphs)"
+    dataset: "allenai/peS2o"
+    streaming: true
+    fields_of_study:
+      - "Computer Science"
+    keyword_filters:
+      - "information retrieval"
+      - "knowledge graph"
+      - "semantic search"
+      - "neural network"
+      - "natural language processing"
+      - "text classification"
+      - "named entity"
+      - "concept extraction"
+      - "vector search"
+      - "embedding"
+
+  code:
+    weight: 0.28
+    description: "Source code (Go, Python, JS, bash, SQL)"
+    dataset: "bigcode/starcoderdata"
+    streaming: true
+    languages:
+      go: 0.35
+      python: 0.25
+      javascript: 0.12
+      typescript: 0.08
+      shell: 0.10
+      sql: 0.10
+    min_length: 50
+    max_length: 100000
+
+  fineweb:
+    weight: 0.18
+    description: "High-quality educational web text"
+    dataset: "HuggingFaceFW/fineweb-edu"
+    config_name: "sample-10BT"
+    streaming: true
+    min_score: 3.0
+    min_length: 100
+    max_length: 50000
+
+  stackoverflow:
+    weight: 0.08
+    description: "Technical Q&A pairs"
+    min_score: 3
+    tags:
+      - "go"
+      - "python"
+      - "javascript"
+      - "sql"
+      - "sqlite"
+      - "machine-learning"
+      - "nlp"
+      - "information-retrieval"
+      - "search"
+      - "algorithm"
+      - "data-structures"
+
+  json_structured:
+    weight: 0.05
+    description: "JSON schemas and structured data"
+
+  commits:
+    weight: 0.05
+    description: "Git commit messages and diffs"
+    dataset: "bigcode/commitpackft"
+    streaming: true
+    languages:
+      - "Go"
+      - "Python"
+      - "JavaScript"
+      - "TypeScript"
+      - "Shell"
+
+  # books:
+  #   weight: 0.04
+  #   description: "Classic books (Swartz archive) — deferred until drive mounted"
+  #   local_dir: "/mnt/external/swartz-archive"
