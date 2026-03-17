@@ -14,7 +14,7 @@ make run                      # Build and run in foreground (serve mode)
 golangci-lint run             # Lint (uses .golangci.yml config)
 ```
 
-**Version** is injected via ldflags from `Makefile` (`VERSION=0.8.0`). The binary var is in `cmd/mnemonic/main.go`.
+**Version** is injected via ldflags from `Makefile` (managed by release-please). The binary var is in `cmd/mnemonic/main.go`.
 
 ## Project Layout
 
@@ -35,13 +35,14 @@ internal/
     orchestrator/      Autonomous scheduler, health monitoring
     reactor/           Event-driven rule engine
   api/                 REST API server + routes
-  web/                 Embedded dashboard (single index.html, D3.js graph)
+  web/                 Embedded dashboard (single-page app, D3.js charts)
   mcp/                 MCP server (13 tools for Claude Code)
   store/               Store interface + SQLite implementation
   llm/                 LLM provider interface + implementations (LM Studio, Gemini/cloud API)
   ingest/              Project ingestion engine
   watcher/             Filesystem (FSEvents/fsnotify), terminal, clipboard
-  daemon/              Service management (macOS LaunchAgent + Linux systemd)
+  daemon/              Service management (macOS launchd, Linux systemd, Windows Services)
+  updater/             Self-update via GitHub Releases
   events/              Event bus (in-memory pub/sub)
   config/              Config loading (config.yaml)
   logger/              Structured logging (slog)
@@ -78,9 +79,7 @@ scripts/               Utility scripts
 
 ## Known Issues
 
-See [GitHub Issues](https://github.com/appsprout-dev/mnemonic/issues) for tracked bugs. Key areas:
-- Graph visualization needs major rework (#3, #6, #7, #8, #9, #10)
-- Dashboard error handling is poor (#5)
+See [GitHub Issues](https://github.com/appsprout-dev/mnemonic/issues) for tracked bugs.
 
 ---
 

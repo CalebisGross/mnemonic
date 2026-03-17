@@ -1,242 +1,241 @@
 # Mnemonic
 
-A local-first, air-gapped semantic memory system that learns and organizes your knowledge through biologically-inspired cognitive processes.
+**Memory that thinks.**
 
-## What is this?
+A local-first semantic memory daemon that watches your work, learns from it, and gives your AI tools persistent memory that consolidates, dreams, and gets smarter over time.
 
-Mnemonic is an autonomous memory daemon that runs entirely on your machine. It watches your filesystem, terminal, and clipboard, automatically capturing and organizing information you interact with. It uses a cognitive architecture inspired by neuroscience with 8 cognitive agents that perceive, encode, consolidate, retrieve, reflect, dream, discover patterns, and build hierarchical abstractions — plus an orchestrator and a reactive rule engine.
+## Highlights
 
-The system runs LLMs for semantic understanding — locally via LM Studio or through cloud APIs like Google Gemini. It stores everything in SQLite with full-text and vector search, and exposes a REST API with a live web dashboard. It's designed as persistent memory infrastructure — your CLI, your tools, and AI agents (like Claude Code) can all query your memory through a unified interface with 13 MCP tools.
+- **Autonomous** — Watches your filesystem, terminal, and clipboard. Encodes memories without you lifting a finger.
+- **Biological** — Memories consolidate, decay, form patterns, and become principles. It doesn't just store — it *processes*.
+- **Local-first** — Air-gapped, SQLite-backed, never phones home. Your data stays on your machine.
+- **13 MCP tools** — Drop-in memory layer for Claude Code and other AI agents.
+- **Self-updating** — Built-in update mechanism checks GitHub Releases and applies updates in-place.
+- **Cross-platform** — macOS, Linux, and Windows. Daemon management via launchd, systemd, or Windows Services.
 
-The "analog LLM" vision: the association graph IS the model. Memories build into patterns, patterns into principles, principles into axioms. The system learns, self-corrects, and gets smarter autonomously.
+## Quick Start
 
-## Installation
-
-### Pre-built Binaries (recommended)
-
-Download the latest release for your platform from [GitHub Releases](https://github.com/appsprout-dev/mnemonic/releases):
+**Install:**
 
 ```bash
-# macOS Apple Silicon
-curl -L https://github.com/appsprout-dev/mnemonic/releases/latest/download/mnemonic_darwin_arm64.tar.gz | tar xz
-sudo mv mnemonic /usr/local/bin/
+# macOS (Homebrew)
+brew install appsprout-dev/tap/mnemonic
 
-# macOS Intel
-curl -L https://github.com/appsprout-dev/mnemonic/releases/latest/download/mnemonic_darwin_amd64.tar.gz | tar xz
+# macOS Apple Silicon (manual)
+curl -L https://github.com/appsprout-dev/mnemonic/releases/latest/download/mnemonic_darwin_arm64.tar.gz | tar xz
 sudo mv mnemonic /usr/local/bin/
 
 # Linux x86_64
 curl -L https://github.com/appsprout-dev/mnemonic/releases/latest/download/mnemonic_linux_amd64.tar.gz | tar xz
 sudo mv mnemonic /usr/local/bin/
+
+# Windows x86_64
+# Download mnemonic_windows_amd64.tar.gz from GitHub Releases
 ```
 
-### Homebrew (macOS/Linux)
+Or [build from source](#development) (requires Go 1.23+ and CGO).
+
+**Configure and run:**
 
 ```bash
-brew install appsprout-dev/tap/mnemonic
-```
-
-### Build from Source
-
-Requires Go 1.23+ and CGO (C compiler).
-
-```bash
-git clone https://github.com/appsprout-dev/mnemonic.git
-cd mnemonic
-make build
-# Binary at ./bin/mnemonic
-```
-
-## Quick Start
-
-**Prerequisites:**
-
-- An LLM provider — either [LM Studio](docs/setup-lmstudio.md) running locally, or a cloud API key (e.g., Google Gemini)
-
-**Setup:**
-```bash
-# Copy the example config and edit it
 cp config.yaml ~/.mnemonic/config.yaml
-# Edit ~/.mnemonic/config.yaml: set llm.endpoint, llm.chat_model, llm.embedding_model
-# For LM Studio: see docs/setup-lmstudio.md
+# Edit ~/.mnemonic/config.yaml — set llm.endpoint, llm.chat_model, llm.embedding_model
+# For local LLM: see docs/setup-lmstudio.md
 # For Gemini: set endpoint to Gemini API URL and export LLM_API_KEY
-mnemonic serve   # Run in foreground (recommended for first run)
-# Open http://127.0.0.1:9999
+
+mnemonic serve        # Run in foreground (recommended for first run)
+```
+
+**Try it out:**
+
+```bash
+mnemonic status                              # System health
+mnemonic diagnose                            # Check config, DB, LLM connectivity
+mnemonic remember "chose SQLite for speed"   # Store a memory
+mnemonic recall "database decision"          # Retrieve it semantically
+mnemonic watch                               # Live event stream
 ```
 
 The data directory (`~/.mnemonic/`) is created automatically on first run.
 
-**First commands:**
-```bash
-mnemonic status    # System health
-mnemonic diagnose  # Check config, DB, LLM connectivity
-mnemonic remember "I'm learning about memory systems"
-mnemonic recall "memory"
-mnemonic watch     # Live event stream
-```
+## Dashboard
 
-## Architecture
+Open `http://127.0.0.1:9999` for the embedded web UI:
 
-Mnemonic implements a nine-agent cognitive pipeline plus an autonomous orchestrator and event-driven reactor:
+![SDK Dashboard — evolution timeline, session activity, learned principles, and task strategies](docs/images/dashboard-sdk.png)
 
-1. **Perception** — Watch filesystem, terminal, clipboard, MCP events. Pre-filter with heuristics (size, patterns, frequency, batch edit detection, recall-aware salience boosting).
-2. **Encoding** — LLM-powered compression of raw events into memories. Extract structured concepts, generate embeddings, find related memories, create association links. Heuristic fallback when LLM unavailable.
-3. **Episoding** — Cluster raw memories into temporal episodes with LLM synthesis. Claude-aware prompt for AI-assisted development sessions.
-4. **Consolidation** — Sleep cycle (every 6h). Decay salience, merge related memories, prune weak associations, extract recurring patterns from memory clusters.
-5. **Retrieval** — Spread activation: embed query → find entry points (FTS + embedding) → traverse association graph 3 hops → search patterns and abstractions → LLM synthesis with read-only tool-use (search, follow associations, get details, timeline, project context).
-6. **Metacognition** — Periodic self-reflection. Audit memory quality, analyze retrieval feedback, re-embed orphaned memories, trigger consolidation when needed.
-7. **Dreaming** — Replay memories, strengthen associations, cross-pollinate across projects, link memories to patterns, generate higher-order insights.
-8. **Abstraction** — Build hierarchical knowledge: patterns → principles (level 2) → axioms (level 3). Verify grounding, demote abstractions that lose evidence.
-9. **Reactor** — Event-driven rule engine. Fires chains of conditions → actions in response to system events (e.g., trigger consolidation when DB grows too large, kick off dreaming when an episode closes).
+- **Recall** — Search memories, see retrieval scores and synthesized responses, store new memories
+- **Explore** — Browse episodes, memories, patterns, and abstractions
+- **Timeline** — Chronological view with date range filters and type/tag filtering
+- **LLM** — Per-agent token consumption, cost tracking, and usage charts
+- **SDK** — Agent evolution dashboard: principles, strategies, session timeline, chat interface
+- **Activity drawer** — Slide-out panel with live event feed and metacognition insights
+- **Themes** — 5 dashboard themes: Midnight, Ember, Nord, Slate, Parchment
+- **Live updates** — Real-time data refresh via WebSocket
+- **Source tags** — Hoverable tags showing where each memory originated
 
-**Orchestrator** — Autonomous scheduler: health monitoring, LLM health checks, DB size monitoring, periodic retrieval self-tests, health report generation (`~/.mnemonic/health.json`).
+## How It Works
 
-**Feedback loop** — Helpful recall results strengthen associations and boost salience. Irrelevant results weaken them. The system learns from usage.
+![Explore > Patterns — cross-project pattern discovery with evidence and concept tags](docs/images/dashboard-patterns.png)
 
-All agents communicate via an event bus; none call each other directly.
+Mnemonic implements a cognitive pipeline inspired by neuroscience — 8 agents plus an orchestrator and a reactive rule engine:
 
-For architectural deep dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
+1. **Perception** — Watch filesystem, terminal, clipboard, MCP events. Pre-filter with heuristics.
+2. **Encoding** — LLM-powered compression into memories. Extract concepts, generate embeddings, create association links.
+3. **Episoding** — Cluster memories into temporal episodes with LLM synthesis.
+4. **Consolidation** — Sleep cycle (every 6h). Decay salience, merge related memories, extract recurring patterns.
+5. **Retrieval** — Spread activation: embed query, find entry points (FTS + embedding), traverse association graph 3 hops, LLM synthesis with tool-use.
+6. **Metacognition** — Self-reflection. Audit memory quality, analyze feedback, re-embed orphaned memories.
+7. **Dreaming** — Replay memories, strengthen associations, cross-pollinate across projects, generate insights.
+8. **Abstraction** — Build hierarchical knowledge: patterns (level 1) → principles (level 2) → axioms (level 3).
 
-## CLI Commands
+**Orchestrator** — Autonomous scheduler: health monitoring, adaptive intervals, periodic self-tests, health reports.
 
-| Category | Command | Purpose |
-|----------|---------|---------|
-| **Daemon** | `start`, `stop`, `restart`, `serve` | Lifecycle management |
-| **Memory** | `remember TEXT` | Store explicit memory |
-| **Memory** | `recall QUERY` | Retrieve matching memories |
-| **Memory** | `consolidate` | Force consolidation cycle |
-| **Memory** | `ingest DIR [--dry-run] [--project NAME]` | Bulk ingest directory into memory |
-| **Data** | `export --format json\|sqlite` | Dump all memories |
-| **Data** | `import FILE --mode merge\|replace` | Load JSON export |
-| **Data** | `backup` | Timestamped backup (keeps 5) |
-| **Data** | `restore FILE` | Restore database from backup |
-| **Data** | `cleanup` | Archive stale observations |
-| **Insights** | `insights` | Memory health report |
-| **Insights** | `meta-cycle` | Run metacognition analysis |
-| **Insights** | `dream-cycle` | Run dream replay |
-| **Insights** | `autopilot` | Show autonomous activity log |
-| **MCP** | `mcp` | Run MCP server (stdio) |
-| **Monitor** | `status` | System health snapshot |
-| **Monitor** | `diagnose` | Check config, DB, LLM, disk, daemon |
-| **Monitor** | `watch` | Live event stream |
-| **Setup** | `install` | Auto-start (macOS LaunchAgent / Linux systemd) |
-| **Setup** | `uninstall` | Remove auto-start service |
-| **Setup** | `generate-token` | Generate bearer token for API auth |
-| **Setup** | `version` | Show version |
-| **Danger** | `purge` | Stop daemon and delete all data (fresh start) |
+**Reactor** — Event-driven rule engine. Fires condition → action chains in response to system events.
+
+**Feedback loop** — Helpful recalls strengthen associations and boost salience. Irrelevant results weaken them. The system learns from usage.
+
+All agents communicate via an event bus — none call each other directly.
+
+For the full deep dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## MCP Integration
 
-Expose Mnemonic as an MCP server for Claude Code or other AI agents:
+Mnemonic exposes 13 tools via the [Model Context Protocol](https://modelcontextprotocol.io/) for Claude Code and other AI agents:
 
-**Claude Desktop config** (`~/.config/Claude/claude_desktop_config.json`):
+**Claude Code config** (`~/.claude/settings.local.json`):
+
 ```json
 {
   "mcpServers": {
     "mnemonic": {
-      "command": "/path/to/bin/mnemonic",
+      "command": "/path/to/mnemonic",
       "args": ["--config", "/path/to/config.yaml", "mcp"]
     }
   }
 }
 ```
 
-**Available MCP tools (13):** `remember`, `recall`, `forget`, `status`, `recall_project`, `recall_timeline`, `session_summary`, `get_patterns`, `get_insights`, `feedback`, `audit_encodings`, `coach_local_llm`, `ingest_project`
+**Tools:**
+
+| Tool | Purpose |
+| ---- | ------- |
+| `remember` | Store decisions, errors, insights, learnings |
+| `recall` | Semantic search with spread activation |
+| `forget` | Archive a memory |
+| `status` | System health and stats |
+| `recall_project` | Project-scoped context and patterns |
+| `recall_timeline` | Chronological retrieval within a time range |
+| `session_summary` | Summarize current/recent session |
+| `get_patterns` | View discovered recurring patterns |
+| `get_insights` | View metacognition observations and abstractions |
+| `feedback` | Report recall quality (trains retrieval) |
+| `audit_encodings` | Review encoding quality |
+| `coach_local_llm` | Write coaching guidance for local LLM prompts |
+| `ingest_project` | Bulk-ingest a project directory |
 
 See [CLAUDE.md](CLAUDE.md) for Claude Code usage guidelines.
+
+## CLI Commands
+
+| Category | Command | Purpose |
+| -------- | ------- | ------- |
+| **Daemon** | `serve` | Run in foreground |
+| **Daemon** | `start`, `stop`, `restart` | Manage background daemon |
+| **Daemon** | `install`, `uninstall` | Auto-start (launchd / systemd / Windows Services) |
+| **Memory** | `remember TEXT` | Store explicit memory |
+| **Memory** | `recall QUERY` | Retrieve matching memories |
+| **Memory** | `consolidate` | Force consolidation cycle |
+| **Memory** | `ingest DIR` | Bulk ingest directory (`--dry-run`, `--project NAME`) |
+| **Data** | `export` | Dump memories (`--format json\|sqlite`) |
+| **Data** | `import FILE` | Load export (`--mode merge\|replace`) |
+| **Data** | `backup`, `restore FILE` | Timestamped backup (keeps 5) / restore |
+| **Data** | `cleanup` | Archive stale observations |
+| **Insights** | `insights` | Memory health report |
+| **Insights** | `meta-cycle` | Run metacognition analysis |
+| **Insights** | `dream-cycle` | Run dream replay |
+| **Insights** | `autopilot` | Show autonomous activity log |
+| **Monitor** | `status` | System health snapshot |
+| **Monitor** | `diagnose` | Check config, DB, LLM, disk, daemon |
+| **Monitor** | `watch` | Live event stream |
+| **Update** | `check-update` | Check for new version |
+| **Update** | `update` | Download and apply update |
+| **Setup** | `generate-token` | Generate bearer token for API auth |
+| **Setup** | `version` | Show version |
+| **MCP** | `mcp` | Run MCP server (stdio) |
+| **Danger** | `purge` | Stop daemon, delete all data |
 
 ## Configuration
 
 All settings live in `config.yaml`. Key sections:
 
-- **llm** — LLM provider endpoint (LM Studio, Gemini, or any OpenAI-compatible), chat model, embedding model, timeouts
-- **store** — SQLite path, journal mode (use WAL for faster writes)
-- **perception** — Watch directories, shell, clipboard; heuristic thresholds
-- **encoding** — Concept extraction limits, similarity search, contextual encoding
-- **consolidation** — Decay rate, salience thresholds, budget (100 memories/cycle max), pattern extraction
-- **retrieval** — Spread activation hops, activation decay, result limit, synthesis tokens
+- **llm** — Provider endpoint (LM Studio, Gemini, or any OpenAI-compatible API), models, timeouts
+- **store** — SQLite path, journal mode (WAL recommended)
+- **perception** — Watch directories, shell, clipboard; heuristic thresholds; project identity
+- **encoding** — Concept extraction, similarity search, contextual encoding
+- **consolidation** — Decay rate, salience thresholds, pattern extraction
+- **retrieval** — Spread activation hops, decay, synthesis tokens
 - **metacognition** — Reflection interval, feedback processing
-- **episoding** — Episode window size, minimum events per episode
-- **dreaming** — Replay interval, batch size, association boost, noise pruning
-- **abstraction** — Interval, min pattern strength, max LLM calls per cycle
-- **orchestrator** — Adaptive intervals, max DB size, self-test interval, auto-recovery
+- **episoding** — Episode window, minimum events
+- **dreaming** — Replay interval, association boost, noise pruning
+- **abstraction** — Pattern strength thresholds, LLM call budget
+- **orchestrator** — Adaptive intervals, DB size limits, self-test, auto-recovery
+- **reactor** — Event-driven rule engine configuration
 - **mcp** — Enable/disable MCP server
-- **agent_sdk** — Agent SDK dashboard, evolution directory, WebSocket port
-- **coaching** — Coaching file path for LLM prompt improvements
-- **api** — Server host/port, request timeout, optional bearer token authentication
+- **api** — Server host/port, request timeout, bearer token auth
 - **web** — Enable/disable embedded dashboard
+- **agent_sdk** — SDK dashboard, evolution directory, WebSocket port
+- **coaching** — Coaching file path for LLM prompt improvements
 - **logging** — Level, format, output file
 
 See `config.yaml` for all defaults with inline documentation.
 
-## Dashboard
+## Platform Support
 
-Open `http://127.0.0.1:9999` for the embedded web UI:
-
-- **Recall** — Query tester: try searches, see retrieval scores and synthesized responses
-- **Explore** — Browse episodes, memories, patterns, and abstractions in sub-tabs
-- **Graph** — D3.js visualization of memory associations
-- **LLM Usage** — Per-agent token consumption and cost tracking
-- **Agent** — SDK evolution dashboard: principles, strategies, session timeline, chat (requires `agent_sdk.enabled: true` and Claude CLI authenticated — run `claude` once to log in)
-- **Activity drawer** — Slide-out panel with live event feed and metacognition insights
-- **Themes** — 5 dashboard themes: Midnight, Ember, Nord, Slate, Parchment (persists in localStorage)
-- **Live updates** — Real-time data refresh via WebSocket
-- **Source tags** — Hoverable tags showing where each memory originated (filesystem, terminal, clipboard, MCP, consolidation)
+| Platform | Status | Daemon |
+| -------- | ------ | ------ |
+| macOS ARM (M-series) | **Full** | launchd (LaunchAgent) |
+| macOS x86 | **Full** | launchd (LaunchAgent) |
+| Linux x86_64 | **Full** | systemd (user service) |
+| Windows x86_64 | **Full** | Windows Services |
 
 ## Project Structure
 
-```
+```text
+cmd/mnemonic/       CLI + daemon entry point
 internal/
-  llm/              LLM provider interface + implementations (LM Studio, Gemini/cloud API)
-  store/            Store interface + SQLite implementation with FTS5 + vector search
-  events/           Event bus (pub/sub)
-  watcher/          Filesystem, terminal, clipboard, git watchers
-  agent/            Cognitive agents (perception, encoding, episoding, consolidation,
-                      retrieval, metacognition, dreaming, abstraction, orchestrator, reactor)
-  ingest/           Project ingestion engine
+  agent/            8 cognitive agents + orchestrator + reactor
   api/              HTTP + WebSocket server
-  web/              Embedded dashboard
+  web/              Embedded dashboard (single-page app)
+  mcp/              MCP server (13 tools)
+  store/            Store interface + SQLite (FTS5 + vector search)
+  llm/              LLM provider interface (LM Studio, Gemini, cloud APIs)
+  ingest/           Project ingestion engine
+  watcher/          Filesystem, terminal, clipboard watchers
+  daemon/           Service management (launchd, systemd, Windows Services)
+  updater/          Self-update via GitHub Releases
+  events/           Event bus (in-memory pub/sub)
   config/           Configuration loading
-  logger/           Structured logging
-  daemon/           Daemon management (macOS launchd + Linux systemd)
-  mcp/              MCP server implementation (13 tools)
-  backup/           Backup/restore logic
-cmd/mnemonic/       Main entry point
-cmd/benchmark/      End-to-end benchmark suite
-migrations/         SQLite schema
+  logger/           Structured logging (slog)
+  backup/           Export/import/backup/restore
 sdk/                Python agent SDK (self-evolving assistant)
+migrations/         SQLite schema migrations
 ```
 
 ## Development
 
 ```bash
 make build          # Compile binary
-make run            # Build and run in foreground (serve mode)
+make run            # Build and run (foreground)
 make test           # Run tests
-make fmt            # Format code
-make vet            # Static analysis
-make lint           # Run golangci-lint
+make check          # fmt + vet
+make lint           # golangci-lint
 make tidy           # go mod tidy
 make clean          # Remove binaries
-make check          # fmt + vet
-make benchmark      # Build benchmark binary
-```
-
-All builds require `CGO_ENABLED=1` for SQLite and `-tags "sqlite_fts5"` for full-text search.
-
-**First-time setup:**
-```bash
 make setup-hooks    # Configure git pre-commit hooks
 ```
 
-## Platform Support
-
-| Platform | Status | Notes |
-|----------|--------|-------|
-| macOS ARM (M-series) | **Full** | Primary development platform |
-| macOS x86 | Untested | Should work with CGO enabled |
-| Linux x86_64 | **Full** | All features including systemd daemon management |
-| Windows | **Not supported** | Compiles but `start`/`stop`/`install` return errors. Use `mnemonic serve` for foreground mode. Full support planned for a future release. |
+All builds require `CGO_ENABLED=1` and `-tags sqlite_fts5`.
 
 ## Documentation
 
