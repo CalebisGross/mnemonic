@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -118,7 +119,8 @@ func TestEnvVarAbsentLLMAPIKeyEmpty(t *testing.T) {
 	// Ensure no env var is set
 	t.Setenv("LLM_API_KEY", "")
 	// Point HOME to a temp dir so the file fallback doesn't find a real key
-	t.Setenv("HOME", t.TempDir())
+	fakeHome := t.TempDir()
+	setFakeHome(t, fakeHome)
 
 	cfg := Default()
 	if err := cfg.process(t.TempDir()); err != nil {
@@ -130,12 +132,18 @@ func TestEnvVarAbsentLLMAPIKeyEmpty(t *testing.T) {
 	}
 }
 
+func setFakeHome(t *testing.T, dir string) {
+	t.Helper()
+	t.Setenv("HOME", dir)        // Unix
+	t.Setenv("USERPROFILE", dir) // Windows
+}
+
 func TestAPIKeyFileFallback(t *testing.T) {
 	t.Setenv("LLM_API_KEY", "")
 
 	// Create a fake home with ~/.mnemonic/api_key
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setFakeHome(t, home)
 	mnemonicDir := filepath.Join(home, ".mnemonic")
 	if err := os.MkdirAll(mnemonicDir, 0o700); err != nil {
 		t.Fatal(err)
@@ -156,10 +164,13 @@ func TestAPIKeyFileFallback(t *testing.T) {
 }
 
 func TestAPIKeyFileRejectsLoosePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file permissions not enforced on Windows")
+	}
 	t.Setenv("LLM_API_KEY", "")
 
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setFakeHome(t, home)
 	mnemonicDir := filepath.Join(home, ".mnemonic")
 	if err := os.MkdirAll(mnemonicDir, 0o700); err != nil {
 		t.Fatal(err)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -633,8 +634,8 @@ func (c *Config) process(configDir string) error {
 	} else if home, err := os.UserHomeDir(); err == nil {
 		keyPath := filepath.Join(home, ".mnemonic", "api_key")
 		if info, err := os.Stat(keyPath); err == nil {
-			// Refuse to read a world-readable key file
-			if info.Mode().Perm()&0o077 != 0 {
+			// Refuse to read a world-readable key file (skip on Windows where POSIX perms don't apply)
+			if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 				return fmt.Errorf("API key file %s is too permissive (%04o); run: chmod 600 %s",
 					keyPath, info.Mode().Perm(), keyPath)
 			}
