@@ -202,7 +202,7 @@ def train(config, args):
     print(f"  Warmup: {args.warmup_steps} optimizer steps")
 
     # Training loop
-    ckpt_dir = Path(f"checkpoints/{args.config}")
+    ckpt_dir = Path(args.ckpt_dir) if args.ckpt_dir else Path(f"checkpoints/{args.config}")
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     global_step = 0
     lr = args.lr
@@ -267,6 +267,20 @@ def train(config, args):
 
     model.train()
     optimizer.zero_grad()
+
+    # Fast-forward dataloader if resuming (skip already-seen batches)
+    if global_step > 0:
+        print(f"  Fast-forwarding dataloader past {global_step} batches...")
+        skip_iter = iter(train_loader)
+        for i in range(global_step):
+            next(skip_iter, None)
+            if (i + 1) % 1000 == 0:
+                print(f"    Skipped {i + 1}/{global_step} batches")
+        print(f"  Fast-forward complete, resuming training at step {global_step}")
+        train_iter = skip_iter
+    else:
+        train_iter = iter(train_loader)
+
     start_time = time.time()
 
     try:
@@ -275,7 +289,7 @@ def train(config, args):
     except ImportError:
         pbar = None
 
-    for input_ids, targets in train_loader:
+    for input_ids, targets in train_iter:
         input_ids = input_ids.to(device)
         targets = targets.to(device)
 
@@ -405,6 +419,7 @@ def main():
     parser.add_argument("--compile", action="store_true")
     parser.add_argument("--spoke-lr-mult", type=float, default=2.0, help="Spoke LR multiplier")
     parser.add_argument("--tokenized-dir", type=str, default=None)
+    parser.add_argument("--ckpt-dir", type=str, default=None, help="Checkpoint directory (default: checkpoints/<config>)")
     parser.add_argument("--resume", type=str, default=None,
                         help="Resume from checkpoint (filename in ckpt dir, or absolute path). Use 'last.pt' to resume latest.")
     parser.add_argument("--run-name", type=str, default=None, help="wandb run name (default: config name)")

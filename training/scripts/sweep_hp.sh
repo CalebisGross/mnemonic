@@ -42,13 +42,14 @@ while [[ $# -gt 0 ]]; do
         --phase) PHASE="$2"; shift 2 ;;
         --dry-run) DRY_RUN=true; shift ;;
         --batch) BATCH="$2"; shift 2 ;;
+        --accum) ACCUM="$2"; shift 2 ;;
         --steps) SWEEP_STEPS="$2"; shift 2 ;;
         *) echo "Unknown arg: $1"; exit 1 ;;
     esac
 done
 
 if [[ -z "$PHASE" ]]; then
-    echo "Usage: $0 --phase {0|1|2|3} [--dry-run] [--batch N] [--steps N]"
+    echo "Usage: $0 --phase {0|1|2|3} [--dry-run] [--batch N] [--accum N] [--steps N]"
     exit 1
 fi
 
@@ -69,6 +70,7 @@ run_experiment() {
     local cmd="PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python -u $TRAIN_SCRIPT"
     cmd+=" --config $CONFIG --device cuda"
     cmd+=" --max-steps $SWEEP_STEPS --save-interval $SAVE_INTERVAL"
+    cmd+=" --ckpt-dir checkpoints/$name"
     cmd+=" --run-name $name --wandb-group $WANDB_GROUP --wandb-tags sweep"
     cmd+=" $COMPILE"
     cmd+=" ${extra_args[*]}"
@@ -76,6 +78,28 @@ run_experiment() {
     echo ""
     echo "================================================================"
     echo "  RUN: $name"
+
+    # Skip if already completed (result in TSV)
+    if grep -qP "^${name}\t" "$RESULTS_FILE" 2>/dev/null; then
+        local prev_loss
+        prev_loss=$(awk -F'\t' -v n="$name" '$1 == n && $2 != "FAILED" {print $2}' "$RESULTS_FILE")
+        if [[ -n "$prev_loss" ]]; then
+            echo "  SKIPPED — already completed (loss=$prev_loss)"
+            echo "================================================================"
+            return
+        fi
+        # Previous run FAILED — remove entry and retry
+        echo "  Previous run FAILED, retrying..."
+        sed -i "/^${name}\t/d" "$RESULTS_FILE"
+    fi
+
+    # Auto-resume if checkpoint exists for THIS run (crashed mid-run)
+    local ckpt_dir="checkpoints/${name}"
+    if [[ -f "$ckpt_dir/last.pt" ]]; then
+        echo "  Found checkpoint — adding --resume last.pt"
+        cmd+=" --resume $ckpt_dir/last.pt"
+    fi
+
     echo "  CMD: $cmd"
     echo "================================================================"
 
