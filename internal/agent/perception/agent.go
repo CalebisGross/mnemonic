@@ -61,6 +61,10 @@ type PerceptionAgent struct {
 	// watcher emits multiple events for the same file with identical content.
 	recentContentMu sync.Mutex
 	recentContent   map[string]time.Time // hash(source+path+content) → timestamp
+
+	// Git-operation suppression: prevents encoding filesystem events that are
+	// side-effects of git operations (pull, checkout, merge, rebase).
+	gitOpCooldown time.Duration // how long after a git op to suppress fs events (default: 10s)
 }
 
 // NewPerceptionAgent creates a new perception agent with the given dependencies.
@@ -72,12 +76,13 @@ func NewPerceptionAgent(
 	log *slog.Logger,
 ) *PerceptionAgent {
 	return &PerceptionAgent{
-		name:        "perception",
-		watchers:    watchers,
-		store:       s,
-		llmProvider: llmProv,
-		cfg:         cfg,
-		log:         log,
+		name:          "perception",
+		watchers:      watchers,
+		store:         s,
+		llmProvider:   llmProv,
+		cfg:           cfg,
+		log:           log,
+		gitOpCooldown: 10 * time.Second,
 	}
 }
 
@@ -290,6 +295,15 @@ func (pa *PerceptionAgent) processEvent(ctx context.Context, event Event) {
 		}
 		pa.recentContent[hash] = time.Now()
 		pa.recentContentMu.Unlock()
+	}
+
+	// 0b. Git-operation suppression: if this filesystem event is inside a git repo
+	// that had a recent git operation (pull, checkout, merge, rebase), suppress it.
+	// The git watcher will handle it as a single "repo_changed" event instead.
+	if event.Source == "filesystem" && pa.isRecentGitOp(event.Path) {
+		pa.log.Debug("suppressed filesystem event during git operation",
+			"path", event.Path, "type", event.Type)
+		return
 	}
 
 	// 1. Run heuristic filter
@@ -511,6 +525,56 @@ func (pa *PerceptionAgent) mergeMetadata(
 	merged["heuristic_score"] = heuristicScore
 
 	return merged
+}
+
+// isRecentGitOp checks if the given file path is inside a git repo that had
+// a recent git operation (pull, checkout, merge, rebase). It does this by
+// walking up the directory tree to find .git/, then checking if sentinel files
+// (.git/FETCH_HEAD, .git/HEAD, .git/ORIG_HEAD) were modified recently.
+//
+// This is lightweight (a few stat calls) and avoids encoding filesystem events
+// that are side-effects of git operations — the git watcher handles those as
+// a single "repo_changed" event instead.
+func (pa *PerceptionAgent) isRecentGitOp(filePath string) bool {
+	gitDir := findGitDir(filePath)
+	if gitDir == "" {
+		return false
+	}
+
+	cutoff := time.Now().Add(-pa.gitOpCooldown)
+
+	// Check sentinel files that git updates during operations.
+	// FETCH_HEAD: updated by git fetch/pull
+	// ORIG_HEAD: updated by git merge/rebase/reset
+	// HEAD: updated by git checkout/switch
+	sentinels := []string{"FETCH_HEAD", "ORIG_HEAD", "HEAD"}
+	for _, s := range sentinels {
+		info, err := os.Stat(filepath.Join(gitDir, s))
+		if err != nil {
+			continue
+		}
+		if info.ModTime().After(cutoff) {
+			return true
+		}
+	}
+	return false
+}
+
+// findGitDir walks up from the given path to find the nearest .git directory.
+// Returns the .git directory path, or empty string if not found.
+func findGitDir(path string) string {
+	dir := filepath.Dir(path)
+	for {
+		candidate := filepath.Join(dir, ".git")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "" // reached filesystem root
+		}
+		dir = parent
+	}
 }
 
 // knownProjectParents are directory names that typically contain project directories.
