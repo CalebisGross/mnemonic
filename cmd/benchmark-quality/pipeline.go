@@ -15,6 +15,7 @@ import (
 	"github.com/appsprout-dev/mnemonic/internal/agent/encoding"
 	"github.com/appsprout-dev/mnemonic/internal/agent/episoding"
 	"github.com/appsprout-dev/mnemonic/internal/agent/retrieval"
+	"github.com/appsprout-dev/mnemonic/internal/llm"
 	"github.com/appsprout-dev/mnemonic/internal/store/sqlite"
 )
 
@@ -44,15 +45,18 @@ func runPipelineScenario(
 	}
 	defer func() { _ = s.Close() }()
 
-	stub := &semanticStubProvider{}
+	var p llm.Provider = &semanticStubProvider{}
+	if cfg.Provider != nil {
+		p = cfg.Provider
+	}
 
 	// Create all agents with configs from benchConfig.
-	encAgent := encoding.NewEncodingAgentWithConfig(s, stub, log, cfg.Encoding)
-	epiAgent := episoding.NewEpisodingAgent(s, stub, log, cfg.Episoding)
-	dreamAgent := dreaming.NewDreamingAgent(s, stub, cfg.Dreaming, log)
-	consolAgent := consolidation.NewConsolidationAgent(s, stub, cfg.Consolidation, log)
-	absAgent := abstraction.NewAbstractionAgent(s, stub, cfg.Abstraction, log)
-	retAgent := retrieval.NewRetrievalAgent(s, stub, cfg.Retrieval, log)
+	encAgent := encoding.NewEncodingAgentWithConfig(s, p, log, cfg.Encoding)
+	epiAgent := episoding.NewEpisodingAgent(s, p, log, cfg.Episoding)
+	dreamAgent := dreaming.NewDreamingAgent(s, p, cfg.Dreaming, log)
+	consolAgent := consolidation.NewConsolidationAgent(s, p, cfg.Consolidation, log)
+	absAgent := abstraction.NewAbstractionAgent(s, p, cfg.Abstraction, log)
+	retAgent := retrieval.NewRetrievalAgent(s, p, cfg.Retrieval, log)
 
 	// Phase 1: Inject raw events.
 	for _, raw := range sc.RawEvents {

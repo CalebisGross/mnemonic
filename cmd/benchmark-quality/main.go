@@ -16,6 +16,8 @@ import (
 	"github.com/appsprout-dev/mnemonic/internal/agent/encoding"
 	"github.com/appsprout-dev/mnemonic/internal/agent/episoding"
 	"github.com/appsprout-dev/mnemonic/internal/agent/retrieval"
+	"github.com/appsprout-dev/mnemonic/internal/config"
+	"github.com/appsprout-dev/mnemonic/internal/llm"
 	"github.com/appsprout-dev/mnemonic/internal/store"
 	"github.com/appsprout-dev/mnemonic/internal/store/sqlite"
 )
@@ -30,7 +32,8 @@ type benchConfig struct {
 	Dreaming      dreaming.DreamingConfig
 	Episoding     episoding.EpisodingConfig
 	Abstraction   abstraction.AbstractionConfig
-	BenchDecay    float32 // per-cycle salience decay (default 0.92)
+	BenchDecay    float32      // per-cycle salience decay (default 0.92)
+	Provider      llm.Provider // nil = use semantic stub
 }
 
 // defaultBenchConfig returns a benchConfig with sensible defaults.
@@ -62,34 +65,59 @@ func defaultBenchConfig() benchConfig {
 
 func main() {
 	var (
-		verbose   bool
-		cycles    int
-		report    string
-		llmMode   bool
-		sweepFile string
-		compare   bool
-		setFlags  setFlagList
+		verbose    bool
+		cycles     int
+		report     string
+		llmMode    bool
+		configPath string
+		sweepFile  string
+		compare    bool
+		setFlags   setFlagList
 	)
 
 	flag.BoolVar(&verbose, "verbose", false, "verbose output")
 	flag.IntVar(&cycles, "cycles", 5, "number of consolidation cycles")
 	flag.StringVar(&report, "report", "", "output format: 'markdown' writes benchmark-results.md")
-	flag.BoolVar(&llmMode, "llm", false, "use real LLM for embeddings (requires LM Studio)")
+	flag.BoolVar(&llmMode, "llm", false, "use real LLM provider (reads config.yaml + LLM_API_KEY env var)")
+	flag.StringVar(&configPath, "config", "config.yaml", "path to config.yaml (used with --llm)")
 	flag.StringVar(&sweepFile, "sweep", "", "path to sweep YAML file for parameter tuning")
 	flag.BoolVar(&compare, "compare", false, "run comparison benchmark: FTS vs Vector vs Hybrid vs Mnemonic")
 	flag.Var(&setFlags, "set", "override a config parameter (repeatable, format: key=value)")
 	flag.Parse()
-
-	if llmMode {
-		fmt.Fprintln(os.Stderr, "Error: --llm mode not yet implemented")
-		os.Exit(1)
-	}
 
 	logLevel := slog.LevelError
 	if verbose {
 		logLevel = slog.LevelDebug
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
+
+	// Create LLM provider: real (from config) or stub.
+	var provider llm.Provider
+	llmLabel := "semantic-stub"
+	if llmMode {
+		cfg, cfgErr := config.Load(configPath)
+		if cfgErr != nil {
+			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", cfgErr)
+			os.Exit(1)
+		}
+		if cfg.LLM.APIKey == "" {
+			fmt.Fprintln(os.Stderr, "Error: LLM_API_KEY environment variable is required for --llm mode")
+			os.Exit(1)
+		}
+		provider = llm.NewLMStudioProvider(
+			cfg.LLM.Endpoint,
+			cfg.LLM.ChatModel,
+			cfg.LLM.EmbeddingModel,
+			cfg.LLM.APIKey,
+			time.Duration(cfg.LLM.TimeoutSec)*time.Second,
+			cfg.LLM.MaxConcurrent,
+		)
+		if err := provider.Health(context.Background()); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: LLM provider health check failed: %v\n", err)
+			os.Exit(1)
+		}
+		llmLabel = cfg.LLM.ChatModel
+	}
 
 	ctx := context.Background()
 	scenarios := allScenarios()
@@ -115,7 +143,7 @@ func main() {
 
 		fmt.Println()
 		fmt.Println("  Mnemonic Config Sweep")
-		fmt.Printf("  Version: %s  |  LLM: semantic-stub  |  Params: %d\n", Version, len(def.Sweeps))
+		fmt.Printf("  Version: %s  |  LLM: %s  |  Params: %d\n", Version, llmLabel, len(def.Sweeps))
 		fmt.Println()
 
 		sweepReport, sweepErr := runSweep(ctx, def, scenarios, cycles, verbose, log)
@@ -131,7 +159,7 @@ func main() {
 			if def.Cycles > 0 {
 				sweepCycles = def.Cycles
 			}
-			if writeErr := writeSweepMarkdownReport(sweepReport, sweepCycles); writeErr != nil {
+			if writeErr := writeSweepMarkdownReport(sweepReport, sweepCycles, llmLabel); writeErr != nil {
 				fmt.Fprintf(os.Stderr, "Error writing sweep report: %v\n", writeErr)
 			} else {
 				fmt.Println("  Sweep report written to sweep-results.md")
@@ -144,6 +172,7 @@ func main() {
 	// Comparison mode: run all approaches against all scenarios.
 	if compare {
 		cfg := defaultBenchConfig()
+		cfg.Provider = provider
 		if len(overrides) > 0 {
 			if overrideErr := applyOverrides(&cfg, overrides); overrideErr != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", overrideErr)
@@ -173,6 +202,7 @@ func main() {
 
 	// Standard mode: run all scenarios with optional -set overrides.
 	cfg := defaultBenchConfig()
+	cfg.Provider = provider
 	if len(overrides) > 0 {
 		if overrideErr := applyOverrides(&cfg, overrides); overrideErr != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", overrideErr)
@@ -182,7 +212,7 @@ func main() {
 
 	fmt.Println()
 	fmt.Println("  Mnemonic Memory Quality Benchmark")
-	fmt.Printf("  Version: %s  |  LLM: semantic-stub  |  Cycles: %d\n", Version, cycles)
+	fmt.Printf("  Version: %s  |  LLM: %s  |  Cycles: %d\n", Version, llmLabel, cycles)
 	fmt.Println()
 
 	var allResults []scenarioResult
@@ -232,7 +262,7 @@ func main() {
 	}
 
 	if report == "markdown" {
-		if writeErr := writeMarkdownReport(allResults, agg, cycles); writeErr != nil {
+		if writeErr := writeMarkdownReport(allResults, agg, cycles, llmLabel); writeErr != nil {
 			fmt.Fprintf(os.Stderr, "Error writing report: %v\n", writeErr)
 		} else {
 			fmt.Println("  Report written to benchmark-results.md")
@@ -275,9 +305,12 @@ func runScenario(
 	}
 	defer func() { _ = s.Close() }()
 
-	stub := &semanticStubProvider{}
-	retAgent := retrieval.NewRetrievalAgent(s, stub, cfg.Retrieval, log)
-	consolAgent := consolidation.NewConsolidationAgent(s, stub, cfg.Consolidation, log)
+	var p llm.Provider = &semanticStubProvider{}
+	if cfg.Provider != nil {
+		p = cfg.Provider
+	}
+	retAgent := retrieval.NewRetrievalAgent(s, p, cfg.Retrieval, log)
+	consolAgent := consolidation.NewConsolidationAgent(s, p, cfg.Consolidation, log)
 
 	// Phase 1: Create a dummy raw memory so FK constraints are satisfied,
 	// then ingest all benchmark memories referencing it.

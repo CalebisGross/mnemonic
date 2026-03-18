@@ -144,11 +144,11 @@ func printAggregate(agg aggregateResult) {
 	fmt.Printf("\n    Overall: %s\n", agg.Overall)
 }
 
-func writeMarkdownReport(results []scenarioResult, agg aggregateResult, cycles int) error {
+func writeMarkdownReport(results []scenarioResult, agg aggregateResult, cycles int, llmLabel string) error {
 	var sb strings.Builder
 
 	sb.WriteString("# Mnemonic Memory Quality Benchmark\n\n")
-	fmt.Fprintf(&sb, "**Version:** %s | **LLM:** synthetic | **Cycles:** %d\n\n", Version, cycles)
+	fmt.Fprintf(&sb, "**Version:** %s | **LLM:** %s | **Cycles:** %d\n\n", Version, llmLabel, cycles)
 
 	for _, r := range results {
 		fmt.Fprintf(&sb, "## %s\n\n", r.Name)
@@ -195,11 +195,11 @@ func writeMarkdownReport(results []scenarioResult, agg aggregateResult, cycles i
 	return os.WriteFile("benchmark-results.md", []byte(sb.String()), 0644)
 }
 
-func writeSweepMarkdownReport(report SweepReport, cycles int) error {
+func writeSweepMarkdownReport(report SweepReport, cycles int, llmLabel string) error {
 	var sb strings.Builder
 
 	sb.WriteString("# Mnemonic Config Sweep Report\n\n")
-	fmt.Fprintf(&sb, "**Version:** %s | **LLM:** semantic-stub | **Cycles:** %d\n\n", Version, cycles)
+	fmt.Fprintf(&sb, "**Version:** %s | **LLM:** %s | **Cycles:** %d\n\n", Version, llmLabel, cycles)
 
 	sb.WriteString("## Baseline (All Defaults)\n\n")
 	sb.WriteString("| Metric | Score | Grade |\n|---|---|---|\n")

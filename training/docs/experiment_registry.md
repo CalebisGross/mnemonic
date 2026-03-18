@@ -57,6 +57,37 @@ Pre-registered experiments for Felix-LM v3 100M pretraining on mnemonic's curate
 
 - **Caveat:** This benchmark ran against a live database with 2061 pre-existing memories (mostly desktop noise from watcher). The 15 seed memories competed with real data. A clean-DB benchmark would likely show higher precision but would be less realistic. Both conditions should be tested when evaluating Felix-LM.
 
+### BASELINE-3: IR Quality Benchmark (Real Gemini Embeddings)
+
+- **Date:** 2026-03-17
+- **Status:** COMPLETED
+- **Purpose:** Run the IR quality benchmark with real Gemini embeddings instead of the deterministic stub. This isolates the effect of LLM embedding quality on retrieval, and establishes the quality floor for the pipeline scenarios (encoding, episoding, dreaming, consolidation, retrieval end-to-end).
+- **Command:** `./bin/benchmark-quality --llm --config config.yaml --cycles 5 --report markdown`
+- **Commit:** feat/gemini-benchmark-baseline (v0.17.0)
+- **Environment:** Linux x86_64, mnemonic v0.17.0, Gemini 3 Flash Preview (chat + gemini-embedding-2-preview), 6 direct scenarios + 3 pipeline scenarios, 5 consolidation cycles
+- **Results (Direct Scenarios — pre-ingested memories, Gemini used for query embeddings only):**
+
+| Metric | Stub | Gemini | Delta |
+|--------|------|--------|-------|
+| Precision@5 | 0.46 | 0.46 | 0% |
+| MRR | 0.84 | 0.84 | 0% |
+| nDCG | 0.85 | 0.85 | 0% |
+| Noise Suppression | 1.00 | 1.00 | 0% |
+| Signal Retention | 1.00 | 1.00 | 0% |
+
+- **Results (Pipeline Scenarios — Gemini does full encoding + all agents):**
+
+| Pipeline | Metric | Stub | Gemini | Delta |
+|----------|--------|------|--------|-------|
+| Full Day | Noise Suppr. | 0.73 | 0.95 | **+30%** |
+| Full Day | nDCG | 0.56 | 0.63 | +13% |
+| Cross-Pollination | Noise Suppr. | 0.62 | 0.92 | **+48%** |
+| Cross-Pollination | nDCG | 0.57 | 0.67 | +18% |
+| Noise Storm | Noise Suppr. | 0.85 | 0.91 | +7% |
+| Noise Storm | nDCG | 0.97 | 0.95 | -2% |
+
+- **Analysis:** Direct scenario results are identical between stub and Gemini because those scenarios use pre-ingested memories with stub-generated embeddings — Gemini only affects the query embedding, which goes through the same FTS+vector merge pipeline. The real differentiation shows in pipeline scenarios where Gemini handles the full encoding chain. Gemini's primary advantage is noise suppression: +30% on Full Day, +48% on Cross-Pollination. Gemini assigns more meaningful salience scores, letting consolidation's decay + threshold logic more effectively demote irrelevant memories. The nDCG improvement is modest (+13-18%) because FTS5 dominates retrieval in these scenarios (vector search returns 0 results since stub embeddings stored in the DB don't match Gemini query embeddings). A fair vector comparison would require re-embedding all stored memories with Gemini, which the current benchmark architecture doesn't support. The quality bar for Felix-LM: must achieve >= 0.90 noise suppression and >= 0.63 nDCG on pipeline scenarios.
+
 ---
 
 ## Phase 2: HP Sweep

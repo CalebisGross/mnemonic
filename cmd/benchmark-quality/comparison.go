@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/appsprout-dev/mnemonic/internal/agent/consolidation"
+	"github.com/appsprout-dev/mnemonic/internal/llm"
 	"github.com/appsprout-dev/mnemonic/internal/store"
 	"github.com/appsprout-dev/mnemonic/internal/store/sqlite"
 )
@@ -154,7 +155,10 @@ func runComparisonScenario(
 	}
 	defer func() { _ = s.Close() }()
 
-	stub := &semanticStubProvider{}
+	var p llm.Provider = &semanticStubProvider{}
+	if cfg.Provider != nil {
+		p = cfg.Provider
+	}
 
 	// Create dummy raw memory for FK constraint.
 	rawID := "compare-raw-" + sc.Name
@@ -188,7 +192,7 @@ func runComparisonScenario(
 	}
 
 	// Run consolidation cycles with salience decay.
-	consolAgent := consolidation.NewConsolidationAgent(s, stub, cfg.Consolidation, log)
+	consolAgent := consolidation.NewConsolidationAgent(s, p, cfg.Consolidation, log)
 	for i := 0; i < cycles; i++ {
 		allMems, listErr := s.ListMemories(ctx, "", 500, 0)
 		if listErr != nil {
@@ -217,10 +221,10 @@ func runComparisonScenario(
 
 	retrievers := []Retriever{
 		newFTSRetriever(s),
-		newVectorRetriever(s, stub),
-		newHybridRetriever(s, stub),
-		newMnemonicRetriever(s, stub, noSpreadCfg, log, "Mnemonic (no spread)"),
-		newMnemonicRetriever(s, stub, fullCfg, log, "Mnemonic (full)"),
+		newVectorRetriever(s, p),
+		newHybridRetriever(s, p),
+		newMnemonicRetriever(s, p, noSpreadCfg, log, "Mnemonic (no spread)"),
+		newMnemonicRetriever(s, p, fullCfg, log, "Mnemonic (full)"),
 	}
 
 	// Run each retriever against each query.
