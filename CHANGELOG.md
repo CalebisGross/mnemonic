@@ -4,6 +4,23 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.18.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.17.0...v0.18.0) (2026-03-18)
+
+
+### Features
+
+* implement --llm flag for benchmark-quality ([082ce53](https://github.com/AppSprout-dev/mnemonic/commit/082ce53475e08312bd69385ef2cfe6b9ebeb8fff))
+* implement --llm flag for benchmark-quality with real Gemini provider ([35e71ea](https://github.com/AppSprout-dev/mnemonic/commit/35e71ea056c7430cff5aedd181732d66d8867af2)), closes [#173](https://github.com/AppSprout-dev/mnemonic/issues/173)
+* scaffold EmbeddedProvider for in-process llama.cpp inference ([df32fc9](https://github.com/AppSprout-dev/mnemonic/commit/df32fc9ed2ad1205117acefa1da3f695916a94e8)), closes [#174](https://github.com/AppSprout-dev/mnemonic/issues/174)
+* scaffold EmbeddedProvider for llama.cpp integration ([74d7084](https://github.com/AppSprout-dev/mnemonic/commit/74d708472c0df28e7386164405321c95e0135a0c))
+
+
+### Bug Fixes
+
+* make API key file fallback and tests Windows-compatible ([25a6135](https://github.com/AppSprout-dev/mnemonic/commit/25a6135d60c860f2c1f5e5f4bebce4eb3c2d17a2))
+* stop capturing failed LLM calls and add API key file fallback ([619b4f7](https://github.com/AppSprout-dev/mnemonic/commit/619b4f72c91e9b736d92440fb8dc9c00e3e82815))
+* stop capturing failed LLM calls and add API key file fallback ([3ce5822](https://github.com/AppSprout-dev/mnemonic/commit/3ce5822690cae486ed18d7b8795ab5f1b3e6b153))
+
 ## [0.17.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.16.0...v0.17.0) (2026-03-17)
 
 
