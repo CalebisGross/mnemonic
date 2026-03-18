@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -116,6 +117,8 @@ func TestEnvVarOverrideLLMAPIKey(t *testing.T) {
 func TestEnvVarAbsentLLMAPIKeyEmpty(t *testing.T) {
 	// Ensure no env var is set
 	t.Setenv("LLM_API_KEY", "")
+	// Point HOME to a temp dir so the file fallback doesn't find a real key
+	t.Setenv("HOME", t.TempDir())
 
 	cfg := Default()
 	if err := cfg.process(t.TempDir()); err != nil {
@@ -124,6 +127,55 @@ func TestEnvVarAbsentLLMAPIKeyEmpty(t *testing.T) {
 
 	if cfg.LLM.APIKey != "" {
 		t.Errorf("expected empty APIKey when env var unset, got %q", cfg.LLM.APIKey)
+	}
+}
+
+func TestAPIKeyFileFallback(t *testing.T) {
+	t.Setenv("LLM_API_KEY", "")
+
+	// Create a fake home with ~/.mnemonic/api_key
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	mnemonicDir := filepath.Join(home, ".mnemonic")
+	if err := os.MkdirAll(mnemonicDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	keyFile := filepath.Join(mnemonicDir, "api_key")
+	if err := os.WriteFile(keyFile, []byte("test-key-from-file\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Default()
+	if err := cfg.process(t.TempDir()); err != nil {
+		t.Fatalf("process() failed: %v", err)
+	}
+
+	if cfg.LLM.APIKey != "test-key-from-file" {
+		t.Errorf("expected APIKey from file, got %q", cfg.LLM.APIKey)
+	}
+}
+
+func TestAPIKeyFileRejectsLoosePermissions(t *testing.T) {
+	t.Setenv("LLM_API_KEY", "")
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	mnemonicDir := filepath.Join(home, ".mnemonic")
+	if err := os.MkdirAll(mnemonicDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	keyFile := filepath.Join(mnemonicDir, "api_key")
+	if err := os.WriteFile(keyFile, []byte("leaked-key"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Default()
+	err := cfg.process(t.TempDir())
+	if err == nil {
+		t.Fatal("expected error for world-readable api_key file")
+	}
+	if !strings.Contains(err.Error(), "too permissive") {
+		t.Errorf("expected 'too permissive' error, got: %v", err)
 	}
 }
 

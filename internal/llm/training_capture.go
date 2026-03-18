@@ -200,6 +200,11 @@ func (p *TrainingCaptureProvider) capture(req CompletionRequest, resp Completion
 		return
 	}
 
+	// Don't capture failed calls — they have no useful response to learn from.
+	if callErr != nil {
+		return
+	}
+
 	example := TrainingExample{
 		Timestamp: time.Now().UTC(),
 		TaskType:  classifyTask(req),
@@ -224,16 +229,12 @@ func (p *TrainingCaptureProvider) capture(req CompletionRequest, resp Completion
 		CompletionToks: resp.CompletionTokens,
 	}
 
-	if callErr != nil {
-		example.Error = callErr.Error()
+	// Quick JSON parse check for structured output responses.
+	if req.ResponseFormat != nil && req.ResponseFormat.Type == "json_schema" {
+		var js json.RawMessage
+		example.ParseSuccess = json.Unmarshal([]byte(resp.Content), &js) == nil
 	} else {
-		// Quick JSON parse check for structured output responses.
-		if req.ResponseFormat != nil && req.ResponseFormat.Type == "json_schema" {
-			var js json.RawMessage
-			example.ParseSuccess = json.Unmarshal([]byte(resp.Content), &js) == nil
-		} else {
-			example.ParseSuccess = true // non-JSON responses are always "valid"
-		}
+		example.ParseSuccess = true // non-JSON responses are always "valid"
 	}
 
 	data, err := json.Marshal(example)

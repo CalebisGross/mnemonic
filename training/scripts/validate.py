@@ -189,21 +189,25 @@ def validate_encoding(response_content: str, strict: bool = False) -> Validation
 
 def validate_example(example: dict, strict: bool = False) -> ValidationResult:
     """Validate a single captured training example."""
+    result = ValidationResult()
+
+    # Reject any example where the LLM call itself failed
+    if example.get("error"):
+        result.valid = False
+        result.hard_failures.append("call_error")
+        return result
+    if not example.get("parse_success", True):
+        result.valid = False
+        result.hard_failures.append("parse_failure")
+        return result
+
     task_type = example.get("task_type", "unknown")
 
-    # Only validate encoding tasks for now (the primary training target)
+    # Validate encoding tasks against the full quality gate
     if task_type == "encoding":
         response_content = example.get("response", {}).get("content", "")
         return validate_encoding(response_content, strict=strict)
 
-    # For non-encoding tasks, just check basic structure
-    result = ValidationResult()
-    if example.get("error"):
-        result.valid = False
-        result.hard_failures.append("call_error")
-    if not example.get("parse_success", True):
-        result.valid = False
-        result.hard_failures.append("parse_failure")
     return result
 
 
