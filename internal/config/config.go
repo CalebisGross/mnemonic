@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -625,9 +626,25 @@ func (c *Config) process(configDir string) error {
 		c.Encoding.ContextSemanticCount = 3
 	}
 
-	// LLM API key from environment (env-var-only for security)
+	// LLM API key: prefer env var, fall back to ~/.mnemonic/api_key file.
+	// The file fallback ensures CLI and MCP subprocesses get the key even
+	// when they don't inherit the daemon's systemd environment.
 	if envKey := os.Getenv("LLM_API_KEY"); envKey != "" {
 		c.LLM.APIKey = envKey
+	} else if home, err := os.UserHomeDir(); err == nil {
+		keyPath := filepath.Join(home, ".mnemonic", "api_key")
+		if info, err := os.Stat(keyPath); err == nil {
+			// Refuse to read a world-readable key file (skip on Windows where POSIX perms don't apply)
+			if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
+				return fmt.Errorf("API key file %s is too permissive (%04o); run: chmod 600 %s",
+					keyPath, info.Mode().Perm(), keyPath)
+			}
+			if data, err := os.ReadFile(keyPath); err == nil {
+				if key := strings.TrimSpace(string(data)); key != "" {
+					c.LLM.APIKey = key
+				}
+			}
+		}
 	}
 
 	return nil

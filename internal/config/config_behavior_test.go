@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -116,6 +118,9 @@ func TestEnvVarOverrideLLMAPIKey(t *testing.T) {
 func TestEnvVarAbsentLLMAPIKeyEmpty(t *testing.T) {
 	// Ensure no env var is set
 	t.Setenv("LLM_API_KEY", "")
+	// Point HOME to a temp dir so the file fallback doesn't find a real key
+	fakeHome := t.TempDir()
+	setFakeHome(t, fakeHome)
 
 	cfg := Default()
 	if err := cfg.process(t.TempDir()); err != nil {
@@ -124,6 +129,64 @@ func TestEnvVarAbsentLLMAPIKeyEmpty(t *testing.T) {
 
 	if cfg.LLM.APIKey != "" {
 		t.Errorf("expected empty APIKey when env var unset, got %q", cfg.LLM.APIKey)
+	}
+}
+
+func setFakeHome(t *testing.T, dir string) {
+	t.Helper()
+	t.Setenv("HOME", dir)        // Unix
+	t.Setenv("USERPROFILE", dir) // Windows
+}
+
+func TestAPIKeyFileFallback(t *testing.T) {
+	t.Setenv("LLM_API_KEY", "")
+
+	// Create a fake home with ~/.mnemonic/api_key
+	home := t.TempDir()
+	setFakeHome(t, home)
+	mnemonicDir := filepath.Join(home, ".mnemonic")
+	if err := os.MkdirAll(mnemonicDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	keyFile := filepath.Join(mnemonicDir, "api_key")
+	if err := os.WriteFile(keyFile, []byte("test-key-from-file\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Default()
+	if err := cfg.process(t.TempDir()); err != nil {
+		t.Fatalf("process() failed: %v", err)
+	}
+
+	if cfg.LLM.APIKey != "test-key-from-file" {
+		t.Errorf("expected APIKey from file, got %q", cfg.LLM.APIKey)
+	}
+}
+
+func TestAPIKeyFileRejectsLoosePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file permissions not enforced on Windows")
+	}
+	t.Setenv("LLM_API_KEY", "")
+
+	home := t.TempDir()
+	setFakeHome(t, home)
+	mnemonicDir := filepath.Join(home, ".mnemonic")
+	if err := os.MkdirAll(mnemonicDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	keyFile := filepath.Join(mnemonicDir, "api_key")
+	if err := os.WriteFile(keyFile, []byte("leaked-key"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Default()
+	err := cfg.process(t.TempDir())
+	if err == nil {
+		t.Fatal("expected error for world-readable api_key file")
+	}
+	if !strings.Contains(err.Error(), "too permissive") {
+		t.Errorf("expected 'too permissive' error, got: %v", err)
 	}
 }
 
