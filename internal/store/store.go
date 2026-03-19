@@ -377,6 +377,7 @@ type Store interface {
 	// --- Retrieval feedback operations ---
 	WriteRetrievalFeedback(ctx context.Context, fb RetrievalFeedback) error
 	GetRetrievalFeedback(ctx context.Context, queryID string) (RetrievalFeedback, error)
+	ListUnratedFeedback(ctx context.Context, olderThan, newerThan time.Duration, limit int) ([]RetrievalFeedback, error)
 
 	// --- Episode operations ---
 	CreateEpisode(ctx context.Context, ep Episode) error

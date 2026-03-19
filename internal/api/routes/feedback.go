@@ -87,63 +87,7 @@ func HandleFeedback(s store.Store, log *slog.Logger) http.HandlerFunc {
 		fb.Feedback = req.Quality
 		_ = s.WriteRetrievalFeedback(ctx, fb)
 
-		switch req.Quality {
-		case "helpful":
-			// Strengthen traversed associations and boost returned memory salience
-			for _, ta := range fb.TraversedAssocs {
-				assocs, err := s.GetAssociations(ctx, ta.SourceID)
-				if err != nil {
-					continue
-				}
-				for _, a := range assocs {
-					if a.TargetID == ta.TargetID {
-						newStrength := a.Strength + feedbackStrengthDelta
-						if newStrength > 1.0 {
-							newStrength = 1.0
-						}
-						if err := s.UpdateAssociationStrength(ctx, ta.SourceID, ta.TargetID, newStrength); err == nil {
-							adjustments++
-						}
-						break
-					}
-				}
-			}
-			// Boost salience of returned memories
-			for _, memID := range fb.RetrievedIDs {
-				mem, err := s.GetMemory(ctx, memID)
-				if err != nil {
-					continue
-				}
-				newSalience := mem.Salience + feedbackSalienceBoost
-				if newSalience > 1.0 {
-					newSalience = 1.0
-				}
-				if err := s.UpdateSalience(ctx, memID, newSalience); err != nil {
-					log.Warn("failed to update salience", "memory_id", memID, "error", err)
-				}
-			}
-
-		case "irrelevant":
-			// Weaken traversed associations
-			for _, ta := range fb.TraversedAssocs {
-				assocs, err := s.GetAssociations(ctx, ta.SourceID)
-				if err != nil {
-					continue
-				}
-				for _, a := range assocs {
-					if a.TargetID == ta.TargetID {
-						newStrength := a.Strength - feedbackStrengthDelta
-						if newStrength < 0.05 {
-							newStrength = 0.05
-						}
-						if err := s.UpdateAssociationStrength(ctx, ta.SourceID, ta.TargetID, newStrength); err == nil {
-							adjustments++
-						}
-						break
-					}
-				}
-			}
-		}
+		adjustments = ApplyFeedbackAdjustments(ctx, s, log, fb, req.Quality, 1.0)
 
 		log.Info("feedback recorded",
 			"query_id", req.QueryID,
@@ -187,4 +131,69 @@ func SaveRetrievalFeedback(ctx context.Context, s store.Store, log *slog.Logger,
 	} else {
 		log.Debug("saved retrieval feedback record", "query_id", queryID, "retrieved", len(retrievedIDs), "traversed", len(traversedAssocs))
 	}
+}
+
+// ApplyFeedbackAdjustments applies association strength and salience adjustments
+// based on a quality rating. scaleFactor controls the magnitude (1.0 for explicit,
+// <1.0 for implicit feedback).
+func ApplyFeedbackAdjustments(ctx context.Context, s store.Store, log *slog.Logger, fb store.RetrievalFeedback, quality string, scaleFactor float64) int {
+	adjustments := 0
+	strengthDelta := float32(float64(feedbackStrengthDelta) * scaleFactor)
+	salienceBoost := float32(float64(feedbackSalienceBoost) * scaleFactor)
+
+	switch quality {
+	case "helpful":
+		for _, ta := range fb.TraversedAssocs {
+			assocs, err := s.GetAssociations(ctx, ta.SourceID)
+			if err != nil {
+				continue
+			}
+			for _, a := range assocs {
+				if a.TargetID == ta.TargetID {
+					newStrength := a.Strength + strengthDelta
+					if newStrength > 1.0 {
+						newStrength = 1.0
+					}
+					if err := s.UpdateAssociationStrength(ctx, ta.SourceID, ta.TargetID, newStrength); err == nil {
+						adjustments++
+					}
+					break
+				}
+			}
+		}
+		for _, memID := range fb.RetrievedIDs {
+			mem, err := s.GetMemory(ctx, memID)
+			if err != nil {
+				continue
+			}
+			newSalience := mem.Salience + salienceBoost
+			if newSalience > 1.0 {
+				newSalience = 1.0
+			}
+			if err := s.UpdateSalience(ctx, memID, newSalience); err != nil {
+				log.Warn("failed to update salience", "memory_id", memID, "error", err)
+			}
+		}
+
+	case "irrelevant":
+		for _, ta := range fb.TraversedAssocs {
+			assocs, err := s.GetAssociations(ctx, ta.SourceID)
+			if err != nil {
+				continue
+			}
+			for _, a := range assocs {
+				if a.TargetID == ta.TargetID {
+					newStrength := a.Strength - strengthDelta
+					if newStrength < 0.05 {
+						newStrength = 0.05
+					}
+					if err := s.UpdateAssociationStrength(ctx, ta.SourceID, ta.TargetID, newStrength); err == nil {
+						adjustments++
+					}
+					break
+				}
+			}
+		}
+	}
+	return adjustments
 }

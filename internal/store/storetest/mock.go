@@ -154,6 +154,9 @@ func (MockStore) WriteRetrievalFeedback(context.Context, store.RetrievalFeedback
 func (MockStore) GetRetrievalFeedback(context.Context, string) (store.RetrievalFeedback, error) {
 	return store.RetrievalFeedback{}, nil
 }
+func (MockStore) ListUnratedFeedback(context.Context, time.Duration, time.Duration, int) ([]store.RetrievalFeedback, error) {
+	return nil, nil
+}
 
 // --- Episode operations ---
 

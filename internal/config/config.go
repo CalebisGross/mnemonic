@@ -178,9 +178,12 @@ type RetrievalConfig struct {
 
 // MetacognitionConfig holds metacognition settings.
 type MetacognitionConfig struct {
-	Enabled     bool          `yaml:"enabled"`
-	IntervalRaw string        `yaml:"interval"`
-	Interval    time.Duration `yaml:"-"`
+	Enabled                 bool          `yaml:"enabled"`
+	IntervalRaw             string        `yaml:"interval"`
+	Interval                time.Duration `yaml:"-"`
+	ImplicitFeedbackEnabled bool          `yaml:"implicit_feedback_enabled"`
+	ImplicitFeedbackWindow  string        `yaml:"implicit_feedback_window"`
+	ImplicitFeedbackScale   float64       `yaml:"implicit_feedback_scale"`
 }
 
 // DreamingConfig holds dreaming (memory replay) agent settings.
@@ -444,9 +447,12 @@ func Default() *Config {
 			DualHitBonus:        0.15,
 		},
 		Metacognition: MetacognitionConfig{
-			Enabled:     true,
-			IntervalRaw: "24h",
-			Interval:    24 * time.Hour,
+			Enabled:                 true,
+			IntervalRaw:             "24h",
+			Interval:                24 * time.Hour,
+			ImplicitFeedbackEnabled: true,
+			ImplicitFeedbackWindow:  "24h",
+			ImplicitFeedbackScale:   0.5,
 		},
 		Dreaming: DreamingConfig{
 			Enabled:                true,

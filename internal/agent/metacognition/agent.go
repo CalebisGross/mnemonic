@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/appsprout-dev/mnemonic/internal/api/routes"
 	"github.com/appsprout-dev/mnemonic/internal/events"
 	"github.com/appsprout-dev/mnemonic/internal/llm"
 	"github.com/appsprout-dev/mnemonic/internal/store"
@@ -14,7 +15,10 @@ import (
 )
 
 type MetacognitionConfig struct {
-	Interval time.Duration
+	Interval                time.Duration
+	ImplicitFeedbackEnabled bool
+	ImplicitFeedbackWindow  time.Duration // how far back to look for unrated feedback (default 24h)
+	ImplicitFeedbackScale   float64       // magnitude multiplier vs explicit (default 0.5)
 }
 
 type MetacognitionAgent struct {
@@ -158,8 +162,11 @@ func (ma *MetacognitionAgent) runCycle(ctx context.Context) (*CycleReport, error
 	// --- Feedback processing phase: adjust associations and salience based on feedback ---
 	feedbackActions := ma.processFeedback(ctx)
 
+	// --- Implicit feedback: detect re-access of recalled memories ---
+	implicitActions := ma.processImplicitFeedback(ctx)
+
 	// --- Action phase: act on observations ---
-	actionsPerformed := ma.actOnObservations(ctx, observations) + feedbackActions
+	actionsPerformed := ma.actOnObservations(ctx, observations) + feedbackActions + implicitActions
 
 	if ma.bus != nil {
 		_ = ma.bus.Publish(ctx, events.MetaCycleCompleted{
@@ -626,6 +633,71 @@ func (ma *MetacognitionAgent) processFeedback(ctx context.Context) int {
 		ma.log.Info("feedback processing completed", "adjustments", actions)
 	}
 
+	return actions
+}
+
+// processImplicitFeedback finds unrated recall feedback records and checks if any
+// returned memories were re-accessed since the query. Re-access is treated as implicit
+// positive feedback at a reduced scale.
+func (ma *MetacognitionAgent) processImplicitFeedback(ctx context.Context) int {
+	if !ma.config.ImplicitFeedbackEnabled {
+		return 0
+	}
+
+	window := ma.config.ImplicitFeedbackWindow
+	if window == 0 {
+		window = 24 * time.Hour
+	}
+	scale := ma.config.ImplicitFeedbackScale
+	if scale == 0 {
+		scale = 0.5
+	}
+
+	// Look for unrated feedback between 1h and window-duration old
+	feedbacks, err := ma.store.ListUnratedFeedback(ctx, 1*time.Hour, window, 20)
+	if err != nil {
+		ma.log.Warn("failed to list unrated feedback for implicit processing", "error", err)
+		return 0
+	}
+
+	actions := 0
+	for _, fb := range feedbacks {
+		if len(fb.AccessSnapshot) == 0 {
+			continue
+		}
+
+		// Check if any memory from the snapshot was re-accessed since the query
+		reAccessed := false
+		for _, snap := range fb.AccessSnapshot {
+			mem, err := ma.store.GetMemory(ctx, snap.MemoryID)
+			if err != nil {
+				continue
+			}
+			// If the memory's last access is after the query time, it was re-accessed
+			if mem.LastAccessed.After(fb.CreatedAt) {
+				reAccessed = true
+				break
+			}
+		}
+
+		if !reAccessed {
+			continue
+		}
+
+		// Apply positive feedback at reduced scale
+		adj := routes.ApplyFeedbackAdjustments(ctx, ma.store, ma.log, fb, "helpful", scale)
+		actions += adj
+
+		// Mark the feedback record so we don't process it again
+		fb.Feedback = "implicit_helpful"
+		if err := ma.store.WriteRetrievalFeedback(ctx, fb); err != nil {
+			ma.log.Warn("failed to mark implicit feedback", "query_id", fb.QueryID, "error", err)
+		}
+	}
+
+	if actions > 0 {
+		ma.log.Info("implicit feedback processing completed", "adjustments", actions, "records_processed", len(feedbacks))
+	}
 	return actions
 }
 

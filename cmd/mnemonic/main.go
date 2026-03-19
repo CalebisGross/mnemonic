@@ -1507,8 +1507,17 @@ func serveCommand(configPath string) {
 	// --- Start metacognition agent ---
 	var metaAgent *metacognition.MetacognitionAgent
 	if cfg.Metacognition.Enabled {
+		implicitWindow := 24 * time.Hour
+		if cfg.Metacognition.ImplicitFeedbackWindow != "" {
+			if d, err := time.ParseDuration(cfg.Metacognition.ImplicitFeedbackWindow); err == nil {
+				implicitWindow = d
+			}
+		}
 		metaAgent = metacognition.NewMetacognitionAgent(memStore, wrap("metacognition"), metacognition.MetacognitionConfig{
-			Interval: cfg.Metacognition.Interval,
+			Interval:                cfg.Metacognition.Interval,
+			ImplicitFeedbackEnabled: cfg.Metacognition.ImplicitFeedbackEnabled,
+			ImplicitFeedbackWindow:  implicitWindow,
+			ImplicitFeedbackScale:   cfg.Metacognition.ImplicitFeedbackScale,
 		}, log)
 
 		if err := metaAgent.Start(rootCtx, bus); err != nil {

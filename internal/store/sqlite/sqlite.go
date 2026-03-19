@@ -1828,6 +1828,43 @@ func (s *SQLiteStore) GetRetrievalFeedback(ctx context.Context, queryID string) 
 	return fb, nil
 }
 
+// ListUnratedFeedback returns feedback records with no explicit rating, created between newerThan and olderThan ago.
+func (s *SQLiteStore) ListUnratedFeedback(ctx context.Context, olderThan, newerThan time.Duration, limit int) ([]store.RetrievalFeedback, error) {
+	now := time.Now()
+	oldest := now.Add(-newerThan).Format(time.RFC3339)
+	newest := now.Add(-olderThan).Format(time.RFC3339)
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT query_id, query_text, retrieved_memory_ids, COALESCE(traversed_assocs, '[]'), COALESCE(access_snapshot, '[]'), COALESCE(feedback, ''), created_at
+		 FROM retrieval_feedback
+		 WHERE (feedback = '' OR feedback IS NULL)
+		   AND created_at >= ? AND created_at <= ?
+		 ORDER BY created_at DESC LIMIT ?`,
+		oldest, newest, limit)
+	if err != nil {
+		return nil, fmt.Errorf("listing unrated feedback: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []store.RetrievalFeedback
+	for rows.Next() {
+		var fb store.RetrievalFeedback
+		var retrievedJSON, traversedJSON, snapshotJSON, createdAtStr string
+		if err := rows.Scan(&fb.QueryID, &fb.QueryText, &retrievedJSON, &traversedJSON, &snapshotJSON, &fb.Feedback, &createdAtStr); err != nil {
+			return nil, fmt.Errorf("scanning unrated feedback: %w", err)
+		}
+		_ = json.Unmarshal([]byte(retrievedJSON), &fb.RetrievedIDs)
+		_ = json.Unmarshal([]byte(traversedJSON), &fb.TraversedAssocs)
+		_ = json.Unmarshal([]byte(snapshotJSON), &fb.AccessSnapshot)
+		fb.CreatedAt, _ = time.Parse(time.RFC3339, createdAtStr)
+		results = append(results, fb)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating unrated feedback: %w", err)
+	}
+	return results, nil
+}
+
 // ListMetaObservations retrieves observations, optionally filtered by type.
 func (s *SQLiteStore) ListMetaObservations(ctx context.Context, observationType string, limit int) ([]store.MetaObservation, error) {
 	var rows *sql.Rows
