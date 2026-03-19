@@ -29,21 +29,85 @@ type ConsolidationConfig struct {
 	MaxMergesPerCycle   int
 	MinClusterSize      int
 	AssocPruneThreshold float32 // prune associations below this strength
+
+	// Salience decay tunables
+	RecencyProtection24h  float64 // decay exponent multiplier for <24h (default 0.8)
+	RecencyProtection168h float64 // decay exponent multiplier for <168h (default 0.9)
+	AccessResistanceCap   float64 // max resistance from access count (default 0.3)
+	AccessResistanceScale float64 // per-access resistance factor (default 0.02)
+
+	// Pattern strength tunables
+	MergeSimilarityThreshold float64 // cosine threshold for memory merge clustering (default 0.85)
+	PatternMatchThreshold    float64 // cosine threshold for cluster→pattern matching (default 0.70)
+	PatternStrengthIncrement float32 // strength gain per new evidence (default 0.03)
+	PatternIncrementCap      float32 // max single-cycle strength gain (default 0.15)
+	LargeClusterBonus        float32 // multiplier for clusters >= LargeClusterMinSize (default 1.3)
+	LargeClusterMinSize      int     // cluster size to trigger bonus (default 5)
+	PatternStrengthCeiling   float32 // max strength unless strong evidence (default 0.95)
+	StrongEvidenceCeiling    float32 // max strength with strong evidence (default 1.0)
+	StrongEvidenceMinCount   int     // evidence count to unlock strong ceiling (default 10)
+
+	// Pattern decay tunables
+	PatternBaselineDecay float32 // per-cycle baseline decay (default 0.998)
+	StaleDecayHealthy    float32 // decay when evidence ratio >= 0.5 (default 0.98)
+	StaleDecayModerate   float32 // decay when evidence ratio >= 0.2 (default 0.95)
+	StaleDecayAggressive float32 // decay when evidence ratio < 0.2 (default 0.90)
 }
 
 // DefaultConfig returns sensible defaults for consolidation.
 func DefaultConfig() ConsolidationConfig {
 	return ConsolidationConfig{
-		Interval:            6 * time.Hour,
-		DecayRate:           0.95,
-		FadeThreshold:       0.3,
-		ArchiveThreshold:    0.1,
-		RetentionWindow:     90 * 24 * time.Hour,
-		MaxMemoriesPerCycle: 100,
-		MaxMergesPerCycle:   5,
-		MinClusterSize:      3,
-		AssocPruneThreshold: 0.05,
+		Interval:                 6 * time.Hour,
+		DecayRate:                0.95,
+		FadeThreshold:            0.3,
+		ArchiveThreshold:         0.1,
+		RetentionWindow:          90 * 24 * time.Hour,
+		MaxMemoriesPerCycle:      100,
+		MaxMergesPerCycle:        5,
+		MinClusterSize:           3,
+		AssocPruneThreshold:      0.05,
+		RecencyProtection24h:     0.8,
+		RecencyProtection168h:    0.9,
+		AccessResistanceCap:      0.3,
+		AccessResistanceScale:    0.02,
+		MergeSimilarityThreshold: 0.85,
+		PatternMatchThreshold:    0.70,
+		PatternStrengthIncrement: 0.03,
+		PatternIncrementCap:      0.15,
+		LargeClusterBonus:        1.3,
+		LargeClusterMinSize:      5,
+		PatternStrengthCeiling:   0.95,
+		StrongEvidenceCeiling:    1.0,
+		StrongEvidenceMinCount:   10,
+		PatternBaselineDecay:     0.998,
+		StaleDecayHealthy:        0.98,
+		StaleDecayModerate:       0.95,
+		StaleDecayAggressive:     0.90,
 	}
+}
+
+// cfgFloat64 returns val if non-zero, else fallback.
+func cfgFloat64(val, fallback float64) float64 {
+	if val != 0 {
+		return val
+	}
+	return fallback
+}
+
+// cfgFloat32 returns val if non-zero, else fallback.
+func cfgFloat32(val, fallback float32) float32 {
+	if val != 0 {
+		return val
+	}
+	return fallback
+}
+
+// cfgInt returns val if non-zero, else fallback.
+func cfgInt(val, fallback int) int {
+	if val != 0 {
+		return val
+	}
+	return fallback
 }
 
 // ConsolidationAgent performs periodic memory consolidation — the "sleeping brain."
@@ -325,16 +389,18 @@ func (ca *ConsolidationAgent) decaySalience(ctx context.Context) (decayed, proce
 			hoursSinceAccess = time.Since(mem.CreatedAt).Hours()
 		}
 
-		// Recency protection: 0-24h = 0.8x decay, 24-168h = 0.9x decay, >168h = full decay
+		// Recency protection: recently accessed memories use reduced decay exponent
 		recencyFactor := 1.0
 		if hoursSinceAccess < 24 {
-			recencyFactor = 0.8
+			recencyFactor = cfgFloat64(ca.config.RecencyProtection24h, 0.8)
 		} else if hoursSinceAccess < 168 { // 7 days
-			recencyFactor = 0.9
+			recencyFactor = cfgFloat64(ca.config.RecencyProtection168h, 0.9)
 		}
 
 		// Access count bonus: frequently accessed memories resist decay
-		accessBonus := 1.0 - math.Min(float64(mem.AccessCount)*0.02, 0.3) // up to 30% resistance
+		resistScale := cfgFloat64(ca.config.AccessResistanceScale, 0.02)
+		resistCap := cfgFloat64(ca.config.AccessResistanceCap, 0.3)
+		accessBonus := 1.0 - math.Min(float64(mem.AccessCount)*resistScale, resistCap)
 
 		// Apply decay: new_salience = old * decay_rate^(recency * access_factor)
 		effectiveDecay := math.Pow(ca.config.DecayRate, recencyFactor*accessBonus)
@@ -498,7 +564,7 @@ func (ca *ConsolidationAgent) findClusters(memories []store.Memory) [][]store.Me
 		return nil
 	}
 
-	const similarityThreshold = 0.85
+	similarityThreshold := float32(cfgFloat64(ca.config.MergeSimilarityThreshold, 0.85))
 	used := make(map[string]bool)
 	var clusters [][]store.Memory
 
@@ -789,17 +855,18 @@ func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, cluste
 			}
 			if newEvidence > 0 {
 				// Scale strength increment by amount of new evidence
-				increment := float32(0.03) * float32(newEvidence)
-				if len(cluster) >= 5 {
-					increment *= 1.3 // bonus for large clusters
+				increment := cfgFloat32(ca.config.PatternStrengthIncrement, 0.03) * float32(newEvidence)
+				if len(cluster) >= cfgInt(ca.config.LargeClusterMinSize, 5) {
+					increment *= cfgFloat32(ca.config.LargeClusterBonus, 1.3)
 				}
-				if increment > 0.15 {
-					increment = 0.15 // cap single-cycle increment
+				incrementCap := cfgFloat32(ca.config.PatternIncrementCap, 0.15)
+				if increment > incrementCap {
+					increment = incrementCap
 				}
-				// Cap at 0.95 unless pattern has strong evidence (>10 unique memories)
-				maxStrength := float32(0.95)
-				if len(existing.EvidenceIDs) > 10 {
-					maxStrength = 1.0
+				// Cap at ceiling unless pattern has strong evidence
+				maxStrength := cfgFloat32(ca.config.PatternStrengthCeiling, 0.95)
+				if len(existing.EvidenceIDs) > cfgInt(ca.config.StrongEvidenceMinCount, 10) {
+					maxStrength = cfgFloat32(ca.config.StrongEvidenceCeiling, 1.0)
 				}
 				existing.Strength = min32(existing.Strength+increment, maxStrength)
 			}
@@ -1017,10 +1084,11 @@ func (ca *ConsolidationAgent) findMatchingPattern(ctx context.Context, cluster [
 		return nil, fmt.Errorf("no matching patterns")
 	}
 
-	// Check if the top match is close enough (0.70 threshold)
+	// Check if the top match is close enough
+	threshold := float32(cfgFloat64(ca.config.PatternMatchThreshold, 0.70))
 	if len(patterns[0].Embedding) > 0 {
 		sim := agentutil.CosineSimilarity(avgEmb, patterns[0].Embedding)
-		if sim >= 0.70 {
+		if sim >= threshold {
 			return &patterns[0], nil
 		}
 	}
@@ -1433,7 +1501,7 @@ func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
 		}
 
 		// Apply baseline decay to ALL patterns (prevents permanent saturation at 1.0)
-		p.Strength *= 0.998
+		p.Strength *= cfgFloat32(ca.config.PatternBaselineDecay, 0.998)
 
 		// Additional evidence-based decay for patterns not accessed within 7 days
 		recency := p.LastAccessed
@@ -1445,7 +1513,7 @@ func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
 		if stale {
 			totalEvidence := len(p.EvidenceIDs)
 			if totalEvidence == 0 {
-				p.Strength *= 0.90
+				p.Strength *= cfgFloat32(ca.config.StaleDecayAggressive, 0.90)
 			} else {
 				activeEvidence := 0
 				for _, memID := range p.EvidenceIDs {
@@ -1457,11 +1525,11 @@ func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
 				evidenceRatio := float32(activeEvidence) / float32(totalEvidence)
 				switch {
 				case evidenceRatio >= 0.5:
-					p.Strength *= 0.98 // gentle — evidence mostly alive
+					p.Strength *= cfgFloat32(ca.config.StaleDecayHealthy, 0.98)
 				case evidenceRatio >= 0.2:
-					p.Strength *= 0.95 // moderate
+					p.Strength *= cfgFloat32(ca.config.StaleDecayModerate, 0.95)
 				default:
-					p.Strength *= 0.90 // aggressive — most evidence gone
+					p.Strength *= cfgFloat32(ca.config.StaleDecayAggressive, 0.90)
 				}
 			}
 		}

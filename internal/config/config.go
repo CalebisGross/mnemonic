@@ -162,6 +162,29 @@ type ConsolidationConfig struct {
 	MaxMemoriesPerCycle int           `yaml:"max_memories_per_cycle"`
 	MaxMergesPerCycle   int           `yaml:"max_merges_per_cycle"`
 	MinClusterSize      int           `yaml:"min_cluster_size"`
+
+	// Salience decay tunables
+	RecencyProtection24h  float64 `yaml:"recency_protection_24h"`
+	RecencyProtection168h float64 `yaml:"recency_protection_168h"`
+	AccessResistanceCap   float64 `yaml:"access_resistance_cap"`
+	AccessResistanceScale float64 `yaml:"access_resistance_scale"`
+
+	// Pattern strength tunables
+	MergeSimilarityThreshold float64 `yaml:"merge_similarity_threshold"`
+	PatternMatchThreshold    float64 `yaml:"pattern_match_threshold"`
+	PatternStrengthIncrement float64 `yaml:"pattern_strength_increment"`
+	PatternIncrementCap      float64 `yaml:"pattern_increment_cap"`
+	LargeClusterBonus        float64 `yaml:"large_cluster_bonus"`
+	LargeClusterMinSize      int     `yaml:"large_cluster_min_size"`
+	PatternStrengthCeiling   float64 `yaml:"pattern_strength_ceiling"`
+	StrongEvidenceCeiling    float64 `yaml:"strong_evidence_ceiling"`
+	StrongEvidenceMinCount   int     `yaml:"strong_evidence_min_count"`
+
+	// Pattern decay tunables
+	PatternBaselineDecay float64 `yaml:"pattern_baseline_decay"`
+	StaleDecayHealthy    float64 `yaml:"stale_decay_healthy"`
+	StaleDecayModerate   float64 `yaml:"stale_decay_moderate"`
+	StaleDecayAggressive float64 `yaml:"stale_decay_aggressive"`
 }
 
 // RetrievalConfig holds retrieval settings.
@@ -421,17 +444,34 @@ func Default() *Config {
 			CompletionMaxTokens:      1024,
 		},
 		Consolidation: ConsolidationConfig{
-			Enabled:             true,
-			IntervalRaw:         "6h",
-			Interval:            6 * time.Hour,
-			DecayRate:           0.95,
-			FadeThreshold:       0.3,
-			ArchiveThreshold:    0.1,
-			RetentionWindowRaw:  "90d",
-			RetentionWindow:     90 * 24 * time.Hour,
-			MaxMemoriesPerCycle: 100,
-			MaxMergesPerCycle:   5,
-			MinClusterSize:      3,
+			Enabled:                  true,
+			IntervalRaw:              "6h",
+			Interval:                 6 * time.Hour,
+			DecayRate:                0.95,
+			FadeThreshold:            0.3,
+			ArchiveThreshold:         0.1,
+			RetentionWindowRaw:       "90d",
+			RetentionWindow:          90 * 24 * time.Hour,
+			MaxMemoriesPerCycle:      100,
+			MaxMergesPerCycle:        5,
+			MinClusterSize:           3,
+			RecencyProtection24h:     0.8,
+			RecencyProtection168h:    0.9,
+			AccessResistanceCap:      0.3,
+			AccessResistanceScale:    0.02,
+			MergeSimilarityThreshold: 0.85,
+			PatternMatchThreshold:    0.70,
+			PatternStrengthIncrement: 0.03,
+			PatternIncrementCap:      0.15,
+			LargeClusterBonus:        1.3,
+			LargeClusterMinSize:      5,
+			PatternStrengthCeiling:   0.95,
+			StrongEvidenceCeiling:    1.0,
+			StrongEvidenceMinCount:   10,
+			PatternBaselineDecay:     0.998,
+			StaleDecayHealthy:        0.98,
+			StaleDecayModerate:       0.95,
+			StaleDecayAggressive:     0.90,
 		},
 		Retrieval: RetrievalConfig{
 			MaxHops:             3,

@@ -1485,17 +1485,7 @@ func serveCommand(configPath string) {
 	// --- Start consolidation agent ---
 	var consolidator *consolidation.ConsolidationAgent
 	if cfg.Consolidation.Enabled {
-		consolidator = consolidation.NewConsolidationAgent(memStore, wrap("consolidation"), consolidation.ConsolidationConfig{
-			Interval:            cfg.Consolidation.Interval,
-			DecayRate:           cfg.Consolidation.DecayRate,
-			FadeThreshold:       cfg.Consolidation.FadeThreshold,
-			ArchiveThreshold:    cfg.Consolidation.ArchiveThreshold,
-			RetentionWindow:     cfg.Consolidation.RetentionWindow,
-			MaxMemoriesPerCycle: cfg.Consolidation.MaxMemoriesPerCycle,
-			MaxMergesPerCycle:   cfg.Consolidation.MaxMergesPerCycle,
-			MinClusterSize:      cfg.Consolidation.MinClusterSize,
-			AssocPruneThreshold: consolidation.DefaultConfig().AssocPruneThreshold,
-		}, log)
+		consolidator = consolidation.NewConsolidationAgent(memStore, wrap("consolidation"), toConsolidationConfig(cfg), log)
 
 		if err := consolidator.Start(rootCtx, bus); err != nil {
 			log.Error("failed to start consolidation agent", "error", err)
@@ -1759,6 +1749,38 @@ func initRuntime(configPath string) (*config.Config, *sqlite.SQLiteStore, llm.Pr
 	return cfg, db, provider, log
 }
 
+// toConsolidationConfig converts the global config's consolidation settings to the agent's config.
+func toConsolidationConfig(cfg *config.Config) consolidation.ConsolidationConfig {
+	return consolidation.ConsolidationConfig{
+		Interval:                 cfg.Consolidation.Interval,
+		DecayRate:                cfg.Consolidation.DecayRate,
+		FadeThreshold:            cfg.Consolidation.FadeThreshold,
+		ArchiveThreshold:         cfg.Consolidation.ArchiveThreshold,
+		RetentionWindow:          cfg.Consolidation.RetentionWindow,
+		MaxMemoriesPerCycle:      cfg.Consolidation.MaxMemoriesPerCycle,
+		MaxMergesPerCycle:        cfg.Consolidation.MaxMergesPerCycle,
+		MinClusterSize:           cfg.Consolidation.MinClusterSize,
+		AssocPruneThreshold:      consolidation.DefaultConfig().AssocPruneThreshold,
+		RecencyProtection24h:     cfg.Consolidation.RecencyProtection24h,
+		RecencyProtection168h:    cfg.Consolidation.RecencyProtection168h,
+		AccessResistanceCap:      cfg.Consolidation.AccessResistanceCap,
+		AccessResistanceScale:    cfg.Consolidation.AccessResistanceScale,
+		MergeSimilarityThreshold: cfg.Consolidation.MergeSimilarityThreshold,
+		PatternMatchThreshold:    cfg.Consolidation.PatternMatchThreshold,
+		PatternStrengthIncrement: float32(cfg.Consolidation.PatternStrengthIncrement),
+		PatternIncrementCap:      float32(cfg.Consolidation.PatternIncrementCap),
+		LargeClusterBonus:        float32(cfg.Consolidation.LargeClusterBonus),
+		LargeClusterMinSize:      cfg.Consolidation.LargeClusterMinSize,
+		PatternStrengthCeiling:   float32(cfg.Consolidation.PatternStrengthCeiling),
+		StrongEvidenceCeiling:    float32(cfg.Consolidation.StrongEvidenceCeiling),
+		StrongEvidenceMinCount:   cfg.Consolidation.StrongEvidenceMinCount,
+		PatternBaselineDecay:     float32(cfg.Consolidation.PatternBaselineDecay),
+		StaleDecayHealthy:        float32(cfg.Consolidation.StaleDecayHealthy),
+		StaleDecayModerate:       float32(cfg.Consolidation.StaleDecayModerate),
+		StaleDecayAggressive:     float32(cfg.Consolidation.StaleDecayAggressive),
+	}
+}
+
 // rememberCommand stores text in the memory system.
 // If the daemon is running, it writes the raw memory to the DB and notifies the
 // daemon via API so the daemon's own encoding agent picks it up (no duplicate encoder).
@@ -1914,17 +1936,7 @@ func consolidateCommand(configPath string) {
 	bus := events.NewInMemoryBus(100)
 	defer func() { _ = bus.Close() }()
 
-	consolidator := consolidation.NewConsolidationAgent(db, llmProvider, consolidation.ConsolidationConfig{
-		Interval:            cfg.Consolidation.Interval,
-		DecayRate:           cfg.Consolidation.DecayRate,
-		FadeThreshold:       cfg.Consolidation.FadeThreshold,
-		ArchiveThreshold:    cfg.Consolidation.ArchiveThreshold,
-		RetentionWindow:     cfg.Consolidation.RetentionWindow,
-		MaxMemoriesPerCycle: cfg.Consolidation.MaxMemoriesPerCycle,
-		MaxMergesPerCycle:   cfg.Consolidation.MaxMergesPerCycle,
-		MinClusterSize:      cfg.Consolidation.MinClusterSize,
-		AssocPruneThreshold: consolidation.DefaultConfig().AssocPruneThreshold,
-	}, log)
+	consolidator := consolidation.NewConsolidationAgent(db, llmProvider, toConsolidationConfig(cfg), log)
 
 	fmt.Println("Running consolidation cycle...")
 
