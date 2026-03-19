@@ -11,10 +11,15 @@ import (
 
 // HeuristicConfig defines the configuration for the heuristic pre-filter.
 type HeuristicConfig struct {
-	MinContentLength   int // minimum content length to pass
-	MaxContentLength   int // maximum content length to pass
-	FrequencyThreshold int // skip if seen >N times in window
-	FrequencyWindowMin int // window size in minutes
+	MinContentLength   int     // minimum content length to pass
+	MaxContentLength   int     // maximum content length to pass
+	FrequencyThreshold int     // skip if seen >N times in window
+	FrequencyWindowMin int     // window size in minutes
+	PassScore          float32 // minimum score to pass filter (default: 0.2)
+	BatchEditWindowSec int     // seconds window for batch edit detection (default: 5)
+	BatchEditThreshold int     // edits in window to count as batch (default: 3)
+	RecallBoostMax     float32 // max recall salience boost (default: 0.2)
+	RecallBoostMinutes int     // minutes recall boost decays over (default: 30)
 }
 
 // HeuristicResult represents the outcome of a heuristic evaluation.
@@ -181,13 +186,17 @@ func (h *HeuristicFilter) Evaluate(event Event) HeuristicResult {
 		score = 0.0
 	}
 
-	// 7. Pass threshold check (>= 0.2)
+	// 7. Pass threshold check
+	passScore := h.cfg.PassScore
+	if passScore <= 0 {
+		passScore = 0.2
+	}
 	rationale := sourceRationale
 	if keywordMatches > 0 {
 		rationale += fmt.Sprintf("; found %d high-signal keywords", keywordMatches)
 	}
 
-	passed := score >= 0.2
+	passed := score >= passScore
 	return HeuristicResult{
 		Pass:      passed,
 		Score:     score,
@@ -475,8 +484,12 @@ func (h *HeuristicFilter) IsBatchEdit(path string, timestamp time.Time) (bool, i
 	h.editMu.Lock()
 	defer h.editMu.Unlock()
 
-	// Batch window: edits within 5 seconds are considered a batch
-	batchWindow := 5 * time.Second
+	// Batch window: edits within the configured window are considered a batch
+	windowSec := h.cfg.BatchEditWindowSec
+	if windowSec <= 0 {
+		windowSec = 5
+	}
+	batchWindow := time.Duration(windowSec) * time.Second
 	cutoff := timestamp.Add(-batchWindow)
 
 	// Clean old entries and count recent edits
@@ -491,8 +504,11 @@ func (h *HeuristicFilter) IsBatchEdit(path string, timestamp time.Time) (bool, i
 	recent = append(recent, recentEdit{path: path, timestamp: timestamp})
 	h.recentEdits = recent
 
-	// If 3+ edits in the window, it's a batch
-	batchThreshold := 3
+	// If edits meet the threshold, it's a batch
+	batchThreshold := h.cfg.BatchEditThreshold
+	if batchThreshold <= 0 {
+		batchThreshold = 3
+	}
 	if len(recent) >= batchThreshold {
 		return true, len(recent)
 	}
@@ -524,14 +540,23 @@ func (h *HeuristicFilter) GetRecallBoost(path string) float32 {
 		return 0
 	}
 
-	// Boost decays over 30 minutes
+	// Boost decays over the configured window
+	boostMinutes := h.cfg.RecallBoostMinutes
+	if boostMinutes <= 0 {
+		boostMinutes = 30
+	}
+	boostWindow := time.Duration(boostMinutes) * time.Minute
 	elapsed := time.Since(recallTime)
-	if elapsed > 30*time.Minute {
+	if elapsed > boostWindow {
 		return 0
 	}
 
-	// Linear decay: 0.2 → 0 over 30 minutes
-	boost := float32(0.2) * float32(1.0-elapsed.Seconds()/(30*60))
+	// Linear decay: max → 0 over window
+	maxBoost := h.cfg.RecallBoostMax
+	if maxBoost <= 0 {
+		maxBoost = 0.2
+	}
+	boost := maxBoost * float32(1.0-elapsed.Seconds()/boostWindow.Seconds())
 	return boost
 }
 

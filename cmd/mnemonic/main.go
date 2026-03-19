@@ -1349,18 +1349,7 @@ func serveCommand(configPath string) {
 	// --- Start encoding agent ---
 	var encoder *encoding.EncodingAgent
 	if cfg.Encoding.Enabled {
-		encoder = encoding.NewEncodingAgentWithConfig(memStore, wrap("encoding"), log, encoding.EncodingConfig{
-			PollingInterval:         5 * time.Second,
-			SimilarityThreshold:     0.3,
-			MaxSimilarSearchResults: cfg.Encoding.FindSimilarLimit,
-			CompletionMaxTokens:     cfg.Encoding.CompletionMaxTokens,
-			CompletionTemperature:   float32(cfg.LLM.Temperature),
-			MaxConcurrentEncodings:  cfg.Encoding.MaxConcurrentEncodings,
-			EnableLLMClassification: cfg.Encoding.EnableLLMClassification,
-			CoachingFile:            cfg.Coaching.CoachingFile,
-			ExcludePatterns:         cfg.Perception.Filesystem.ExcludePatterns,
-			ConceptVocabulary:       cfg.Encoding.ConceptVocabulary,
-		})
+		encoder = encoding.NewEncodingAgentWithConfig(memStore, wrap("encoding"), log, buildEncodingConfig(cfg))
 		if err := encoder.Start(rootCtx, bus); err != nil {
 			log.Error("failed to start encoding agent", "error", err)
 		} else {
@@ -1455,10 +1444,23 @@ func serveCommand(configPath string) {
 						MaxContentLength:   cfg.Perception.Heuristics.MaxContentLength,
 						FrequencyThreshold: cfg.Perception.Heuristics.FrequencyThreshold,
 						FrequencyWindowMin: cfg.Perception.Heuristics.FrequencyWindowMin,
+						PassScore:          float32(cfg.Perception.HeuristicPassScore),
+						BatchEditWindowSec: cfg.Perception.BatchEditWindowSec,
+						BatchEditThreshold: cfg.Perception.BatchEditThreshold,
+						RecallBoostMax:     float32(cfg.Perception.RecallBoostMax),
+						RecallBoostMinutes: cfg.Perception.RecallBoostWindowMin,
 					},
 					LLMGatingEnabled:      cfg.Perception.LLMGatingEnabled,
 					LearnedExclusionsPath: cfg.Perception.LearnedExclusionsPath,
 					ProjectResolver:       projectResolver,
+					ContentDedupTTLSec:    cfg.Perception.ContentDedupTTLSec,
+					GitOpCooldownSec:      cfg.Perception.GitOpCooldownSec,
+					MaxRawContentLen:      cfg.Perception.MaxRawContentLen,
+					LLMGateSnippetLen:     cfg.Perception.LLMGateSnippetLen,
+					LLMGateTimeoutSec:     cfg.Perception.LLMGateTimeoutSec,
+					RejectionThreshold:    cfg.Perception.RejectionThreshold,
+					RejectionWindowMin:    cfg.Perception.RejectionWindowMin,
+					RejectionMaxPromoted:  cfg.Perception.RejectionMaxPromoted,
 				},
 				log,
 			)
@@ -1811,18 +1813,7 @@ func rememberCommand(configPath, text string) {
 	bus := events.NewInMemoryBus(100)
 	defer func() { _ = bus.Close() }()
 
-	encoder := encoding.NewEncodingAgentWithConfig(db, llmProvider, log, encoding.EncodingConfig{
-		PollingInterval:         5 * time.Second,
-		SimilarityThreshold:     0.3,
-		MaxSimilarSearchResults: cfg.Encoding.FindSimilarLimit,
-		CompletionMaxTokens:     cfg.Encoding.CompletionMaxTokens,
-		CompletionTemperature:   float32(cfg.LLM.Temperature),
-		MaxConcurrentEncodings:  cfg.Encoding.MaxConcurrentEncodings,
-		EnableLLMClassification: cfg.Encoding.EnableLLMClassification,
-		CoachingFile:            cfg.Coaching.CoachingFile,
-		ExcludePatterns:         cfg.Perception.Filesystem.ExcludePatterns,
-		ConceptVocabulary:       cfg.Encoding.ConceptVocabulary,
-	})
+	encoder := encoding.NewEncodingAgentWithConfig(db, llmProvider, log, buildEncodingConfig(cfg))
 	if err := encoder.Start(encodeCtx, bus); err != nil {
 		fmt.Fprintf(os.Stderr, "Error starting encoder: %v\n", err)
 		os.Exit(1)
@@ -2503,18 +2494,7 @@ func mcpCommand(configPath string) {
 	defer func() { _ = bus.Close() }()
 
 	// Create encoding agent so remembered memories get encoded
-	encoder := encoding.NewEncodingAgentWithConfig(db, llmProvider, log, encoding.EncodingConfig{
-		PollingInterval:         5 * time.Second,
-		SimilarityThreshold:     0.3,
-		MaxSimilarSearchResults: cfg.Encoding.FindSimilarLimit,
-		CompletionMaxTokens:     cfg.Encoding.CompletionMaxTokens,
-		CompletionTemperature:   float32(cfg.LLM.Temperature),
-		MaxConcurrentEncodings:  cfg.Encoding.MaxConcurrentEncodings,
-		EnableLLMClassification: cfg.Encoding.EnableLLMClassification,
-		CoachingFile:            cfg.Coaching.CoachingFile,
-		ExcludePatterns:         cfg.Perception.Filesystem.ExcludePatterns,
-		ConceptVocabulary:       cfg.Encoding.ConceptVocabulary,
-	})
+	encoder := encoding.NewEncodingAgentWithConfig(db, llmProvider, log, buildEncodingConfig(cfg))
 	if err := encoder.Start(ctx, bus); err != nil {
 		log.Error("failed to start encoding agent for MCP", "error", err)
 	}
@@ -2730,6 +2710,39 @@ func autopilotCommand(configPath string) {
 	}
 
 	fmt.Println()
+}
+
+// buildEncodingConfig translates central config into the encoding agent's config struct.
+func buildEncodingConfig(cfg *config.Config) encoding.EncodingConfig {
+	pollingInterval := time.Duration(cfg.Encoding.PollingIntervalSec) * time.Second
+	if pollingInterval <= 0 {
+		pollingInterval = 5 * time.Second
+	}
+	simThreshold := float32(cfg.Encoding.SimilarityThreshold)
+	if simThreshold <= 0 {
+		simThreshold = 0.3
+	}
+	return encoding.EncodingConfig{
+		PollingInterval:         pollingInterval,
+		SimilarityThreshold:     simThreshold,
+		MaxSimilarSearchResults: cfg.Encoding.FindSimilarLimit,
+		CompletionMaxTokens:     cfg.Encoding.CompletionMaxTokens,
+		CompletionTemperature:   float32(cfg.LLM.Temperature),
+		MaxConcurrentEncodings:  cfg.Encoding.MaxConcurrentEncodings,
+		EnableLLMClassification: cfg.Encoding.EnableLLMClassification,
+		CoachingFile:            cfg.Coaching.CoachingFile,
+		ExcludePatterns:         cfg.Perception.Filesystem.ExcludePatterns,
+		ConceptVocabulary:       cfg.Encoding.ConceptVocabulary,
+		MaxRetries:              cfg.Encoding.MaxRetries,
+		MaxLLMContentChars:      cfg.Encoding.MaxLLMContentChars,
+		MaxEmbeddingChars:       cfg.Encoding.MaxEmbeddingChars,
+		TemporalWindowMin:       cfg.Encoding.TemporalWindowMin,
+		BackoffThreshold:        cfg.Encoding.BackoffThreshold,
+		BackoffBaseSec:          cfg.Encoding.BackoffBaseSec,
+		BackoffMaxSec:           cfg.Encoding.BackoffMaxSec,
+		BatchSizeEvent:          cfg.Encoding.BatchSizeEvent,
+		BatchSizePoll:           cfg.Encoding.BatchSizePoll,
+	}
 }
 
 // newLLMProvider creates the appropriate LLM provider based on config.

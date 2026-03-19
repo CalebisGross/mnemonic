@@ -621,7 +621,7 @@ func TestIsTemporalRelationship(t *testing.T) {
 		raw := store.RawMemory{Source: "terminal", Timestamp: now}
 		existing := store.Memory{Timestamp: now.Add(-2 * time.Minute)}
 
-		if !isTemporalRelationship(raw, existing) {
+		if !isTemporalRelationship(raw, existing, 5*time.Minute) {
 			t.Error("expected temporal relationship for same source within 5 min")
 		}
 	})
@@ -630,7 +630,7 @@ func TestIsTemporalRelationship(t *testing.T) {
 		raw := store.RawMemory{Source: "terminal", Timestamp: now}
 		existing := store.Memory{Timestamp: now.Add(-10 * time.Minute)}
 
-		if isTemporalRelationship(raw, existing) {
+		if isTemporalRelationship(raw, existing, 5*time.Minute) {
 			t.Error("did not expect temporal relationship for > 5 min apart")
 		}
 	})
@@ -639,7 +639,7 @@ func TestIsTemporalRelationship(t *testing.T) {
 		raw := store.RawMemory{Source: "terminal", Timestamp: now}
 		existing := store.Memory{Timestamp: now}
 
-		if isTemporalRelationship(raw, existing) {
+		if isTemporalRelationship(raw, existing, 5*time.Minute) {
 			t.Error("did not expect temporal relationship for zero time diff")
 		}
 	})
@@ -648,7 +648,7 @@ func TestIsTemporalRelationship(t *testing.T) {
 		raw := store.RawMemory{Source: "", Timestamp: now}
 		existing := store.Memory{Timestamp: now.Add(-1 * time.Minute)}
 
-		if isTemporalRelationship(raw, existing) {
+		if isTemporalRelationship(raw, existing, 5*time.Minute) {
 			t.Error("did not expect temporal relationship for empty source")
 		}
 	})
@@ -657,7 +657,7 @@ func TestIsTemporalRelationship(t *testing.T) {
 		raw := store.RawMemory{Source: "terminal", Timestamp: now}
 		existing := store.Memory{Timestamp: now.Add(2 * time.Minute)}
 
-		if !isTemporalRelationship(raw, existing) {
+		if !isTemporalRelationship(raw, existing, 5*time.Minute) {
 			t.Error("expected temporal relationship regardless of order")
 		}
 	})

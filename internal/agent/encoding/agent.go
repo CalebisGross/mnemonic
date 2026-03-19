@@ -20,8 +20,8 @@ import (
 	"github.com/appsprout-dev/mnemonic/internal/watcher/filesystem"
 )
 
-// maxRetries is the number of encoding attempts before a raw memory is skipped.
-const maxRetries = 3
+// defaultMaxRetries is the default number of encoding attempts before a raw memory is skipped.
+const defaultMaxRetries = 3
 
 // EncodingAgent transforms raw memories into encoded, searchable memory units.
 // It performs compression, concept extraction, embedding generation, and association creation.
@@ -61,6 +61,15 @@ type EncodingConfig struct {
 	CoachingFile            string   // path to coaching.yaml; empty = no coaching
 	ExcludePatterns         []string // paths matching these patterns are skipped (defense-in-depth)
 	ConceptVocabulary       []string // controlled vocabulary for concept extraction; empty = free-form
+	MaxRetries              int      // encoding attempts before skipping (default: 3)
+	MaxLLMContentChars      int      // max chars sent to LLM for compression (default: 8000)
+	MaxEmbeddingChars       int      // max chars sent to embedding model (default: 4000)
+	TemporalWindowMin       int      // minutes for temporal relationship detection (default: 5)
+	BackoffThreshold        int      // consecutive failures before backoff (default: 3)
+	BackoffBaseSec          int      // base backoff per failure in seconds (default: 30)
+	BackoffMaxSec           int      // maximum backoff in seconds (default: 300)
+	BatchSizeEvent          int      // batch size for EncodeAllPending (default: 50)
+	BatchSizePoll           int      // batch size for polling loop (default: 10)
 }
 
 // DefaultConceptVocabulary is the default controlled vocabulary for concept extraction.
@@ -95,6 +104,15 @@ func DefaultConfig() EncodingConfig {
 		MaxConcurrentEncodings:  1,
 		EnableLLMClassification: false,
 		ConceptVocabulary:       DefaultConceptVocabulary,
+		MaxRetries:              3,
+		MaxLLMContentChars:      8000,
+		MaxEmbeddingChars:       4000,
+		TemporalWindowMin:       5,
+		BackoffThreshold:        3,
+		BackoffBaseSec:          30,
+		BackoffMaxSec:           300,
+		BatchSizeEvent:          50,
+		BatchSizePoll:           10,
 	}
 }
 
@@ -216,6 +234,80 @@ func NewEncodingAgentWithConfig(s store.Store, llmProv llm.Provider, log *slog.L
 	return ea
 }
 
+// maxRetries returns the configured max retries, falling back to the default.
+func (ea *EncodingAgent) maxRetries() int {
+	if ea.config.MaxRetries > 0 {
+		return ea.config.MaxRetries
+	}
+	return defaultMaxRetries
+}
+
+// maxLLMContent returns the configured max LLM content chars, falling back to the default.
+func (ea *EncodingAgent) maxLLMContent() int {
+	if ea.config.MaxLLMContentChars > 0 {
+		return ea.config.MaxLLMContentChars
+	}
+	return defaultMaxLLMContentChars
+}
+
+// maxEmbedding returns the configured max embedding chars, falling back to the default.
+func (ea *EncodingAgent) maxEmbedding() int {
+	if ea.config.MaxEmbeddingChars > 0 {
+		return ea.config.MaxEmbeddingChars
+	}
+	return defaultMaxEmbeddingChars
+}
+
+// temporalWindow returns the configured temporal relationship window.
+func (ea *EncodingAgent) temporalWindow() time.Duration {
+	if ea.config.TemporalWindowMin > 0 {
+		return time.Duration(ea.config.TemporalWindowMin) * time.Minute
+	}
+	return 5 * time.Minute
+}
+
+// backoffThreshold returns the configured consecutive failure threshold for backoff.
+func (ea *EncodingAgent) backoffThreshold() int {
+	if ea.config.BackoffThreshold > 0 {
+		return ea.config.BackoffThreshold
+	}
+	return 3
+}
+
+// backoffDuration calculates the backoff duration for a given number of consecutive failures.
+func (ea *EncodingAgent) backoffDuration(consecutiveFailures int) time.Duration {
+	baseSec := ea.config.BackoffBaseSec
+	if baseSec <= 0 {
+		baseSec = 30
+	}
+	maxSec := ea.config.BackoffMaxSec
+	if maxSec <= 0 {
+		maxSec = 300
+	}
+	backoff := time.Duration(consecutiveFailures) * time.Duration(baseSec) * time.Second
+	maxBackoff := time.Duration(maxSec) * time.Second
+	if backoff > maxBackoff {
+		backoff = maxBackoff
+	}
+	return backoff
+}
+
+// batchSizeEvent returns the configured batch size for EncodeAllPending.
+func (ea *EncodingAgent) batchSizeEvent() int {
+	if ea.config.BatchSizeEvent > 0 {
+		return ea.config.BatchSizeEvent
+	}
+	return 50
+}
+
+// batchSizePoll returns the configured batch size for the polling loop.
+func (ea *EncodingAgent) batchSizePoll() int {
+	if ea.config.BatchSizePoll > 0 {
+		return ea.config.BatchSizePoll
+	}
+	return 10
+}
+
 // Name returns the agent's identifier.
 func (ea *EncodingAgent) Name() string {
 	return ea.name
@@ -279,7 +371,7 @@ func (ea *EncodingAgent) Stop() error {
 func (ea *EncodingAgent) EncodeAllPending(ctx context.Context) (int, error) {
 	encoded := 0
 	for {
-		unprocessed, err := ea.store.ListRawUnprocessed(ctx, 50)
+		unprocessed, err := ea.store.ListRawUnprocessed(ctx, ea.batchSizeEvent())
 		if err != nil {
 			return encoded, fmt.Errorf("listing unprocessed: %w", err)
 		}
@@ -361,7 +453,7 @@ func (ea *EncodingAgent) handleRawMemoryCreated(ctx context.Context, event event
 			count := ea.failureCounts[e.ID]
 			ea.processingMutex.Unlock()
 
-			if count >= maxRetries {
+			if count >= ea.maxRetries() {
 				ea.log.Warn("encoding permanently failed from event, marking as processed",
 					"raw_id", e.ID, "attempts", count, "error", err)
 				_ = ea.store.MarkRawProcessed(ea.ctx, e.ID)
@@ -422,7 +514,7 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 	ea.backoffUntil = time.Time{} // clear backoff
 	ea.processingMutex.Unlock()
 
-	unprocessed, err := ea.store.ListRawUnprocessed(ctx, 10)
+	unprocessed, err := ea.store.ListRawUnprocessed(ctx, ea.batchSizePoll())
 	if err != nil {
 		return fmt.Errorf("failed to list unprocessed raw memories: %w", err)
 	}
@@ -452,7 +544,7 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 		// Skip memories that have exceeded max retries
 		ea.processingMutex.Lock()
 		retries := ea.failureCounts[raw.ID]
-		if retries >= maxRetries {
+		if retries >= ea.maxRetries() {
 			delete(ea.failureCounts, raw.ID) // clean up stale entry
 			ea.processingMutex.Unlock()
 			continue
@@ -476,7 +568,7 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 
 			consecutiveFailures++
 
-			if count >= maxRetries {
+			if count >= ea.maxRetries() {
 				ea.log.Warn("encoding permanently failed, marking as processed",
 					"raw_id", raw.ID, "attempts", count, "error", err)
 				// Mark as processed so it stops retrying
@@ -487,16 +579,13 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 				ea.processingMutex.Unlock()
 			} else {
 				ea.log.Warn("encoding failed, will retry later",
-					"raw_id", raw.ID, "attempt", count, "max", maxRetries, "error", err)
+					"raw_id", raw.ID, "attempt", count, "max", ea.maxRetries(), "error", err)
 			}
 
 			// If all attempts in this batch are failing, the LLM is probably
 			// down — apply backoff to avoid hammering it
-			if consecutiveFailures >= 3 {
-				backoff := time.Duration(consecutiveFailures) * 30 * time.Second
-				if backoff > 5*time.Minute {
-					backoff = 5 * time.Minute
-				}
+			if consecutiveFailures >= ea.backoffThreshold() {
+				backoff := ea.backoffDuration(consecutiveFailures)
 				ea.processingMutex.Lock()
 				ea.backoffUntil = time.Now().Add(backoff)
 				ea.processingMutex.Unlock()
@@ -553,7 +642,7 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 	ea.log.Debug("compression completed", "raw_id", raw.ID, "summary_length", len(compression.Summary))
 
 	// Step 3: Generate embedding (truncate to avoid exceeding model context)
-	embeddingText := agentutil.Truncate(compression.Summary+" "+compression.Content, maxEmbeddingChars)
+	embeddingText := agentutil.Truncate(compression.Summary+" "+compression.Content, ea.maxEmbedding())
 	embedding, err := ea.llmProvider.Embed(ctx, embeddingText)
 	if err != nil {
 		ea.log.Warn("failed to generate embedding", "raw_id", raw.ID, "error", err)
@@ -733,13 +822,11 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 	return nil
 }
 
-// maxLLMContentChars is the maximum characters of raw content to send to the LLM for compression.
-// This keeps the prompt well within typical small-model context windows.
-const maxLLMContentChars = 8000
+// defaultMaxLLMContentChars is the default maximum characters of raw content to send to the LLM for compression.
+const defaultMaxLLMContentChars = 8000
 
-// maxEmbeddingChars is the maximum characters to send to the embedding model.
-// Roughly ~500 tokens, well under the 2048 token limit of small embedding models.
-const maxEmbeddingChars = 4000
+// defaultMaxEmbeddingChars is the default maximum characters to send to the embedding model.
+const defaultMaxEmbeddingChars = 4000
 
 // stripHTMLTags removes HTML/XML tags and collapses whitespace to extract readable text.
 // This lets the LLM focus on actual content rather than markup.
@@ -807,7 +894,7 @@ func (ea *EncodingAgent) compressAndExtractConcepts(ctx context.Context, raw sto
 		}
 	}
 
-	truncatedContent := agentutil.Truncate(processedContent, maxLLMContentChars)
+	truncatedContent := agentutil.Truncate(processedContent, ea.maxLLMContent())
 
 	// Gather contextual information for richer encoding
 	episodeCtx := ea.getEpisodeContext(ctx, raw)
@@ -1012,7 +1099,7 @@ func (ea *EncodingAgent) fallbackCompression(raw store.RawMemory) *compressionRe
 	return &compressionResponse{
 		Gist:               truncateString(summary, 60),
 		Summary:            summary,
-		Content:            agentutil.Truncate(raw.Content, maxLLMContentChars),
+		Content:            agentutil.Truncate(raw.Content, ea.maxLLMContent()),
 		Narrative:          "",
 		Concepts:           concepts,
 		StructuredConcepts: nil,
@@ -1153,7 +1240,7 @@ var validRelationTypes = map[string]bool{
 // It uses heuristics only (no LLM calls) for efficiency.
 func (ea *EncodingAgent) classifyRelationship(ctx context.Context, compression *compressionResponse, existing store.Memory, raw store.RawMemory) string {
 	// Heuristic 1: Temporal relationship — same source, close timestamps
-	if isTemporalRelationship(raw, existing) {
+	if isTemporalRelationship(raw, existing, ea.temporalWindow()) {
 		ea.log.Debug("temporal relationship detected", "raw_source", raw.Source, "existing_id", existing.ID)
 		return "temporal"
 	}
@@ -1173,13 +1260,13 @@ func (ea *EncodingAgent) classifyRelationship(ctx context.Context, compression *
 }
 
 // isTemporalRelationship detects if two memories are temporally adjacent.
-func isTemporalRelationship(raw store.RawMemory, existing store.Memory) bool {
+func isTemporalRelationship(raw store.RawMemory, existing store.Memory, window time.Duration) bool {
 	timeDiff := raw.Timestamp.Sub(existing.Timestamp)
 	if timeDiff < 0 {
 		timeDiff = -timeDiff
 	}
-	// Same source and within 5 minutes
-	return raw.Source != "" && timeDiff > 0 && timeDiff < 5*time.Minute
+	// Same source and within the configured temporal window
+	return raw.Source != "" && timeDiff > 0 && timeDiff < window
 }
 
 // hasOverlappingConcepts checks if two concept lists share at least minOverlap concepts.

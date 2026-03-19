@@ -32,13 +32,23 @@ type PerceptionConfig struct {
 	LLMGatingEnabled      bool            // if false, skip LLM and use heuristic score as salience
 	LearnedExclusionsPath string          // file path for persisting learned watcher exclusions
 	ProjectResolver       ProjectResolver // optional: maps paths to canonical project names
+	ContentDedupTTLSec    int             // how long to remember content hashes for dedup (default: 5)
+	GitOpCooldownSec      int             // suppress fs events after git ops for this many seconds (default: 10)
+	MaxRawContentLen      int             // max chars stored per raw memory (default: 10000)
+	LLMGateSnippetLen     int             // max chars sent to LLM gate (default: 500)
+	LLMGateTimeoutSec     int             // timeout for LLM gating call in seconds (default: 10)
+	HeuristicPassScore    float32         // minimum heuristic score to pass (default: 0.2)
+	BatchEditWindowSec    int             // seconds window for batch edit detection (default: 5)
+	BatchEditThreshold    int             // edits in window to count as batch (default: 3)
+	RecallBoostWindowMin  int             // minutes recall boost decays over (default: 30)
+	RecallBoostMax        float32         // max recall salience boost (default: 0.2)
+	RejectionThreshold    int             // rejections before auto-exclusion (default: 50)
+	RejectionWindowMin    int             // window in minutes for rejection tracking (default: 60)
+	RejectionMaxPromoted  int             // cap on auto-exclusions per session (default: 20)
 }
 
-// recentContentTTL is how long to remember content hashes for dedup.
-// This prevents duplicate raw memories when the filesystem watcher emits
-// multiple events for the same file content within a short window
-// (e.g., atomic saves producing Created+Renamed then Modified events).
-const recentContentTTL = 5 * time.Second
+// defaultContentDedupTTL is the default duration for content-hash dedup.
+const defaultContentDedupTTL = 5 * time.Second
 
 // PerceptionAgent orchestrates the perception pipeline: watchers → heuristic → LLM → memory.
 type PerceptionAgent struct {
@@ -75,6 +85,10 @@ func NewPerceptionAgent(
 	cfg PerceptionConfig,
 	log *slog.Logger,
 ) *PerceptionAgent {
+	gitCooldown := time.Duration(cfg.GitOpCooldownSec) * time.Second
+	if gitCooldown <= 0 {
+		gitCooldown = 10 * time.Second
+	}
 	return &PerceptionAgent{
 		name:          "perception",
 		watchers:      watchers,
@@ -82,7 +96,7 @@ func NewPerceptionAgent(
 		llmProvider:   llmProv,
 		cfg:           cfg,
 		log:           log,
-		gitOpCooldown: 10 * time.Second,
+		gitOpCooldown: gitCooldown,
 	}
 }
 
@@ -108,6 +122,9 @@ func (pa *PerceptionAgent) Start(ctx context.Context, bus events.Bus) error {
 	pa.heuristicFilter = NewHeuristicFilter(pa.cfg.HeuristicConfig, pa.log)
 	pa.rejectionTracker = newRejectionTracker(
 		rejectionTrackerConfig{
+			Threshold:   pa.cfg.RejectionThreshold,
+			Window:      time.Duration(pa.cfg.RejectionWindowMin) * time.Minute,
+			MaxPromoted: pa.cfg.RejectionMaxPromoted,
 			PersistPath: pa.cfg.LearnedExclusionsPath,
 		},
 		pa.log,
@@ -256,11 +273,28 @@ func contentHash(source, path, content string) string {
 	return hex.EncodeToString(h.Sum(nil)[:16]) // 128 bits is plenty for dedup
 }
 
+// contentDedupTTL returns the configured content dedup TTL, falling back to the default.
+func (pa *PerceptionAgent) contentDedupTTL() time.Duration {
+	if pa.cfg.ContentDedupTTLSec > 0 {
+		return time.Duration(pa.cfg.ContentDedupTTLSec) * time.Second
+	}
+	return defaultContentDedupTTL
+}
+
+// maxRawContentLen returns the configured max raw content length, falling back to 10000.
+func (pa *PerceptionAgent) maxRawContentLen() int {
+	if pa.cfg.MaxRawContentLen > 0 {
+		return pa.cfg.MaxRawContentLen
+	}
+	return 10000
+}
+
 // cleanupRecentContent periodically evicts expired entries from the dedup map.
 func (pa *PerceptionAgent) cleanupRecentContent(ctx context.Context) {
 	defer pa.processingWg.Done()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	ttl := pa.contentDedupTTL()
 	for {
 		select {
 		case <-ctx.Done():
@@ -269,7 +303,7 @@ func (pa *PerceptionAgent) cleanupRecentContent(ctx context.Context) {
 			now := time.Now()
 			pa.recentContentMu.Lock()
 			for k, ts := range pa.recentContent {
-				if now.Sub(ts) > recentContentTTL {
+				if now.Sub(ts) > ttl {
 					delete(pa.recentContent, k)
 				}
 			}
@@ -353,7 +387,7 @@ func (pa *PerceptionAgent) processEvent(ctx context.Context, event Event) {
 		ID:              uuid.New().String(),
 		Source:          event.Source,
 		Type:            event.Type,
-		Content:         pa.truncateContent(event.Content, 10000),
+		Content:         pa.truncateContent(event.Content, pa.maxRawContentLen()),
 		Timestamp:       event.Timestamp,
 		CreatedAt:       time.Now(),
 		Metadata:        pa.mergeMetadata(event.Metadata, event.Path, heuristicResult.Score),
@@ -407,9 +441,13 @@ func (pa *PerceptionAgent) callLLMGate(
 	heuristicScore float32,
 ) (*llmGateResult, error) {
 	// Build the prompt
+	snippetLen := pa.cfg.LLMGateSnippetLen
+	if snippetLen <= 0 {
+		snippetLen = 500
+	}
 	contentSnippet := event.Content
-	if len(contentSnippet) > 500 {
-		contentSnippet = contentSnippet[:500]
+	if len(contentSnippet) > snippetLen {
+		contentSnippet = contentSnippet[:snippetLen]
 	}
 
 	prompt := fmt.Sprintf(`You are a memory perception system. Evaluate if this observation is worth remembering.
@@ -446,7 +484,11 @@ Salience 0.0-1.0: Higher for errors, decisions, insights, creative work. Lower f
 	}
 
 	// Call LLM with context timeout
-	llmCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	gateTimeout := time.Duration(pa.cfg.LLMGateTimeoutSec) * time.Second
+	if gateTimeout <= 0 {
+		gateTimeout = 10 * time.Second
+	}
+	llmCtx, cancel := context.WithTimeout(ctx, gateTimeout)
 	defer cancel()
 
 	resp, err := pa.llmProvider.Complete(llmCtx, req)
