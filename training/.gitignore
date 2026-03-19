@@ -18,6 +18,7 @@ __pycache__/
 *.safetensors
 *.gguf
 autoresearch_results.tsv
+sweep_results.tsv
 
 # Weights & Biases
 wandb/

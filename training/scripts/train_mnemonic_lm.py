@@ -8,6 +8,7 @@ but imports Felix-LM's model and training utilities.
 Usage:
     python training/scripts/train_mnemonic_lm.py --config v3_mnemonic_500m --device cuda
     python training/scripts/train_mnemonic_lm.py --config v3_mnemonic_500m --device cuda --smoke-test
+    python training/scripts/train_mnemonic_lm.py --config v3_mnemonic_100m --device cuda --resume last.pt
 
 Requires:
     - Felix-LM installed/importable: pip install -e ~/Projects/felixlm
@@ -124,6 +125,11 @@ def train(config, args):
 
     device = torch.device(args.device)
 
+    # Cap VRAM to 90% — OOM becomes a catchable PyTorch exception
+    # instead of triggering the Linux OOM killer and crashing the system
+    if device.type == "cuda":
+        torch.cuda.set_per_process_memory_fraction(0.9)
+
     model = FelixLMv3(config).to(device)
     if args.compile:
         print("Compiling model with torch.compile...")
@@ -200,43 +206,95 @@ def train(config, args):
         args.warmup_steps = max(1, opt_steps // 10)
     print(f"  Warmup: {args.warmup_steps} optimizer steps")
 
-    # wandb
-    if not args.no_wandb:
-        import wandb
-        wandb.init(
-            project="mnemonic-lm",
-            name=args.config,
-            config={
-                "model_params": n_params,
-                "config": args.config,
-                "vocab_size": config.vocab_size,
-                "lr": args.lr,
-                "batch_size": args.batch_size,
-                "grad_accum": args.grad_accum,
-                "seq_len": args.seq_len,
-                "max_steps": max_steps,
-                "data": "mnemonic-curated-6.5B",
-            },
-        )
-
     # Training loop
-    ckpt_dir = Path(f"checkpoints/{args.config}")
+    ckpt_dir = Path(args.ckpt_dir) if args.ckpt_dir else Path(f"checkpoints/{args.config}")
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     global_step = 0
     lr = args.lr
     losses = []
 
+    # Resume from checkpoint
+    if args.resume:
+        resume_path = ckpt_dir / args.resume if not Path(args.resume).is_absolute() else Path(args.resume)
+        if resume_path.exists():
+            print(f"\nResuming from {resume_path}...")
+            ckpt = torch.load(resume_path, map_location=device, weights_only=False)
+            if "model_state_dict" in ckpt:
+                # Full checkpoint (model + optimizer + step)
+                raw_model = model._orig_mod if hasattr(model, "_orig_mod") else model
+                raw_model.load_state_dict(ckpt["model_state_dict"])
+                optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+                global_step = ckpt["global_step"]
+                losses = ckpt.get("recent_losses", [])
+                if "rng_state" in ckpt:
+                    torch.set_rng_state(ckpt["rng_state"])
+                if "cuda_rng_state" in ckpt and device.type == "cuda":
+                    torch.cuda.set_rng_state(ckpt["cuda_rng_state"])
+                print(f"  Resumed at global_step={global_step} (opt_step={global_step // args.grad_accum})")
+            else:
+                # Legacy checkpoint (model weights only) — start optimizer fresh
+                raw_model = model._orig_mod if hasattr(model, "_orig_mod") else model
+                raw_model.load_state_dict(ckpt)
+                print("  Loaded model weights only (legacy checkpoint, optimizer reset)")
+        else:
+            print(f"WARNING: Resume path {resume_path} not found, training from scratch")
+
+    # wandb (after resume so we know the step count)
+    if not args.no_wandb:
+        import wandb
+        wandb_kwargs = {
+            "project": "mnemonic-lm",
+            "name": args.run_name or args.config,
+            "config": {
+                "model_params": n_params,
+                "config": args.config,
+                "vocab_size": config.vocab_size,
+                "lr": args.lr,
+                "weight_decay": args.weight_decay,
+                "beta2": args.beta2,
+                "batch_size": args.batch_size,
+                "grad_accum": args.grad_accum,
+                "seq_len": args.seq_len,
+                "max_steps": max_steps,
+                "spoke_lr_mult": args.spoke_lr_mult,
+                "warmup_steps": args.warmup_steps,
+                "data": "mnemonic-curated-6.5B",
+            },
+        }
+        if args.wandb_group:
+            wandb_kwargs["group"] = args.wandb_group
+        if args.wandb_tags:
+            wandb_kwargs["tags"] = [t.strip() for t in args.wandb_tags.split(",")]
+        if args.resume and global_step > 0:
+            wandb_kwargs["resume"] = "must"
+            print(f"  wandb: resuming run (step {global_step})")
+        wandb.init(**wandb_kwargs)
+
     model.train()
     optimizer.zero_grad()
+
+    # Fast-forward dataloader if resuming (skip already-seen batches)
+    if global_step > 0:
+        print(f"  Fast-forwarding dataloader past {global_step} batches...")
+        skip_iter = iter(train_loader)
+        for i in range(global_step):
+            next(skip_iter, None)
+            if (i + 1) % 1000 == 0:
+                print(f"    Skipped {i + 1}/{global_step} batches")
+        print(f"  Fast-forward complete, resuming training at step {global_step}")
+        train_iter = skip_iter
+    else:
+        train_iter = iter(train_loader)
+
     start_time = time.time()
 
     try:
         from tqdm import tqdm
-        pbar = tqdm(total=max_steps, desc="Training")
+        pbar = tqdm(total=max_steps, initial=global_step, desc="Training")
     except ImportError:
         pbar = None
 
-    for input_ids, targets in train_loader:
+    for input_ids, targets in train_iter:
         input_ids = input_ids.to(device)
         targets = targets.to(device)
 
@@ -280,9 +338,22 @@ def train(config, args):
                     log_dict[f"v3/gate_layer_{i}"] = gv.item()
             wandb.log(log_dict, step=global_step)
 
-        # Periodic checkpoint
+        # Periodic checkpoint (full state for resume)
         if global_step % args.save_interval == 0:
-            torch.save(model.state_dict(), ckpt_dir / f"step_{global_step}.pt")
+            raw_model = model._orig_mod if hasattr(model, "_orig_mod") else model
+            ckpt_data = {
+                "model_state_dict": raw_model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "global_step": global_step,
+                "recent_losses": losses[-1000:],
+                "rng_state": torch.get_rng_state(),
+                "args": vars(args),
+            }
+            if device.type == "cuda":
+                ckpt_data["cuda_rng_state"] = torch.cuda.get_rng_state()
+            torch.save(ckpt_data, ckpt_dir / f"step_{global_step}.pt")
+            # Also save as last.pt for easy resume
+            torch.save(ckpt_data, ckpt_dir / "last.pt")
             print(f"\n  Checkpoint saved at step {global_step}")
 
         if global_step % 5000 == 0 and global_step > 0:
@@ -318,7 +389,15 @@ def train(config, args):
     else:
         print("  FAIL: Loss did not decrease!")
 
-    torch.save(model.state_dict(), ckpt_dir / "last.pt")
+    raw_model = model._orig_mod if hasattr(model, "_orig_mod") else model
+    ckpt_data = {
+        "model_state_dict": raw_model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "global_step": global_step,
+        "recent_losses": losses[-1000:],
+        "args": vars(args),
+    }
+    torch.save(ckpt_data, ckpt_dir / "last.pt")
     print(f"  Checkpoint: {ckpt_dir}/last.pt")
 
     if not args.no_wandb:
@@ -345,6 +424,12 @@ def main():
     parser.add_argument("--compile", action="store_true")
     parser.add_argument("--spoke-lr-mult", type=float, default=2.0, help="Spoke LR multiplier")
     parser.add_argument("--tokenized-dir", type=str, default=None)
+    parser.add_argument("--ckpt-dir", type=str, default=None, help="Checkpoint directory (default: checkpoints/<config>)")
+    parser.add_argument("--resume", type=str, default=None,
+                        help="Resume from checkpoint (filename in ckpt dir, or absolute path). Use 'last.pt' to resume latest.")
+    parser.add_argument("--run-name", type=str, default=None, help="wandb run name (default: config name)")
+    parser.add_argument("--wandb-group", type=str, default=None, help="wandb group for sweep comparison")
+    parser.add_argument("--wandb-tags", type=str, default=None, help="Comma-separated wandb tags")
     parser.add_argument("--smoke-test", action="store_true", help="Run 1000 steps to verify pipeline")
     args = parser.parse_args()
 
