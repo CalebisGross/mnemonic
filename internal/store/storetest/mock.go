@@ -78,6 +78,9 @@ func (MockStore) ActivateAssociation(context.Context, string, string) error { re
 func (MockStore) PruneWeakAssociations(context.Context, float32) (int, error) {
 	return 0, nil
 }
+func (MockStore) PruneOrphanedAssociations(context.Context) (int, error) {
+	return 0, nil
+}
 
 // --- Deduplication ---
 

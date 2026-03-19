@@ -335,6 +335,7 @@ type Store interface {
 	UpdateAssociationType(ctx context.Context, sourceID, targetID string, relationType string) error
 	ActivateAssociation(ctx context.Context, sourceID, targetID string) error
 	PruneWeakAssociations(ctx context.Context, strengthThreshold float32) (int, error)
+	PruneOrphanedAssociations(ctx context.Context) (int, error)
 
 	// --- Deduplication ---
 	RawMemoryExistsByPath(ctx context.Context, source string, project string, filePath string) (bool, error)

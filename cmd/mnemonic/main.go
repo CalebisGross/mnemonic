@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -175,6 +176,14 @@ func main() {
 		autopilotCommand(*configPath)
 	case "diagnose":
 		diagnoseCommand(*configPath)
+	case "dedup":
+		dryRun := true
+		for _, a := range args[1:] {
+			if a == "--apply" {
+				dryRun = false
+			}
+		}
+		dedupCommand(*configPath, dryRun)
 	case "generate-token":
 		generateTokenCommand()
 	case "check-update":
@@ -2807,4 +2816,212 @@ func newLLMProvider(cfg *config.Config) llm.Provider {
 			cfg.LLM.MaxConcurrent,
 		)
 	}
+}
+
+// dedupCommand scans active memories for near-duplicate clusters and archives duplicates.
+// With --apply it modifies the DB; without it, it's a dry-run that reports what would change.
+func dedupCommand(configPath string, dryRun bool) {
+	cfg, db, _, log := initRuntime(configPath)
+	defer func() { _ = db.Close() }()
+
+	ctx := context.Background()
+
+	threshold := float32(cfg.Encoding.DeduplicationThreshold)
+	if threshold <= 0 {
+		threshold = 0.9
+	}
+
+	if dryRun {
+		fmt.Printf("Dedup dry-run (threshold: %.2f). Use --apply to execute.\n\n", threshold)
+	} else {
+		fmt.Printf("Dedup (threshold: %.2f). Archiving duplicates...\n\n", threshold)
+	}
+
+	// Load all active memories in pages
+	var allMemories []store.Memory
+	offset := 0
+	pageSize := 200
+	for {
+		page, err := db.ListMemories(ctx, "active", pageSize, offset)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load memories: %v\n", err)
+			os.Exit(1)
+		}
+		allMemories = append(allMemories, page...)
+		if len(page) < pageSize {
+			break
+		}
+		offset += pageSize
+	}
+
+	// Filter to memories with embeddings
+	var withEmbeddings []store.Memory
+	for _, m := range allMemories {
+		if len(m.Embedding) > 0 {
+			withEmbeddings = append(withEmbeddings, m)
+		}
+	}
+
+	fmt.Printf("Active memories: %d (%d with embeddings)\n", len(allMemories), len(withEmbeddings))
+
+	// Union-find clustering: for each pair above threshold, merge clusters
+	clusterOf := make(map[string]string) // memory ID → cluster representative ID
+	for i := range withEmbeddings {
+		clusterOf[withEmbeddings[i].ID] = withEmbeddings[i].ID
+	}
+
+	// Find root of cluster (with path compression)
+	var find func(string) string
+	find = func(id string) string {
+		if clusterOf[id] != id {
+			clusterOf[id] = find(clusterOf[id])
+		}
+		return clusterOf[id]
+	}
+
+	// Union two IDs into the same cluster
+	union := func(a, b string) {
+		ra, rb := find(a), find(b)
+		if ra != rb {
+			clusterOf[ra] = rb
+		}
+	}
+
+	// O(n^2) pairwise comparison — fine for <1000 memories
+	comparisons := 0
+	for i := 0; i < len(withEmbeddings); i++ {
+		for j := i + 1; j < len(withEmbeddings); j++ {
+			sim := cosineSim(withEmbeddings[i].Embedding, withEmbeddings[j].Embedding)
+			comparisons++
+			if sim >= threshold {
+				union(withEmbeddings[i].ID, withEmbeddings[j].ID)
+			}
+		}
+	}
+
+	// Build clusters
+	clusters := make(map[string][]store.Memory) // representative ID → members
+	for _, m := range withEmbeddings {
+		root := find(m.ID)
+		clusters[root] = append(clusters[root], m)
+	}
+
+	// Filter to clusters with more than 1 member (actual duplicates)
+	dupClusters := 0
+	totalDups := 0
+	totalArchived := 0
+	totalAssocTransferred := 0
+
+	for _, members := range clusters {
+		if len(members) <= 1 {
+			continue
+		}
+		dupClusters++
+		totalDups += len(members)
+
+		// Pick survivor: highest salience, then most recently accessed, then newest
+		survivor := members[0]
+		for _, m := range members[1:] {
+			if m.Salience > survivor.Salience {
+				survivor = m
+			} else if m.Salience == survivor.Salience && m.LastAccessed.After(survivor.LastAccessed) {
+				survivor = m
+			} else if m.Salience == survivor.Salience && m.LastAccessed.Equal(survivor.LastAccessed) && m.CreatedAt.After(survivor.CreatedAt) {
+				survivor = m
+			}
+		}
+
+		fmt.Printf("Cluster (%d members):\n", len(members))
+		fmt.Printf("  Survivor: %s (salience=%.2f) %s\n", survivor.ID[:8], survivor.Salience, truncate(survivor.Summary, 60))
+		for _, m := range members {
+			if m.ID == survivor.ID {
+				continue
+			}
+			fmt.Printf("  Archive:  %s (salience=%.2f) %s\n", m.ID[:8], m.Salience, truncate(m.Summary, 60))
+
+			if !dryRun {
+				// Transfer associations from archived memory to survivor
+				assocs, err := db.GetAssociations(ctx, m.ID)
+				if err != nil {
+					log.Warn("failed to get associations", "memory_id", m.ID, "error", err)
+				} else {
+					for _, a := range assocs {
+						targetID := a.TargetID
+						if targetID == m.ID {
+							targetID = a.SourceID
+						}
+						if targetID == survivor.ID {
+							continue // skip self-association
+						}
+						newAssoc := store.Association{
+							SourceID:      survivor.ID,
+							TargetID:      targetID,
+							Strength:      a.Strength,
+							RelationType:  a.RelationType,
+							CreatedAt:     a.CreatedAt,
+							LastActivated: a.LastActivated,
+						}
+						if err := db.CreateAssociation(ctx, newAssoc); err != nil {
+							// Likely duplicate — ignore
+							log.Debug("association transfer skipped (likely exists)", "source", survivor.ID[:8], "target", targetID[:8])
+						} else {
+							totalAssocTransferred++
+						}
+					}
+				}
+
+				// Archive the duplicate
+				if err := db.UpdateState(ctx, m.ID, "archived"); err != nil {
+					log.Warn("failed to archive duplicate", "memory_id", m.ID, "error", err)
+				} else {
+					totalArchived++
+				}
+			}
+		}
+		fmt.Println()
+	}
+
+	fmt.Printf("Summary:\n")
+	fmt.Printf("  Comparisons:  %d\n", comparisons)
+	fmt.Printf("  Dup clusters: %d (%d memories)\n", dupClusters, totalDups)
+	if dryRun {
+		fmt.Printf("  Would archive: %d memories\n", totalDups-dupClusters)
+		fmt.Printf("\nRun with --apply to execute.\n")
+	} else {
+		fmt.Printf("  Archived:     %d memories\n", totalArchived)
+		fmt.Printf("  Associations: %d transferred\n", totalAssocTransferred)
+
+		// Clean up dangling associations pointing to archived memories
+		pruned, err := db.PruneOrphanedAssociations(ctx)
+		if err != nil {
+			log.Warn("failed to prune orphaned associations", "error", err)
+		} else {
+			fmt.Printf("  Orphaned assocs pruned: %d\n", pruned)
+		}
+	}
+}
+
+// cosineSim computes cosine similarity between two float32 vectors.
+func cosineSim(a, b []float32) float32 {
+	if len(a) != len(b) || len(a) == 0 {
+		return 0
+	}
+	var dot, na, nb float64
+	for i := range a {
+		dot += float64(a[i]) * float64(b[i])
+		na += float64(a[i]) * float64(a[i])
+		nb += float64(b[i]) * float64(b[i])
+	}
+	if na == 0 || nb == 0 {
+		return 0
+	}
+	return float32(dot / (math.Sqrt(na) * math.Sqrt(nb)))
+}
+
+// truncate shortens a string to maxLen with ellipsis.
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }
