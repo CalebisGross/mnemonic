@@ -52,37 +52,45 @@ type ConsolidationConfig struct {
 	StaleDecayHealthy    float32 // decay when evidence ratio >= 0.5 (default 0.98)
 	StaleDecayModerate   float32 // decay when evidence ratio >= 0.2 (default 0.95)
 	StaleDecayAggressive float32 // decay when evidence ratio < 0.2 (default 0.90)
+
+	// Self-sustaining pattern tunables
+	SelfSustainingMinEvidence int     // evidence count to qualify (default 10)
+	SelfSustainingMinStrength float32 // minimum strength to qualify (default 0.9)
+	SelfSustainingDecay       float32 // reduced decay for qualifying patterns (default 0.9999)
 }
 
 // DefaultConfig returns sensible defaults for consolidation.
 func DefaultConfig() ConsolidationConfig {
 	return ConsolidationConfig{
-		Interval:                 6 * time.Hour,
-		DecayRate:                0.95,
-		FadeThreshold:            0.3,
-		ArchiveThreshold:         0.1,
-		RetentionWindow:          90 * 24 * time.Hour,
-		MaxMemoriesPerCycle:      100,
-		MaxMergesPerCycle:        5,
-		MinClusterSize:           3,
-		AssocPruneThreshold:      0.05,
-		RecencyProtection24h:     0.8,
-		RecencyProtection168h:    0.9,
-		AccessResistanceCap:      0.3,
-		AccessResistanceScale:    0.02,
-		MergeSimilarityThreshold: 0.85,
-		PatternMatchThreshold:    0.70,
-		PatternStrengthIncrement: 0.03,
-		PatternIncrementCap:      0.15,
-		LargeClusterBonus:        1.3,
-		LargeClusterMinSize:      5,
-		PatternStrengthCeiling:   0.95,
-		StrongEvidenceCeiling:    1.0,
-		StrongEvidenceMinCount:   10,
-		PatternBaselineDecay:     0.998,
-		StaleDecayHealthy:        0.98,
-		StaleDecayModerate:       0.95,
-		StaleDecayAggressive:     0.90,
+		Interval:                  6 * time.Hour,
+		DecayRate:                 0.95,
+		FadeThreshold:             0.3,
+		ArchiveThreshold:          0.1,
+		RetentionWindow:           90 * 24 * time.Hour,
+		MaxMemoriesPerCycle:       100,
+		MaxMergesPerCycle:         5,
+		MinClusterSize:            3,
+		AssocPruneThreshold:       0.05,
+		RecencyProtection24h:      0.8,
+		RecencyProtection168h:     0.9,
+		AccessResistanceCap:       0.3,
+		AccessResistanceScale:     0.02,
+		MergeSimilarityThreshold:  0.85,
+		PatternMatchThreshold:     0.70,
+		PatternStrengthIncrement:  0.03,
+		PatternIncrementCap:       0.15,
+		LargeClusterBonus:         1.3,
+		LargeClusterMinSize:       5,
+		PatternStrengthCeiling:    0.95,
+		StrongEvidenceCeiling:     1.0,
+		StrongEvidenceMinCount:    10,
+		PatternBaselineDecay:      0.998,
+		StaleDecayHealthy:         0.98,
+		StaleDecayModerate:        0.95,
+		StaleDecayAggressive:      0.90,
+		SelfSustainingMinEvidence: 10,
+		SelfSustainingMinStrength: 0.9,
+		SelfSustainingDecay:       0.9999,
 	}
 }
 
@@ -1500,8 +1508,14 @@ func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
 			continue
 		}
 
-		// Apply baseline decay to ALL patterns (prevents permanent saturation at 1.0)
-		p.Strength *= cfgFloat32(ca.config.PatternBaselineDecay, 0.998)
+		// Apply baseline decay — self-sustaining patterns get reduced decay
+		minEvidence := cfgInt(ca.config.SelfSustainingMinEvidence, 10)
+		minStrength := cfgFloat32(ca.config.SelfSustainingMinStrength, 0.9)
+		if len(p.EvidenceIDs) >= minEvidence && p.Strength >= minStrength {
+			p.Strength *= cfgFloat32(ca.config.SelfSustainingDecay, 0.9999)
+		} else {
+			p.Strength *= cfgFloat32(ca.config.PatternBaselineDecay, 0.998)
+		}
 
 		// Additional evidence-based decay for patterns not accessed within 7 days
 		recency := p.LastAccessed

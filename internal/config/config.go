@@ -87,19 +87,19 @@ type PerceptionConfig struct {
 	Terminal              TerminalPerceptionConfig   `yaml:"terminal"`
 	Clipboard             ClipboardPerceptionConfig  `yaml:"clipboard"`
 	Heuristics            HeuristicsConfig           `yaml:"heuristics"`
-	ContentDedupTTLSec    int                        `yaml:"content_dedup_ttl_sec"`    // how long to remember content hashes for dedup (default: 5)
-	GitOpCooldownSec      int                        `yaml:"git_op_cooldown_sec"`      // suppress fs events after git ops for this many seconds (default: 10)
-	MaxRawContentLen      int                        `yaml:"max_raw_content_len"`      // max chars stored per raw memory (default: 10000)
-	LLMGateSnippetLen     int                        `yaml:"llm_gate_snippet_len"`     // max chars sent to LLM gate (default: 500)
-	LLMGateTimeoutSec     int                        `yaml:"llm_gate_timeout_sec"`     // timeout for LLM gating call (default: 10)
-	HeuristicPassScore    float64                    `yaml:"heuristic_pass_score"`     // minimum heuristic score to pass (default: 0.2)
-	BatchEditWindowSec    int                        `yaml:"batch_edit_window_sec"`    // seconds window for batch edit detection (default: 5)
-	BatchEditThreshold    int                        `yaml:"batch_edit_threshold"`     // edits in window to count as batch (default: 3)
-	RecallBoostWindowMin  int                        `yaml:"recall_boost_window_min"`  // minutes recall boost decays over (default: 30)
-	RecallBoostMax        float64                    `yaml:"recall_boost_max"`         // max recall salience boost (default: 0.2)
-	RejectionThreshold    int                        `yaml:"rejection_threshold"`      // rejections before auto-exclusion (default: 50)
-	RejectionWindowMin    int                        `yaml:"rejection_window_min"`     // window in minutes for rejection tracking (default: 60)
-	RejectionMaxPromoted  int                        `yaml:"rejection_max_promoted"`   // cap on auto-exclusions per session (default: 20)
+	ContentDedupTTLSec    int                        `yaml:"content_dedup_ttl_sec"`   // how long to remember content hashes for dedup (default: 5)
+	GitOpCooldownSec      int                        `yaml:"git_op_cooldown_sec"`     // suppress fs events after git ops for this many seconds (default: 10)
+	MaxRawContentLen      int                        `yaml:"max_raw_content_len"`     // max chars stored per raw memory (default: 10000)
+	LLMGateSnippetLen     int                        `yaml:"llm_gate_snippet_len"`    // max chars sent to LLM gate (default: 500)
+	LLMGateTimeoutSec     int                        `yaml:"llm_gate_timeout_sec"`    // timeout for LLM gating call (default: 10)
+	HeuristicPassScore    float64                    `yaml:"heuristic_pass_score"`    // minimum heuristic score to pass (default: 0.2)
+	BatchEditWindowSec    int                        `yaml:"batch_edit_window_sec"`   // seconds window for batch edit detection (default: 5)
+	BatchEditThreshold    int                        `yaml:"batch_edit_threshold"`    // edits in window to count as batch (default: 3)
+	RecallBoostWindowMin  int                        `yaml:"recall_boost_window_min"` // minutes recall boost decays over (default: 30)
+	RecallBoostMax        float64                    `yaml:"recall_boost_max"`        // max recall salience boost (default: 0.2)
+	RejectionThreshold    int                        `yaml:"rejection_threshold"`     // rejections before auto-exclusion (default: 50)
+	RejectionWindowMin    int                        `yaml:"rejection_window_min"`    // window in minutes for rejection tracking (default: 60)
+	RejectionMaxPromoted  int                        `yaml:"rejection_max_promoted"`  // cap on auto-exclusions per session (default: 20)
 }
 
 // FilesystemPerceptionConfig holds filesystem perception settings.
@@ -160,17 +160,17 @@ type EncodingConfig struct {
 	EnableLLMClassification  bool     `yaml:"enable_llm_classification"`
 	CompletionMaxTokens      int      `yaml:"completion_max_tokens"`
 	ConceptVocabulary        []string `yaml:"concept_vocabulary"`
-	SimilarityThreshold      float64  `yaml:"similarity_threshold"`       // min cosine similarity for associations (default: 0.3)
-	PollingIntervalSec       int      `yaml:"polling_interval_sec"`       // seconds between unprocessed-memory polls (default: 5)
-	MaxRetries               int      `yaml:"max_retries"`                // encoding attempts before skipping (default: 3)
-	MaxLLMContentChars       int      `yaml:"max_llm_content_chars"`      // max chars sent to LLM for compression (default: 8000)
-	MaxEmbeddingChars        int      `yaml:"max_embedding_chars"`        // max chars sent to embedding model (default: 4000)
-	TemporalWindowMin        int      `yaml:"temporal_window_min"`        // minutes for temporal relationship detection (default: 5)
-	BackoffThreshold         int      `yaml:"backoff_threshold"`          // consecutive failures before backoff (default: 3)
-	BackoffBaseSec           int      `yaml:"backoff_base_sec"`           // base backoff per failure in seconds (default: 30)
-	BackoffMaxSec            int      `yaml:"backoff_max_sec"`            // maximum backoff in seconds (default: 300)
-	BatchSizeEvent           int      `yaml:"batch_size_event"`           // batch size for EncodeAllPending (default: 50)
-	BatchSizePoll            int      `yaml:"batch_size_poll"`            // batch size for polling loop (default: 10)
+	SimilarityThreshold      float64  `yaml:"similarity_threshold"`  // min cosine similarity for associations (default: 0.3)
+	PollingIntervalSec       int      `yaml:"polling_interval_sec"`  // seconds between unprocessed-memory polls (default: 5)
+	MaxRetries               int      `yaml:"max_retries"`           // encoding attempts before skipping (default: 3)
+	MaxLLMContentChars       int      `yaml:"max_llm_content_chars"` // max chars sent to LLM for compression (default: 8000)
+	MaxEmbeddingChars        int      `yaml:"max_embedding_chars"`   // max chars sent to embedding model (default: 4000)
+	TemporalWindowMin        int      `yaml:"temporal_window_min"`   // minutes for temporal relationship detection (default: 5)
+	BackoffThreshold         int      `yaml:"backoff_threshold"`     // consecutive failures before backoff (default: 3)
+	BackoffBaseSec           int      `yaml:"backoff_base_sec"`      // base backoff per failure in seconds (default: 30)
+	BackoffMaxSec            int      `yaml:"backoff_max_sec"`       // maximum backoff in seconds (default: 300)
+	BatchSizeEvent           int      `yaml:"batch_size_event"`      // batch size for EncodeAllPending (default: 50)
+	BatchSizePoll            int      `yaml:"batch_size_poll"`       // batch size for polling loop (default: 10)
 }
 
 // ConsolidationConfig holds consolidation settings.
@@ -209,6 +209,11 @@ type ConsolidationConfig struct {
 	StaleDecayHealthy    float64 `yaml:"stale_decay_healthy"`
 	StaleDecayModerate   float64 `yaml:"stale_decay_moderate"`
 	StaleDecayAggressive float64 `yaml:"stale_decay_aggressive"`
+
+	// Self-sustaining pattern tunables
+	SelfSustainingMinEvidence int     `yaml:"self_sustaining_min_evidence"`
+	SelfSustainingMinStrength float64 `yaml:"self_sustaining_min_strength"`
+	SelfSustainingDecay       float64 `yaml:"self_sustaining_decay"`
 }
 
 // RetrievalConfig holds retrieval settings.
@@ -517,34 +522,37 @@ func Default() *Config {
 			BatchSizePoll:            10,
 		},
 		Consolidation: ConsolidationConfig{
-			Enabled:                  true,
-			IntervalRaw:              "6h",
-			Interval:                 6 * time.Hour,
-			DecayRate:                0.95,
-			FadeThreshold:            0.3,
-			ArchiveThreshold:         0.1,
-			RetentionWindowRaw:       "90d",
-			RetentionWindow:          90 * 24 * time.Hour,
-			MaxMemoriesPerCycle:      100,
-			MaxMergesPerCycle:        5,
-			MinClusterSize:           3,
-			RecencyProtection24h:     0.8,
-			RecencyProtection168h:    0.9,
-			AccessResistanceCap:      0.3,
-			AccessResistanceScale:    0.02,
-			MergeSimilarityThreshold: 0.85,
-			PatternMatchThreshold:    0.70,
-			PatternStrengthIncrement: 0.03,
-			PatternIncrementCap:      0.15,
-			LargeClusterBonus:        1.3,
-			LargeClusterMinSize:      5,
-			PatternStrengthCeiling:   0.95,
-			StrongEvidenceCeiling:    1.0,
-			StrongEvidenceMinCount:   10,
-			PatternBaselineDecay:     0.998,
-			StaleDecayHealthy:        0.98,
-			StaleDecayModerate:       0.95,
-			StaleDecayAggressive:     0.90,
+			Enabled:                   true,
+			IntervalRaw:               "6h",
+			Interval:                  6 * time.Hour,
+			DecayRate:                 0.95,
+			FadeThreshold:             0.3,
+			ArchiveThreshold:          0.1,
+			RetentionWindowRaw:        "90d",
+			RetentionWindow:           90 * 24 * time.Hour,
+			MaxMemoriesPerCycle:       100,
+			MaxMergesPerCycle:         5,
+			MinClusterSize:            3,
+			RecencyProtection24h:      0.8,
+			RecencyProtection168h:     0.9,
+			AccessResistanceCap:       0.3,
+			AccessResistanceScale:     0.02,
+			MergeSimilarityThreshold:  0.85,
+			PatternMatchThreshold:     0.70,
+			PatternStrengthIncrement:  0.03,
+			PatternIncrementCap:       0.15,
+			LargeClusterBonus:         1.3,
+			LargeClusterMinSize:       5,
+			PatternStrengthCeiling:    0.95,
+			StrongEvidenceCeiling:     1.0,
+			StrongEvidenceMinCount:    10,
+			PatternBaselineDecay:      0.998,
+			StaleDecayHealthy:         0.98,
+			StaleDecayModerate:        0.95,
+			StaleDecayAggressive:      0.90,
+			SelfSustainingMinEvidence: 10,
+			SelfSustainingMinStrength: 0.9,
+			SelfSustainingDecay:       0.9999,
 		},
 		Retrieval: RetrievalConfig{
 			MaxHops:             3,
