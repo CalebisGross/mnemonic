@@ -2777,6 +2777,7 @@ func buildEncodingConfig(cfg *config.Config) encoding.EncodingConfig {
 		BatchSizeEvent:          cfg.Encoding.BatchSizeEvent,
 		BatchSizePoll:           cfg.Encoding.BatchSizePoll,
 		DeduplicationThreshold:  float32(cfg.Encoding.DeduplicationThreshold),
+		SalienceFloor:           cfg.Encoding.SalienceFloor,
 	}
 }
 

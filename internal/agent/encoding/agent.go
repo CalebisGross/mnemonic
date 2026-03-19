@@ -72,6 +72,7 @@ type EncodingConfig struct {
 	BatchSizePoll           int      // batch size for polling loop (default: 10)
 	EmbedBatchSize          int      // max memories to batch-embed in one call (default 10)
 	DeduplicationThreshold  float32  // cosine sim above which new memory is a duplicate (default: 0.9)
+	SalienceFloor           float32  // min salience to encode; non-MCP sources below this are skipped (default: 0.0)
 }
 
 // compressedMemory holds the intermediate state between compression and embedding.
@@ -593,6 +594,27 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 	if len(compressed) == 0 {
 		ea.releaseProcessing(toProcess)
 		return nil
+	}
+
+	// Salience floor: skip low-salience non-MCP memories before spending on embeddings.
+	if floor := ea.config.SalienceFloor; floor > 0 {
+		filtered := compressed[:0]
+		for _, cm := range compressed {
+			if cm.raw.Source != "mcp" && cm.compression.Salience < floor {
+				ea.log.Info("skipping low-salience memory",
+					"raw_id", cm.rawID, "salience", cm.compression.Salience, "floor", floor, "source", cm.raw.Source)
+				if err := ea.store.MarkRawProcessed(ctx, cm.rawID); err != nil {
+					ea.log.Warn("failed to mark skipped raw as processed", "raw_id", cm.rawID, "error", err)
+				}
+				continue
+			}
+			filtered = append(filtered, cm)
+		}
+		compressed = filtered
+		if len(compressed) == 0 {
+			ea.releaseProcessing(toProcess)
+			return nil
+		}
 	}
 
 	// Phase 2: Batch embed all compressed texts

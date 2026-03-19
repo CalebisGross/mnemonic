@@ -268,6 +268,19 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 	ignoredPatterns := []string{".git/", "node_modules/", "__pycache__/", ".DS_Store", "~", ".swp", ".tmp", ".xbel",
 		"venv/", ".venv/", "site-packages/", ".tox/", ".mypy_cache/", ".ruff_cache/", ".pytest_cache/",
 		".egg-info/", ".eggs/"}
+
+	// Hard-reject lockfiles and checksums — deterministic files with zero semantic value
+	lockfileNames := []string{"go.sum", "package-lock.json", "yarn.lock", "Cargo.lock",
+		"poetry.lock", "pnpm-lock.yaml", "Gemfile.lock", "composer.lock"}
+	baseName := path
+	if idx := strings.LastIndex(baseName, "/"); idx >= 0 {
+		baseName = baseName[idx+1:]
+	}
+	for _, lf := range lockfileNames {
+		if baseName == lf {
+			return 0.0, fmt.Sprintf("filesystem: lockfile '%s'", lf), true
+		}
+	}
 	for _, pattern := range ignoredPatterns {
 		if strings.Contains(path, pattern) {
 			return 0.0, fmt.Sprintf("filesystem: ignored path pattern '%s'", pattern), true
@@ -300,7 +313,7 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 	// Hard-reject sensitive files (defense-in-depth — watcher should block these first)
 	sensitiveNames := []string{".env", "id_rsa", "id_ed25519", "id_ecdsa", ".pem", ".key",
 		"credentials", "secret", ".keychain", ".keystore", ".netrc", ".htpasswd"}
-	baseName := strings.ToLower(path)
+	baseName = strings.ToLower(path)
 	if idx := strings.LastIndex(baseName, "/"); idx >= 0 {
 		baseName = baseName[idx+1:]
 	}

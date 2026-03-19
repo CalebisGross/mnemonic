@@ -149,6 +149,46 @@ func TestEvaluate_DesktopNoiseHardReject(t *testing.T) {
 	}
 }
 
+func TestEvaluate_LockfileHardReject(t *testing.T) {
+	hf := newTestFilter()
+
+	content := `github.com/google/uuid v1.6.0 h1:abc123=\ngithub.com/google/uuid v1.6.0/go.mod h1:def456=`
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"go.sum", "/home/user/Projects/myapp/go.sum"},
+		{"package-lock.json", "/home/user/Projects/app/package-lock.json"},
+		{"yarn.lock", "/home/user/Projects/app/yarn.lock"},
+		{"Cargo.lock", "/home/user/Projects/rs/Cargo.lock"},
+		{"poetry.lock", "/home/user/Projects/py/poetry.lock"},
+		{"pnpm-lock.yaml", "/home/user/Projects/app/pnpm-lock.yaml"},
+		{"Gemfile.lock", "/home/user/Projects/rb/Gemfile.lock"},
+		{"composer.lock", "/home/user/Projects/php/composer.lock"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			event := Event{
+				Source:  "filesystem",
+				Type:    "file_modified",
+				Path:    tc.path,
+				Content: content,
+			}
+
+			result := hf.Evaluate(event)
+			if result.Pass {
+				t.Errorf("expected hard reject for %s, got Pass=true (score=%.2f, rationale=%q)",
+					tc.path, result.Score, result.Rationale)
+			}
+			if result.Score != 0.0 {
+				t.Errorf("expected score 0.0 for %s, got %.2f", tc.path, result.Score)
+			}
+		})
+	}
+}
+
 func TestEvaluate_ClipboardURLHardReject(t *testing.T) {
 	hf := newTestFilter()
 

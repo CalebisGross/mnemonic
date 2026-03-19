@@ -172,6 +172,7 @@ type EncodingConfig struct {
 	BatchSizeEvent           int      `yaml:"batch_size_event"`        // batch size for EncodeAllPending (default: 50)
 	BatchSizePoll            int      `yaml:"batch_size_poll"`         // batch size for polling loop (default: 10)
 	DeduplicationThreshold   float64  `yaml:"deduplication_threshold"` // cosine sim above which new memory is a duplicate (default: 0.9)
+	SalienceFloor            float32  `yaml:"salience_floor"`          // min salience to encode; non-MCP sources below this are skipped (default: 0.0)
 }
 
 // ConsolidationConfig holds consolidation settings.
