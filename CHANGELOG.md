@@ -4,6 +4,23 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.20.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.19.0...v0.20.0) (2026-03-19)
+
+
+### Features
+
+* add dedup CLI command for duplicate cleanup ([dfd7970](https://github.com/AppSprout-dev/mnemonic/commit/dfd7970370e12733740c629edaa8ea59c0598a2c))
+* add dedup CLI command for one-time duplicate cleanup ([#206](https://github.com/AppSprout-dev/mnemonic/issues/206)) ([340e38e](https://github.com/AppSprout-dev/mnemonic/commit/340e38e8ba8913a86ce472a4dd8c7ba40be41265))
+* add sweep automation and fix EXP-2 registry ([bfc891d](https://github.com/AppSprout-dev/mnemonic/commit/bfc891da7e5ffd35039237a82ddc2deba180e961))
+* sweep automation and EXP-2 registry fix ([f9da750](https://github.com/AppSprout-dev/mnemonic/commit/f9da750b9a3f5e5f3cc6184bd131d21d0ccab1b1))
+
+
+### Bug Fixes
+
+* auto-refresh dashboard after update ([0c12bf2](https://github.com/AppSprout-dev/mnemonic/commit/0c12bf25212fb53b2b55041e7155cf70f79597e4))
+* auto-refresh dashboard after update ([3a1baca](https://github.com/AppSprout-dev/mnemonic/commit/3a1baca74c25c2d859ee13da3142253733fa6094))
+* orphaned associations and bidirectional lookup bug ([7c1df31](https://github.com/AppSprout-dev/mnemonic/commit/7c1df31c30248cf875fb3e6fa3a74c2fa2b48f44))
+
 ## [0.19.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.18.0...v0.19.0) (2026-03-19)
 
 
