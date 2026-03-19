@@ -552,7 +552,7 @@ func Default() *Config {
 			LargeClusterMinSize:       5,
 			PatternStrengthCeiling:    0.95,
 			StrongEvidenceCeiling:     1.0,
-			StrongEvidenceMinCount:    10,
+			StrongEvidenceMinCount:    50,
 			PatternBaselineDecay:      0.998,
 			StaleDecayHealthy:         0.98,
 			StaleDecayModerate:        0.95,

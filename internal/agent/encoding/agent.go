@@ -905,6 +905,12 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 		return fmt.Errorf("failed to get raw memory: %w", err)
 	}
 
+	// Guard: skip if already processed (race between event handler and polling)
+	if raw.Processed {
+		ea.log.Debug("raw memory already processed, skipping", "raw_id", raw.ID)
+		return nil
+	}
+
 	ea.log.Debug("encoding raw memory", "raw_id", raw.ID, "source", raw.Source)
 
 	// Step 2: Call LLM to compress and extract concepts
@@ -934,7 +940,7 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 		ea.log.Debug("embedding generated successfully", "raw_id", raw.ID, "dims", len(embedding))
 	}
 
-	// Step 4: Search for similar memories
+	// Step 4: Search for similar memories and check for duplicates
 	var associations []store.Association
 	associationsCreated := 0
 	if len(embedding) > 0 {
@@ -943,6 +949,30 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 			ea.log.Warn("failed to search for similar memories", "raw_id", raw.ID, "error", err)
 		} else {
 			ea.log.Debug("similarity search completed", "raw_id", raw.ID, "results", len(similar))
+
+			// Dedup check: if a near-duplicate already exists, boost it instead of creating a new memory
+			dedupThreshold := ea.config.DeduplicationThreshold
+			if dedupThreshold <= 0 {
+				dedupThreshold = 0.9
+			}
+			if dup := findDuplicate(similar, dedupThreshold); dup != nil {
+				ea.log.Info("dedup: boosting existing memory instead of creating duplicate",
+					"raw_id", raw.ID, "existing_id", dup.Memory.ID, "similarity", dup.Score)
+				newSalience := dup.Memory.Salience + 0.05
+				if newSalience > 1.0 {
+					newSalience = 1.0
+				}
+				if err := ea.store.UpdateSalience(ctx, dup.Memory.ID, newSalience); err != nil {
+					ea.log.Warn("dedup: failed to boost salience", "memory_id", dup.Memory.ID, "error", err)
+				}
+				if err := ea.store.IncrementAccess(ctx, dup.Memory.ID); err != nil {
+					ea.log.Warn("dedup: failed to increment access", "memory_id", dup.Memory.ID, "error", err)
+				}
+				if err := ea.store.MarkRawProcessed(ctx, raw.ID); err != nil {
+					ea.log.Warn("dedup: failed to mark raw as processed", "raw_id", raw.ID, "error", err)
+				}
+				return nil
+			}
 
 			// Step 5: Create associations for similar memories above threshold
 			for _, result := range similar {
