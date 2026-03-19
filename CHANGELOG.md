@@ -4,6 +4,34 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.19.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.18.0...v0.19.0) (2026-03-19)
+
+
+### Features
+
+* add batch embedding and self-sustaining pattern decay ([1f73770](https://github.com/AppSprout-dev/mnemonic/commit/1f737709ef9c0592e206a4d8c23497cbbe6be7f8))
+* add batch embedding and self-sustaining pattern decay ([8c2cac4](https://github.com/AppSprout-dev/mnemonic/commit/8c2cac446bd8e155aa45784f03726db8ec603cee)), closes [#189](https://github.com/AppSprout-dev/mnemonic/issues/189)
+* add dreaming quality gate and event bus test determinism ([206ac5c](https://github.com/AppSprout-dev/mnemonic/commit/206ac5c1b3e6deedcf8e67fc53527944493b6755))
+* add dreaming quality gate and event bus test determinism ([3165465](https://github.com/AppSprout-dev/mnemonic/commit/31654653358e8b2af69441341f1882e5b0f9091b)), closes [#190](https://github.com/AppSprout-dev/mnemonic/issues/190)
+* add MMR diversity filter and encoding dedup ([#192](https://github.com/AppSprout-dev/mnemonic/issues/192), [#194](https://github.com/AppSprout-dev/mnemonic/issues/194)) ([59a9dbb](https://github.com/AppSprout-dev/mnemonic/commit/59a9dbb7de994368290091c43db45fe9184d803a))
+* externalize consolidation agent tunables to config ([9ca5052](https://github.com/AppSprout-dev/mnemonic/commit/9ca50525ceab3efa01f8a0bc49c894111ea3b4ee))
+* externalize consolidation agent tunables to config ([f05bdfc](https://github.com/AppSprout-dev/mnemonic/commit/f05bdfc79fa368957219cee6b6211a73fb417954)), closes [#187](https://github.com/AppSprout-dev/mnemonic/issues/187)
+* externalize perception and encoding tunables to config ([761a590](https://github.com/AppSprout-dev/mnemonic/commit/761a5904107733a26cca050e49a851746a2d15ee))
+* externalize perception and encoding tunables to config ([318e3de](https://github.com/AppSprout-dev/mnemonic/commit/318e3de377eab490af4d1241f93f8fd4f3f00222)), closes [#188](https://github.com/AppSprout-dev/mnemonic/issues/188)
+* externalize retrieval agent tunables to config ([f8abd3a](https://github.com/AppSprout-dev/mnemonic/commit/f8abd3a136a9bf0ac09bed42b714d55985df9773))
+* externalize retrieval agent tunables to config ([1065ff5](https://github.com/AppSprout-dev/mnemonic/commit/1065ff569b719e59475d82c40256b66b4a277fed)), closes [#186](https://github.com/AppSprout-dev/mnemonic/issues/186)
+* MMR diversity filter and encoding dedup ([d1df706](https://github.com/AppSprout-dev/mnemonic/commit/d1df7064569dcffac908727230b4f7b14c724475))
+* recall filters, project spread activation, feedback loop, session end ([fb2e519](https://github.com/AppSprout-dev/mnemonic/commit/fb2e5192bf75647c18ad42328200edcdc8f2a9b1))
+* recall filters, project spread activation, feedback loop, session end ([#193](https://github.com/AppSprout-dev/mnemonic/issues/193), [#195](https://github.com/AppSprout-dev/mnemonic/issues/195), [#196](https://github.com/AppSprout-dev/mnemonic/issues/196), [#197](https://github.com/AppSprout-dev/mnemonic/issues/197)) ([09dad2c](https://github.com/AppSprout-dev/mnemonic/commit/09dad2c099c96950712f47e9203d8c08d4b1c1e4))
+* store access snapshot in retrieval feedback ([3edbb65](https://github.com/AppSprout-dev/mnemonic/commit/3edbb65c28a7b480d40256ca31eff92fd0410b6c))
+* store access snapshot in retrieval feedback ([0b7473f](https://github.com/AppSprout-dev/mnemonic/commit/0b7473fc6035925eb4c112e580ff1be865fc3939)), closes [#184](https://github.com/AppSprout-dev/mnemonic/issues/184)
+
+
+### Bug Fixes
+
+* suppress filesystem events during git operations ([cd43497](https://github.com/AppSprout-dev/mnemonic/commit/cd43497f483fff7aa52586c335af493533d6783f))
+* suppress filesystem events during git operations ([86a760c](https://github.com/AppSprout-dev/mnemonic/commit/86a760c2e86b3dc811d7b0f538e090e9153658d8))
+
 ## [0.18.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.17.0...v0.18.0) (2026-03-18)
 
 
