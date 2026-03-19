@@ -272,6 +272,19 @@ func (MockStore) GetLLMUsageChart(context.Context, time.Time, int) ([]store.LLMC
 	return nil, nil
 }
 
+// --- MCP tool usage tracking ---
+
+func (MockStore) RecordToolUsage(context.Context, store.ToolUsageRecord) error { return nil }
+func (MockStore) GetToolUsageSummary(context.Context, time.Time) (store.ToolUsageSummary, error) {
+	return store.ToolUsageSummary{}, nil
+}
+func (MockStore) GetToolUsageLog(context.Context, time.Time, int) ([]store.ToolUsageRecord, error) {
+	return nil, nil
+}
+func (MockStore) GetToolUsageChart(context.Context, time.Time, int) ([]store.ToolChartBucket, error) {
+	return nil, nil
+}
+
 // --- Lifecycle ---
 
 func (MockStore) Close() error { return nil }

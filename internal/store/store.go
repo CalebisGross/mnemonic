@@ -117,6 +117,38 @@ type LLMChartBucket struct {
 	Errors           int       `json:"errors"`
 }
 
+// ToolUsageRecord captures metrics from a single MCP tool invocation.
+type ToolUsageRecord struct {
+	Timestamp    time.Time `json:"timestamp"`
+	ToolName     string    `json:"tool_name"`     // "recall", "remember", "feedback", etc.
+	SessionID    string    `json:"session_id"`
+	Project      string    `json:"project"`
+	LatencyMs    int64     `json:"latency_ms"`
+	Success      bool      `json:"success"`
+	ErrorMessage string    `json:"error_message,omitempty"`
+	QueryText    string    `json:"query_text,omitempty"`    // for recall/recall_project: the search query
+	ResultCount  int       `json:"result_count,omitempty"`  // for recall: number of memories returned
+	MemoryType   string    `json:"memory_type,omitempty"`   // for remember: decision/error/insight/etc.
+	Rating       string    `json:"rating,omitempty"`        // for feedback: helpful/partial/irrelevant
+	ResponseSize int       `json:"response_size,omitempty"` // response payload bytes
+}
+
+// ToolUsageSummary aggregates MCP tool usage metrics over a time period.
+type ToolUsageSummary struct {
+	TotalCalls   int                `json:"total_calls"`
+	AvgLatencyMs float64            `json:"avg_latency_ms"`
+	ErrorCount   int                `json:"error_count"`
+	ByTool       map[string]int     `json:"by_tool"`
+	ByProject    map[string]int     `json:"by_project"`
+}
+
+// ToolChartBucket holds pre-aggregated tool call counts for a single time bucket.
+type ToolChartBucket struct {
+	Timestamp time.Time `json:"timestamp"`
+	Calls     int       `json:"calls"`
+	Errors    int       `json:"errors"`
+}
+
 // StoreStatistics aggregates memory health metrics.
 type StoreStatistics struct {
 	TotalMemories         int       `json:"total_memories"`
@@ -433,6 +465,12 @@ type Store interface {
 	GetLLMUsageSummary(ctx context.Context, since time.Time) (LLMUsageSummary, error)
 	GetLLMUsageLog(ctx context.Context, since time.Time, limit int) ([]llm.LLMUsageRecord, error)
 	GetLLMUsageChart(ctx context.Context, since time.Time, bucketSecs int) ([]LLMChartBucket, error)
+
+	// --- MCP tool usage tracking ---
+	RecordToolUsage(ctx context.Context, record ToolUsageRecord) error
+	GetToolUsageSummary(ctx context.Context, since time.Time) (ToolUsageSummary, error)
+	GetToolUsageLog(ctx context.Context, since time.Time, limit int) ([]ToolUsageRecord, error)
+	GetToolUsageChart(ctx context.Context, since time.Time, bucketSecs int) ([]ToolChartBucket, error)
 
 	// --- Lifecycle ---
 	Close() error

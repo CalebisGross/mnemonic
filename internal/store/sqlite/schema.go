@@ -388,6 +388,27 @@ func InitSchema(db *sql.DB) error {
 	// Backfill type from raw_memories where possible
 	_, _ = db.Exec(`UPDATE memories SET type = (SELECT raw_memories.type FROM raw_memories WHERE raw_memories.id = memories.raw_id) WHERE type IS NULL AND raw_id IS NOT NULL AND raw_id != ''`)
 
+	// Migration 010: MCP tool usage tracking
+	_, _ = db.Exec(`
+CREATE TABLE IF NOT EXISTS tool_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    tool_name TEXT NOT NULL,
+    session_id TEXT NOT NULL DEFAULT '',
+    project TEXT NOT NULL DEFAULT '',
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    success INTEGER NOT NULL DEFAULT 1,
+    error_message TEXT NOT NULL DEFAULT '',
+    query_text TEXT NOT NULL DEFAULT '',
+    result_count INTEGER NOT NULL DEFAULT 0,
+    memory_type TEXT NOT NULL DEFAULT '',
+    rating TEXT NOT NULL DEFAULT '',
+    response_size INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_tool_usage_timestamp ON tool_usage(timestamp);
+CREATE INDEX IF NOT EXISTS idx_tool_usage_tool ON tool_usage(tool_name);
+`)
+
 	// Migration 009: Add access_snapshot column to retrieval_feedback
 	_, err = db.Exec(`ALTER TABLE retrieval_feedback ADD COLUMN access_snapshot JSON`)
 	if err != nil && !isAlterTableDuplicateColumn(err) {

@@ -121,6 +121,9 @@ func (s *Server) registerRoutes() {
 	// LLM usage monitoring
 	s.mux.HandleFunc("GET /api/v1/llm/usage", routes.HandleLLMUsage(s.deps.Store, s.deps.Log))
 
+	// MCP tool usage analytics
+	s.mux.HandleFunc("GET /api/v1/tool/usage", routes.HandleToolUsage(s.deps.Store, s.deps.Log))
+
 	// Graph data for D3.js visualization
 	s.mux.HandleFunc("GET /api/v1/graph", routes.HandleGraph(s.deps.Store, s.deps.Log))
 

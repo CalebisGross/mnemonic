@@ -214,6 +214,7 @@ func (srv *MCPServer) handleToolCall(ctx context.Context, req *jsonRPCRequest) *
 		return errorResponse(req.ID, -32602, "Invalid params")
 	}
 
+	start := time.Now()
 	var result interface{}
 	var toolErr error
 
@@ -248,11 +249,56 @@ func (srv *MCPServer) handleToolCall(ctx context.Context, req *jsonRPCRequest) *
 		return errorResponse(req.ID, -32602, fmt.Sprintf("Unknown tool: %s", params.Name))
 	}
 
+	// Record tool usage metrics
+	srv.recordToolUsage(ctx, params, start, result, toolErr)
+
 	if toolErr != nil {
 		return successResponse(req.ID, toolError(toolErr.Error()))
 	}
 
 	return successResponse(req.ID, result)
+}
+
+// recordToolUsage logs metrics for an MCP tool invocation.
+func (srv *MCPServer) recordToolUsage(ctx context.Context, params toolCallParams, start time.Time, result interface{}, toolErr error) {
+	rec := store.ToolUsageRecord{
+		Timestamp: start,
+		ToolName:  params.Name,
+		SessionID: srv.sessionID,
+		Project:   srv.project,
+		LatencyMs: time.Since(start).Milliseconds(),
+		Success:   toolErr == nil,
+	}
+	if toolErr != nil {
+		rec.ErrorMessage = toolErr.Error()
+	}
+
+	// Extract tool-specific context from arguments
+	switch params.Name {
+	case "recall", "recall_project", "recall_timeline":
+		if q, ok := params.Arguments["query"].(string); ok {
+			rec.QueryText = q
+		}
+	case "remember":
+		if t, ok := params.Arguments["type"].(string); ok {
+			rec.MemoryType = t
+		}
+	case "feedback":
+		if r, ok := params.Arguments["quality"].(string); ok {
+			rec.Rating = r
+		}
+	}
+
+	// Measure response size
+	if result != nil {
+		if respBytes, err := json.Marshal(result); err == nil {
+			rec.ResponseSize = len(respBytes)
+		}
+	}
+
+	if err := srv.store.RecordToolUsage(ctx, rec); err != nil {
+		srv.log.Warn("failed to record tool usage", "tool", params.Name, "error", err)
+	}
 }
 
 // handleRemember stores a new memory in the system.

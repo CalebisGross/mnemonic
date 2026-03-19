@@ -2184,3 +2184,136 @@ func cosineSimilarity(a, b []float32) float32 {
 
 	return dotProduct / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB))))
 }
+
+// --- MCP tool usage tracking ---
+
+// RecordToolUsage inserts a tool usage record.
+func (s *SQLiteStore) RecordToolUsage(ctx context.Context, record store.ToolUsageRecord) error {
+	success := 0
+	if record.Success {
+		success = 1
+	}
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO tool_usage (timestamp, tool_name, session_id, project, latency_ms, success, error_message, query_text, result_count, memory_type, rating, response_size)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		record.Timestamp.Format(time.RFC3339), record.ToolName, record.SessionID, record.Project,
+		record.LatencyMs, success, record.ErrorMessage,
+		record.QueryText, record.ResultCount, record.MemoryType, record.Rating, record.ResponseSize)
+	if err != nil {
+		return fmt.Errorf("failed to record tool usage: %w", err)
+	}
+	return nil
+}
+
+// GetToolUsageSummary returns aggregated tool usage metrics since the given time.
+func (s *SQLiteStore) GetToolUsageSummary(ctx context.Context, since time.Time) (store.ToolUsageSummary, error) {
+	sinceStr := since.Format(time.RFC3339)
+	summary := store.ToolUsageSummary{
+		ByTool:    make(map[string]int),
+		ByProject: make(map[string]int),
+	}
+
+	// Totals
+	row := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*), COALESCE(AVG(latency_ms), 0), COALESCE(SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END), 0)
+		 FROM tool_usage WHERE timestamp >= ?`, sinceStr)
+	if err := row.Scan(&summary.TotalCalls, &summary.AvgLatencyMs, &summary.ErrorCount); err != nil {
+		return summary, fmt.Errorf("tool usage summary: %w", err)
+	}
+
+	// By tool
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT tool_name, COUNT(*) FROM tool_usage WHERE timestamp >= ? GROUP BY tool_name`, sinceStr)
+	if err != nil {
+		return summary, fmt.Errorf("tool usage by tool: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var name string
+		var count int
+		if err := rows.Scan(&name, &count); err == nil {
+			summary.ByTool[name] = count
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return summary, fmt.Errorf("tool usage by tool iteration: %w", err)
+	}
+
+	// By project
+	rows2, err := s.db.QueryContext(ctx,
+		`SELECT project, COUNT(*) FROM tool_usage WHERE timestamp >= ? AND project != '' GROUP BY project`, sinceStr)
+	if err != nil {
+		return summary, fmt.Errorf("tool usage by project: %w", err)
+	}
+	defer func() { _ = rows2.Close() }()
+	for rows2.Next() {
+		var proj string
+		var count int
+		if err := rows2.Scan(&proj, &count); err == nil {
+			summary.ByProject[proj] = count
+		}
+	}
+	if err := rows2.Err(); err != nil {
+		return summary, fmt.Errorf("tool usage by project iteration: %w", err)
+	}
+
+	return summary, nil
+}
+
+// GetToolUsageLog returns recent tool usage records.
+func (s *SQLiteStore) GetToolUsageLog(ctx context.Context, since time.Time, limit int) ([]store.ToolUsageRecord, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT timestamp, tool_name, session_id, project, latency_ms, success, error_message, query_text, result_count, memory_type, rating, response_size
+		 FROM tool_usage WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT ?`,
+		since.Format(time.RFC3339), limit)
+	if err != nil {
+		return nil, fmt.Errorf("tool usage log: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []store.ToolUsageRecord
+	for rows.Next() {
+		var rec store.ToolUsageRecord
+		var tsStr string
+		var success int
+		if err := rows.Scan(&tsStr, &rec.ToolName, &rec.SessionID, &rec.Project,
+			&rec.LatencyMs, &success, &rec.ErrorMessage, &rec.QueryText,
+			&rec.ResultCount, &rec.MemoryType, &rec.Rating, &rec.ResponseSize); err != nil {
+			return nil, fmt.Errorf("scan tool usage: %w", err)
+		}
+		rec.Timestamp, _ = time.Parse(time.RFC3339, tsStr)
+		rec.Success = success == 1
+		results = append(results, rec)
+	}
+	return results, rows.Err()
+}
+
+// GetToolUsageChart returns pre-aggregated tool call counts for charting.
+func (s *SQLiteStore) GetToolUsageChart(ctx context.Context, since time.Time, bucketSecs int) ([]store.ToolChartBucket, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT
+			strftime('%Y-%m-%dT%H:%M:%S', datetime((strftime('%s', timestamp) / ?) * ?, 'unixepoch')) as bucket,
+			COUNT(*) as calls,
+			SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as errors
+		 FROM tool_usage
+		 WHERE timestamp >= ?
+		 GROUP BY bucket
+		 ORDER BY bucket`,
+		bucketSecs, bucketSecs, since.Format(time.RFC3339))
+	if err != nil {
+		return nil, fmt.Errorf("tool usage chart: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var buckets []store.ToolChartBucket
+	for rows.Next() {
+		var b store.ToolChartBucket
+		var tsStr string
+		if err := rows.Scan(&tsStr, &b.Calls, &b.Errors); err != nil {
+			return nil, fmt.Errorf("scan tool chart bucket: %w", err)
+		}
+		b.Timestamp, _ = time.Parse("2006-01-02T15:04:05", tsStr)
+		buckets = append(buckets, b)
+	}
+	return buckets, rows.Err()
+}
