@@ -114,8 +114,19 @@ Pre-registered experiments for Felix-LM v3 100M pretraining on mnemonic's curate
 - **Variable:** Learning rate (6e-4, 1e-3, 2e-3) x weight decay (0.1, 0.05)
 - **Control:** LR 6e-4 / WD 0.1 (current default from train_mnemonic_lm.py)
 - **Prediction:** LR 1e-3 beats 6e-4 by 5-15% lower loss at 4000 micro-steps. WD 0.05 vs 0.1 will show <2% difference (WD matters more in longer runs).
-- **Config:** v3_mnemonic_100m, batch 12, accum 22, 4000 micro-steps, torch.compile, wandb group hp_sweep_v3_100m
+- **Config:** v3_mnemonic_100m, batch 10, accum 4, 4000 micro-steps (1000 optimizer steps), torch.compile, wandb group hp_sweep_v3_100m
 - **Hardware:** AMD RX 7800 XT 16GB, ROCm, Linux x86_64
-- **Result:** (pending)
-- **Verdict:** (pending)
+- **Note:** Originally attempted batch 12 / accum 22 but OOM-killed twice at ~step 2000. Dropped to batch 10 / accum 4 with 90% VRAM cap. Batch-12 results lost (never written to TSV).
+- **Result (batch 10, 2 of 5 complete):**
+
+| Run | LR | WD | Loss | PPL | Delta vs control | Time |
+|-----|----|----|------|-----|------------------|------|
+| sweep_lr6e4_wd01 (control) | 6e-4 | 0.1 | 4.847 | 127.4 | — | 8297s |
+| sweep_lr1e3_wd01 | 1e-3 | 0.1 | 4.557 | 95.3 | -6.0% loss, -25% PPL | 8329s |
+| sweep_lr2e3_wd01 | 2e-3 | 0.1 | (pending) | | | |
+| sweep_lr6e4_wd005 | 6e-4 | 0.05 | (pending) | | | |
+| sweep_lr1e3_wd005 | 1e-3 | 0.05 | (pending) | | | |
+
+- **Early observation:** LR 1e-3 beats 6e-4 by 6% lower loss at 4000 micro-steps, consistent with prediction (5-15%). Next run (LR 2e-3) will test whether the optimum is higher still or if 1e-3 is the sweet spot.
+- **Verdict:** (pending — 3 runs remaining)
 - **Analysis:** (pending)

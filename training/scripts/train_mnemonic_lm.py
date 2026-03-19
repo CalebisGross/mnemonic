@@ -203,9 +203,10 @@ def train(config, args):
     # wandb
     if not args.no_wandb:
         import wandb
+        run_name = args.wandb_name or f"{args.config}_lr{args.lr}_wd{args.weight_decay}"
         wandb.init(
             project="mnemonic-lm",
-            name=args.config,
+            name=run_name,
             config={
                 "model_params": n_params,
                 "config": args.config,
@@ -337,9 +338,10 @@ def main():
     parser.add_argument("--weight-decay", type=float, default=0.1)
     parser.add_argument("--warmup-steps", type=int, default=0, help="0=auto (10%% of total)")
     parser.add_argument("--grad-clip", type=float, default=1.0)
-    parser.add_argument("--max-steps", type=int, default=100000)
+    parser.add_argument("--max-steps", type=int, default=100000, help="Total micro-steps (forward passes). Optimizer steps = max_steps / grad_accum.")
     parser.add_argument("--save-interval", type=int, default=5000)
     parser.add_argument("--no-wandb", action="store_true")
+    parser.add_argument("--wandb-name", type=str, default=None, help="Custom wandb run name. Defaults to config_lr{lr}_wd{wd}.")
     parser.add_argument("--dtype", type=str, default="bf16", choices=["bf16", "fp32"])
     parser.add_argument("--beta2", type=float, default=0.95)
     parser.add_argument("--compile", action="store_true")
