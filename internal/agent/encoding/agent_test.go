@@ -2087,3 +2087,51 @@ func TestCompressionResponseRoundTrip(t *testing.T) {
 		t.Errorf("expected 1 topic after round-trip, got %d", len(decoded.StructuredConcepts.Topics))
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Tests for findDuplicate
+// ---------------------------------------------------------------------------
+
+func TestFindDuplicate(t *testing.T) {
+	t.Run("returns first result above threshold", func(t *testing.T) {
+		results := []store.RetrievalResult{
+			{Memory: store.Memory{ID: "a"}, Score: 0.95},
+			{Memory: store.Memory{ID: "b"}, Score: 0.85},
+		}
+		dup := findDuplicate(results, 0.9)
+		if dup == nil {
+			t.Fatal("expected duplicate to be found")
+		}
+		if dup.Memory.ID != "a" {
+			t.Errorf("expected id 'a', got %q", dup.Memory.ID)
+		}
+	})
+
+	t.Run("returns nil when nothing above threshold", func(t *testing.T) {
+		results := []store.RetrievalResult{
+			{Memory: store.Memory{ID: "a"}, Score: 0.85},
+			{Memory: store.Memory{ID: "b"}, Score: 0.70},
+		}
+		dup := findDuplicate(results, 0.9)
+		if dup != nil {
+			t.Errorf("expected nil, got %q", dup.Memory.ID)
+		}
+	})
+
+	t.Run("empty results returns nil", func(t *testing.T) {
+		dup := findDuplicate(nil, 0.9)
+		if dup != nil {
+			t.Error("expected nil for empty results")
+		}
+	})
+
+	t.Run("exact threshold match returns result", func(t *testing.T) {
+		results := []store.RetrievalResult{
+			{Memory: store.Memory{ID: "a"}, Score: 0.9},
+		}
+		dup := findDuplicate(results, 0.9)
+		if dup == nil {
+			t.Fatal("expected duplicate at exact threshold")
+		}
+	})
+}

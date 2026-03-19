@@ -51,6 +51,10 @@ type RetrievalConfig struct {
 	// Significance multipliers
 	CriticalBoost  float32 // multiplier for "critical" significance memories (default: 1.2)
 	ImportantBoost float32 // multiplier for "important" significance memories (default: 1.1)
+
+	// Diversity filtering (MMR)
+	DiversityLambda    float32 // 0=max diversity, 1=pure relevance (default: 0.7)
+	DiversityThreshold float32 // cosine sim above which memories are near-duplicates (default: 0.85)
 }
 
 // DefaultConfig returns sensible defaults for retrieval configuration.
@@ -84,6 +88,9 @@ func DefaultConfig() RetrievalConfig {
 
 		CriticalBoost:  1.2,
 		ImportantBoost: 1.1,
+
+		DiversityLambda:    0.7,
+		DiversityThreshold: 0.85,
 	}
 }
 
@@ -248,6 +255,9 @@ func (ra *RetrievalAgent) Query(ctx context.Context, req QueryRequest) (QueryRes
 	if len(ranked) > maxResults {
 		ranked = ranked[:maxResults]
 	}
+
+	// Step 8b: Apply MMR diversity filter to reduce near-duplicate results
+	ranked = ra.applyDiversityFilter(ranked)
 
 	// Step 9: Side effect - increment access counts for returned memories
 	for _, result := range ranked {
@@ -972,4 +982,109 @@ func (ra *RetrievalAgent) applyFilters(results []store.RetrievalResult, req Quer
 		filtered = append(filtered, r)
 	}
 	return filtered
+}
+
+// cosineSimilarity computes the cosine similarity between two embedding vectors.
+// Returns 0.0 if either vector is empty or has zero magnitude.
+func cosineSimilarity(a, b []float32) float32 {
+	if len(a) != len(b) || len(a) == 0 {
+		return 0.0
+	}
+	var dot, normA, normB float64
+	for i := range a {
+		dot += float64(a[i]) * float64(b[i])
+		normA += float64(a[i]) * float64(a[i])
+		normB += float64(b[i]) * float64(b[i])
+	}
+	if normA == 0 || normB == 0 {
+		return 0.0
+	}
+	return float32(dot / (math.Sqrt(normA) * math.Sqrt(normB)))
+}
+
+// applyDiversityFilter reranks results using Maximal Marginal Relevance (MMR).
+// It iteratively selects results that balance relevance (original score) against
+// diversity (dissimilarity to already-selected results). Lambda controls the
+// trade-off: 1.0 = pure relevance, 0.0 = max diversity.
+func (ra *RetrievalAgent) applyDiversityFilter(results []store.RetrievalResult) []store.RetrievalResult {
+	if len(results) <= 1 {
+		return results
+	}
+
+	lambda := f32Or(ra.config.DiversityLambda, 0.7)
+	threshold := f32Or(ra.config.DiversityThreshold, 0.85)
+
+	// Normalize scores to [0,1] for fair MMR blending
+	maxScore := results[0].Score // results are pre-sorted by score descending
+	if maxScore <= 0 {
+		return results
+	}
+
+	selected := make([]store.RetrievalResult, 0, len(results))
+	remaining := make([]store.RetrievalResult, len(results))
+	copy(remaining, results)
+
+	// Always pick the top-ranked result first
+	selected = append(selected, remaining[0])
+	remaining = remaining[1:]
+
+	for len(remaining) > 0 {
+		bestIdx := -1
+		bestMMR := float32(-math.MaxFloat32)
+
+		for i, candidate := range remaining {
+			// Skip candidates without embeddings — they can't be compared for diversity
+			if len(candidate.Memory.Embedding) == 0 {
+				// Give them a neutral MMR based only on relevance
+				mmr := lambda * (candidate.Score / maxScore)
+				if mmr > bestMMR {
+					bestMMR = mmr
+					bestIdx = i
+				}
+				continue
+			}
+
+			// Find max similarity to any already-selected result
+			maxSim := float32(0.0)
+			for _, sel := range selected {
+				if len(sel.Memory.Embedding) == 0 {
+					continue
+				}
+				sim := cosineSimilarity(candidate.Memory.Embedding, sel.Memory.Embedding)
+				if sim > maxSim {
+					maxSim = sim
+				}
+			}
+
+			// If this candidate is a near-duplicate of something already selected, skip it entirely
+			if maxSim >= threshold {
+				ra.log.Debug("diversity filter: dropping near-duplicate",
+					"candidate_id", candidate.Memory.ID,
+					"max_similarity", maxSim,
+					"threshold", threshold)
+				continue
+			}
+
+			// MMR score: balance relevance vs diversity
+			relevance := candidate.Score / maxScore
+			diversity := 1.0 - maxSim
+			mmr := lambda*relevance + (1.0-lambda)*diversity
+
+			if mmr > bestMMR {
+				bestMMR = mmr
+				bestIdx = i
+			}
+		}
+
+		if bestIdx < 0 {
+			// All remaining candidates are near-duplicates
+			break
+		}
+
+		selected = append(selected, remaining[bestIdx])
+		// Remove selected from remaining
+		remaining = append(remaining[:bestIdx], remaining[bestIdx+1:]...)
+	}
+
+	return selected
 }

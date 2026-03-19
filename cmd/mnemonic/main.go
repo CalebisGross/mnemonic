@@ -1743,6 +1743,9 @@ func buildRetrievalConfig(cfg *config.Config) retrieval.RetrievalConfig {
 
 		CriticalBoost:  float32(cfg.Retrieval.CriticalBoost),
 		ImportantBoost: float32(cfg.Retrieval.ImportantBoost),
+
+		DiversityLambda:    float32(cfg.Retrieval.DiversityLambda),
+		DiversityThreshold: float32(cfg.Retrieval.DiversityThreshold),
 	}
 }
 
@@ -2764,6 +2767,7 @@ func buildEncodingConfig(cfg *config.Config) encoding.EncodingConfig {
 		BackoffMaxSec:           cfg.Encoding.BackoffMaxSec,
 		BatchSizeEvent:          cfg.Encoding.BatchSizeEvent,
 		BatchSizePoll:           cfg.Encoding.BatchSizePoll,
+		DeduplicationThreshold:  float32(cfg.Encoding.DeduplicationThreshold),
 	}
 }
 

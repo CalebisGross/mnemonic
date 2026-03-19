@@ -71,6 +71,7 @@ type EncodingConfig struct {
 	BatchSizeEvent          int      // batch size for EncodeAllPending (default: 50)
 	BatchSizePoll           int      // batch size for polling loop (default: 10)
 	EmbedBatchSize          int      // max memories to batch-embed in one call (default 10)
+	DeduplicationThreshold  float32  // cosine sim above which new memory is a duplicate (default: 0.9)
 }
 
 // compressedMemory holds the intermediate state between compression and embedding.
@@ -663,6 +664,33 @@ func (ea *EncodingAgent) finalizeEncodedMemory(ctx context.Context, raw store.Ra
 		if err != nil {
 			ea.log.Warn("failed to search for similar memories", "raw_id", raw.ID, "error", err)
 		} else {
+			// Check for near-duplicate before creating a new memory
+			dedupThreshold := ea.config.DeduplicationThreshold
+			if dedupThreshold <= 0 {
+				dedupThreshold = 0.9
+			}
+			if dup := findDuplicate(similar, dedupThreshold); dup != nil {
+				ea.log.Info("dedup: boosting existing memory instead of creating duplicate",
+					"raw_id", raw.ID,
+					"existing_id", dup.Memory.ID,
+					"similarity", dup.Score)
+				// Boost existing memory's salience (capped at 1.0)
+				newSalience := dup.Memory.Salience + 0.05
+				if newSalience > 1.0 {
+					newSalience = 1.0
+				}
+				if err := ea.store.UpdateSalience(ctx, dup.Memory.ID, newSalience); err != nil {
+					ea.log.Warn("dedup: failed to boost salience", "memory_id", dup.Memory.ID, "error", err)
+				}
+				if err := ea.store.IncrementAccess(ctx, dup.Memory.ID); err != nil {
+					ea.log.Warn("dedup: failed to increment access", "memory_id", dup.Memory.ID, "error", err)
+				}
+				if err := ea.store.MarkRawProcessed(ctx, raw.ID); err != nil {
+					ea.log.Warn("dedup: failed to mark raw as processed", "raw_id", raw.ID, "error", err)
+				}
+				return nil
+			}
+
 			for _, result := range similar {
 				if result.Score > ea.config.SimilarityThreshold {
 					relationType := ea.classifyRelationship(ctx, compression, result.Memory, raw)
@@ -1784,4 +1812,14 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return string(runes[:maxLen]) + "..."
+}
+
+// findDuplicate returns the first result above the dedup threshold, or nil.
+func findDuplicate(results []store.RetrievalResult, threshold float32) *store.RetrievalResult {
+	for i := range results {
+		if results[i].Score >= threshold {
+			return &results[i]
+		}
+	}
+	return nil
 }

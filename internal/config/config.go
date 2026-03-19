@@ -160,17 +160,18 @@ type EncodingConfig struct {
 	EnableLLMClassification  bool     `yaml:"enable_llm_classification"`
 	CompletionMaxTokens      int      `yaml:"completion_max_tokens"`
 	ConceptVocabulary        []string `yaml:"concept_vocabulary"`
-	SimilarityThreshold      float64  `yaml:"similarity_threshold"`  // min cosine similarity for associations (default: 0.3)
-	PollingIntervalSec       int      `yaml:"polling_interval_sec"`  // seconds between unprocessed-memory polls (default: 5)
-	MaxRetries               int      `yaml:"max_retries"`           // encoding attempts before skipping (default: 3)
-	MaxLLMContentChars       int      `yaml:"max_llm_content_chars"` // max chars sent to LLM for compression (default: 8000)
-	MaxEmbeddingChars        int      `yaml:"max_embedding_chars"`   // max chars sent to embedding model (default: 4000)
-	TemporalWindowMin        int      `yaml:"temporal_window_min"`   // minutes for temporal relationship detection (default: 5)
-	BackoffThreshold         int      `yaml:"backoff_threshold"`     // consecutive failures before backoff (default: 3)
-	BackoffBaseSec           int      `yaml:"backoff_base_sec"`      // base backoff per failure in seconds (default: 30)
-	BackoffMaxSec            int      `yaml:"backoff_max_sec"`       // maximum backoff in seconds (default: 300)
-	BatchSizeEvent           int      `yaml:"batch_size_event"`      // batch size for EncodeAllPending (default: 50)
-	BatchSizePoll            int      `yaml:"batch_size_poll"`       // batch size for polling loop (default: 10)
+	SimilarityThreshold      float64  `yaml:"similarity_threshold"`    // min cosine similarity for associations (default: 0.3)
+	PollingIntervalSec       int      `yaml:"polling_interval_sec"`    // seconds between unprocessed-memory polls (default: 5)
+	MaxRetries               int      `yaml:"max_retries"`             // encoding attempts before skipping (default: 3)
+	MaxLLMContentChars       int      `yaml:"max_llm_content_chars"`   // max chars sent to LLM for compression (default: 8000)
+	MaxEmbeddingChars        int      `yaml:"max_embedding_chars"`     // max chars sent to embedding model (default: 4000)
+	TemporalWindowMin        int      `yaml:"temporal_window_min"`     // minutes for temporal relationship detection (default: 5)
+	BackoffThreshold         int      `yaml:"backoff_threshold"`       // consecutive failures before backoff (default: 3)
+	BackoffBaseSec           int      `yaml:"backoff_base_sec"`        // base backoff per failure in seconds (default: 30)
+	BackoffMaxSec            int      `yaml:"backoff_max_sec"`         // maximum backoff in seconds (default: 300)
+	BatchSizeEvent           int      `yaml:"batch_size_event"`        // batch size for EncodeAllPending (default: 50)
+	BatchSizePoll            int      `yaml:"batch_size_poll"`         // batch size for polling loop (default: 10)
+	DeduplicationThreshold   float64  `yaml:"deduplication_threshold"` // cosine sim above which new memory is a duplicate (default: 0.9)
 }
 
 // ConsolidationConfig holds consolidation settings.
@@ -251,6 +252,10 @@ type RetrievalConfig struct {
 	// Significance multipliers
 	CriticalBoost  float64 `yaml:"critical_boost"`
 	ImportantBoost float64 `yaml:"important_boost"`
+
+	// Diversity filtering (MMR)
+	DiversityLambda    float64 `yaml:"diversity_lambda"`    // 0=max diversity, 1=pure relevance (default 0.7)
+	DiversityThreshold float64 `yaml:"diversity_threshold"` // cosine sim above which memories are near-duplicates (default 0.85)
 }
 
 // MetacognitionConfig holds metacognition settings.
@@ -520,6 +525,7 @@ func Default() *Config {
 			BackoffMaxSec:            300,
 			BatchSizeEvent:           50,
 			BatchSizePoll:            10,
+			DeduplicationThreshold:   0.9,
 		},
 		Consolidation: ConsolidationConfig{
 			Enabled:                   true,
@@ -583,6 +589,9 @@ func Default() *Config {
 
 			CriticalBoost:  1.2,
 			ImportantBoost: 1.1,
+
+			DiversityLambda:    0.7,
+			DiversityThreshold: 0.85,
 		},
 		Metacognition: MetacognitionConfig{
 			Enabled:     true,
