@@ -2990,6 +2990,14 @@ func dedupCommand(configPath string, dryRun bool) {
 	} else {
 		fmt.Printf("  Archived:     %d memories\n", totalArchived)
 		fmt.Printf("  Associations: %d transferred\n", totalAssocTransferred)
+
+		// Clean up dangling associations pointing to archived memories
+		pruned, err := db.PruneOrphanedAssociations(ctx)
+		if err != nil {
+			log.Warn("failed to prune orphaned associations", "error", err)
+		} else {
+			fmt.Printf("  Orphaned assocs pruned: %d\n", pruned)
+		}
 	}
 }
 

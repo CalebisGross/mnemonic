@@ -1215,9 +1215,9 @@ func (s *SQLiteStore) GetAssociations(ctx context.Context, memoryID string) ([]s
 
 // UpdateAssociationStrength updates the strength of an association.
 func (s *SQLiteStore) UpdateAssociationStrength(ctx context.Context, sourceID, targetID string, strength float32) error {
-	query := `UPDATE associations SET strength = ? WHERE source_id = ? AND target_id = ?`
+	query := `UPDATE associations SET strength = ? WHERE (source_id = ? AND target_id = ?) OR (source_id = ? AND target_id = ?)`
 
-	result, err := s.db.ExecContext(ctx, query, strength, sourceID, targetID)
+	result, err := s.db.ExecContext(ctx, query, strength, sourceID, targetID, targetID, sourceID)
 	if err != nil {
 		return fmt.Errorf("failed to update association strength: %w", err)
 	}
@@ -1236,9 +1236,9 @@ func (s *SQLiteStore) UpdateAssociationStrength(ctx context.Context, sourceID, t
 
 // UpdateAssociationType updates the relation type of an existing association.
 func (s *SQLiteStore) UpdateAssociationType(ctx context.Context, sourceID, targetID string, relationType string) error {
-	query := `UPDATE associations SET relation_type = ? WHERE source_id = ? AND target_id = ?`
+	query := `UPDATE associations SET relation_type = ? WHERE (source_id = ? AND target_id = ?) OR (source_id = ? AND target_id = ?)`
 
-	result, err := s.db.ExecContext(ctx, query, relationType, sourceID, targetID)
+	result, err := s.db.ExecContext(ctx, query, relationType, sourceID, targetID, targetID, sourceID)
 	if err != nil {
 		return fmt.Errorf("failed to update association type: %w", err)
 	}
@@ -1257,9 +1257,10 @@ func (s *SQLiteStore) UpdateAssociationType(ctx context.Context, sourceID, targe
 
 // ActivateAssociation activates an association, updating last_activated and incrementing activation_count.
 func (s *SQLiteStore) ActivateAssociation(ctx context.Context, sourceID, targetID string) error {
-	query := `UPDATE associations SET last_activated = ?, activation_count = activation_count + 1 WHERE source_id = ? AND target_id = ?`
+	query := `UPDATE associations SET last_activated = ?, activation_count = activation_count + 1
+		WHERE (source_id = ? AND target_id = ?) OR (source_id = ? AND target_id = ?)`
 
-	result, err := s.db.ExecContext(ctx, query, time.Now().Format(time.RFC3339), sourceID, targetID)
+	result, err := s.db.ExecContext(ctx, query, time.Now().Format(time.RFC3339), sourceID, targetID, targetID, sourceID)
 	if err != nil {
 		return fmt.Errorf("failed to activate association: %w", err)
 	}
@@ -1283,6 +1284,25 @@ func (s *SQLiteStore) PruneWeakAssociations(ctx context.Context, strengthThresho
 	result, err := s.db.ExecContext(ctx, query, strengthThreshold)
 	if err != nil {
 		return 0, fmt.Errorf("failed to prune weak associations: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}
+
+// PruneOrphanedAssociations removes associations where either end points to a non-active memory.
+func (s *SQLiteStore) PruneOrphanedAssociations(ctx context.Context) (int, error) {
+	query := `DELETE FROM associations WHERE
+		source_id NOT IN (SELECT id FROM memories WHERE state = 'active') OR
+		target_id NOT IN (SELECT id FROM memories WHERE state = 'active')`
+
+	result, err := s.db.ExecContext(ctx, query)
+	if err != nil {
+		return 0, fmt.Errorf("failed to prune orphaned associations: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
