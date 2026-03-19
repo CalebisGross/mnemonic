@@ -61,6 +61,15 @@ type EncodingConfig struct {
 	CoachingFile            string   // path to coaching.yaml; empty = no coaching
 	ExcludePatterns         []string // paths matching these patterns are skipped (defense-in-depth)
 	ConceptVocabulary       []string // controlled vocabulary for concept extraction; empty = free-form
+	EmbedBatchSize          int      // max memories to batch-embed in one call (default 10)
+}
+
+// compressedMemory holds the intermediate state between compression and embedding.
+type compressedMemory struct {
+	rawID         string
+	raw           store.RawMemory
+	compression   *compressionResponse
+	embeddingText string
 }
 
 // DefaultConceptVocabulary is the default controlled vocabulary for concept extraction.
@@ -433,12 +442,9 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 
 	ea.log.Debug("polling found unprocessed memories", "count", len(unprocessed))
 
-	consecutiveFailures := 0
-
+	// Filter and claim memories for processing
+	var toProcess []store.RawMemory
 	for _, raw := range unprocessed {
-		// Defense-in-depth: skip raw memories whose path matches an exclude pattern.
-		// These should have been filtered at the watcher/perception layer, but if
-		// they leaked through (e.g., added before patterns existed), catch them here.
 		if path, ok := raw.Metadata["path"]; ok {
 			if pathStr, ok := path.(string); ok && pathStr != "" {
 				if filesystem.MatchesExcludePattern(pathStr, ea.config.ExcludePatterns) {
@@ -449,16 +455,13 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 			}
 		}
 
-		// Skip memories that have exceeded max retries
 		ea.processingMutex.Lock()
 		retries := ea.failureCounts[raw.ID]
 		if retries >= maxRetries {
-			delete(ea.failureCounts, raw.ID) // clean up stale entry
+			delete(ea.failureCounts, raw.ID)
 			ea.processingMutex.Unlock()
 			continue
 		}
-
-		// Prevent duplicate processing
 		if ea.processingMemories[raw.ID] {
 			ea.processingMutex.Unlock()
 			continue
@@ -466,63 +469,293 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 		ea.processingMemories[raw.ID] = true
 		ea.processingMutex.Unlock()
 
-		// Process sequentially — local LLMs serialize requests internally,
-		// so concurrent goroutines just cause timeouts and fallback encodings.
-		if err := ea.encodeMemory(ctx, raw.ID); err != nil {
-			ea.processingMutex.Lock()
-			ea.failureCounts[raw.ID]++
-			count := ea.failureCounts[raw.ID]
-			ea.processingMutex.Unlock()
-
-			consecutiveFailures++
-
-			if count >= maxRetries {
-				ea.log.Warn("encoding permanently failed, marking as processed",
-					"raw_id", raw.ID, "attempts", count, "error", err)
-				// Mark as processed so it stops retrying
-				_ = ea.store.MarkRawProcessed(ctx, raw.ID)
-				// Clean up failure tracking to prevent unbounded map growth
-				ea.processingMutex.Lock()
-				delete(ea.failureCounts, raw.ID)
-				ea.processingMutex.Unlock()
-			} else {
-				ea.log.Warn("encoding failed, will retry later",
-					"raw_id", raw.ID, "attempt", count, "max", maxRetries, "error", err)
-			}
-
-			// If all attempts in this batch are failing, the LLM is probably
-			// down — apply backoff to avoid hammering it
-			if consecutiveFailures >= 3 {
-				backoff := time.Duration(consecutiveFailures) * 30 * time.Second
-				if backoff > 5*time.Minute {
-					backoff = 5 * time.Minute
-				}
-				ea.processingMutex.Lock()
-				ea.backoffUntil = time.Now().Add(backoff)
-				ea.processingMutex.Unlock()
-				ea.log.Warn("multiple encoding failures, backing off",
-					"consecutive_failures", consecutiveFailures,
-					"backoff_seconds", int(backoff.Seconds()))
-
-				ea.processingMutex.Lock()
-				delete(ea.processingMemories, raw.ID)
-				ea.processingMutex.Unlock()
-				break
-			}
-		} else {
-			// Success — reset failure tracking for this ID and clear consecutive counter
-			ea.processingMutex.Lock()
-			delete(ea.failureCounts, raw.ID)
-			ea.processingMutex.Unlock()
-			consecutiveFailures = 0
-		}
-
-		ea.processingMutex.Lock()
-		delete(ea.processingMemories, raw.ID)
-		ea.processingMutex.Unlock()
+		toProcess = append(toProcess, raw)
 	}
 
+	if len(toProcess) == 0 {
+		return nil
+	}
+
+	// Phase 1: Compress all memories (individual LLM calls)
+	var compressed []compressedMemory
+	consecutiveFailures := 0
+	for _, raw := range toProcess {
+		comp, embText, err := ea.compressRawMemory(ctx, raw)
+		if err != nil {
+			ea.handleEncodingFailure(ctx, raw.ID, err, &consecutiveFailures)
+			if consecutiveFailures >= 3 {
+				break
+			}
+			continue
+		}
+		compressed = append(compressed, compressedMemory{
+			rawID:         raw.ID,
+			raw:           raw,
+			compression:   comp,
+			embeddingText: embText,
+		})
+		consecutiveFailures = 0
+	}
+
+	if len(compressed) == 0 {
+		ea.releaseProcessing(toProcess)
+		return nil
+	}
+
+	// Phase 2: Batch embed all compressed texts
+	batchSize := ea.config.EmbedBatchSize
+	if batchSize <= 0 {
+		batchSize = 10
+	}
+	embeddings := make([][]float32, len(compressed))
+	for i := 0; i < len(compressed); i += batchSize {
+		end := i + batchSize
+		if end > len(compressed) {
+			end = len(compressed)
+		}
+		var texts []string
+		for _, cm := range compressed[i:end] {
+			texts = append(texts, cm.embeddingText)
+		}
+		batchResult, err := ea.llmProvider.BatchEmbed(ctx, texts)
+		if err != nil {
+			ea.log.Warn("batch embedding failed, falling back to individual", "error", err, "batch_size", len(texts))
+			for j, cm := range compressed[i:end] {
+				emb, err := ea.llmProvider.Embed(ctx, cm.embeddingText)
+				if err != nil {
+					ea.log.Warn("individual embedding also failed", "raw_id", cm.rawID, "error", err)
+				} else {
+					embeddings[i+j] = emb
+				}
+			}
+		} else {
+			for j, emb := range batchResult {
+				embeddings[i+j] = emb
+			}
+		}
+	}
+
+	// Phase 3: Finalize each memory (associations, store write, etc.)
+	for i, cm := range compressed {
+		if err := ea.finalizeEncodedMemory(ctx, cm.raw, cm.compression, embeddings[i]); err != nil {
+			ea.handleEncodingFailure(ctx, cm.rawID, err, &consecutiveFailures)
+		} else {
+			ea.processingMutex.Lock()
+			delete(ea.failureCounts, cm.rawID)
+			ea.processingMutex.Unlock()
+		}
+	}
+
+	ea.releaseProcessing(toProcess)
 	return nil
+}
+
+// compressRawMemory runs the LLM compression step and returns the result plus embedding text.
+func (ea *EncodingAgent) compressRawMemory(ctx context.Context, raw store.RawMemory) (*compressionResponse, string, error) {
+	compression, err := ea.compressAndExtractConcepts(ctx, raw)
+	if err != nil {
+		if raw.Source == "filesystem" {
+			return nil, "", fmt.Errorf("LLM unavailable for filesystem encoding: %w", err)
+		}
+		compression = ea.fallbackCompression(raw)
+	}
+	embeddingText := agentutil.Truncate(compression.Summary+" "+compression.Content, maxEmbeddingChars)
+	return compression, embeddingText, nil
+}
+
+// finalizeEncodedMemory handles steps 4-7 of encoding: association creation, store write, etc.
+func (ea *EncodingAgent) finalizeEncodedMemory(ctx context.Context, raw store.RawMemory, compression *compressionResponse, embedding []float32) error {
+	var associations []store.Association
+	if len(embedding) > 0 {
+		similar, err := ea.store.SearchByEmbedding(ctx, embedding, ea.config.MaxSimilarSearchResults)
+		if err != nil {
+			ea.log.Warn("failed to search for similar memories", "raw_id", raw.ID, "error", err)
+		} else {
+			for _, result := range similar {
+				if result.Score > ea.config.SimilarityThreshold {
+					relationType := ea.classifyRelationship(ctx, compression, result.Memory, raw)
+					assoc := store.Association{
+						SourceID:      raw.ID,
+						TargetID:      result.Memory.ID,
+						Strength:      result.Score,
+						RelationType:  relationType,
+						CreatedAt:     time.Now(),
+						LastActivated: time.Now(),
+					}
+					associations = append(associations, assoc)
+				}
+			}
+		}
+	}
+
+	memoryID := uuid.New().String()
+	memory := store.Memory{
+		ID:           memoryID,
+		RawID:        raw.ID,
+		Timestamp:    raw.Timestamp,
+		Type:         raw.Type,
+		Content:      compression.Content,
+		Summary:      compression.Summary,
+		Concepts:     compression.Concepts,
+		Embedding:    embedding,
+		Salience:     compression.Salience,
+		AccessCount:  0,
+		LastAccessed: time.Time{},
+		State:        "active",
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+		EpisodeID:    getEpisodeIDForRaw(ea, ctx, raw),
+		Source:       raw.Source,
+		Project:      raw.Project,
+		SessionID:    raw.SessionID,
+	}
+	if err := ea.store.WriteMemory(ctx, memory); err != nil {
+		return fmt.Errorf("failed to write encoded memory: %w", err)
+	}
+
+	ea.log.Debug("memory written to store", "memory_id", memoryID, "raw_id", raw.ID)
+
+	// Write multi-resolution data
+	resolution := store.MemoryResolution{
+		MemoryID:     memoryID,
+		Gist:         compression.Gist,
+		Narrative:    compression.Narrative,
+		DetailRawIDs: []string{raw.ID},
+		CreatedAt:    time.Now(),
+	}
+	if err := ea.store.WriteMemoryResolution(ctx, resolution); err != nil {
+		ea.log.Warn("failed to write memory resolution", "error", err)
+	}
+
+	// Write structured concepts
+	if compression.StructuredConcepts != nil {
+		cs := store.ConceptSet{
+			MemoryID:     memoryID,
+			Significance: compression.Significance,
+			CreatedAt:    time.Now(),
+		}
+		for _, t := range compression.StructuredConcepts.Topics {
+			cs.Topics = append(cs.Topics, store.Topic{Label: t.Label, Path: t.Path})
+		}
+		for _, e := range compression.StructuredConcepts.Entities {
+			cs.Entities = append(cs.Entities, store.Entity{Name: e.Name, Type: e.Type, Context: e.Context})
+		}
+		for _, a := range compression.StructuredConcepts.Actions {
+			cs.Actions = append(cs.Actions, store.Action{Verb: a.Verb, Object: a.Object, Details: a.Details})
+		}
+		for _, c := range compression.StructuredConcepts.Causality {
+			cs.Causality = append(cs.Causality, store.CausalLink{Relation: c.Relation, Description: c.Description})
+		}
+		if err := ea.store.WriteConceptSet(ctx, cs); err != nil {
+			ea.log.Warn("failed to write concept set", "error", err)
+		}
+	}
+
+	// Write memory attributes
+	attrs := store.MemoryAttributes{
+		MemoryID:      memoryID,
+		Significance:  compression.Significance,
+		EmotionalTone: compression.EmotionalTone,
+		Outcome:       compression.Outcome,
+		CreatedAt:     time.Now(),
+	}
+	if err := ea.store.WriteMemoryAttributes(ctx, attrs); err != nil {
+		ea.log.Warn("failed to write memory attributes", "error", err)
+	}
+
+	// Write associations and collect classification candidates
+	associationsCreated := 0
+	var classificationCandidates []events.AssocCandidate
+	for i := range associations {
+		associations[i].SourceID = memoryID
+		if err := ea.store.CreateAssociation(ctx, associations[i]); err != nil {
+			ea.log.Warn("failed to create association", "source_id", associations[i].SourceID,
+				"target_id", associations[i].TargetID, "error", err)
+		} else {
+			associationsCreated++
+			if ea.config.EnableLLMClassification && associations[i].RelationType == "similar" {
+				targetMem, err := ea.store.GetMemory(ctx, associations[i].TargetID)
+				if err == nil {
+					classificationCandidates = append(classificationCandidates, events.AssocCandidate{
+						SourceID: memoryID,
+						TargetID: associations[i].TargetID,
+						Summary1: compression.Summary,
+						Summary2: targetMem.Summary,
+					})
+				}
+			}
+		}
+	}
+
+	// Mark raw as processed
+	if err := ea.store.MarkRawProcessed(ctx, raw.ID); err != nil {
+		ea.log.Error("failed to mark raw memory as processed", "raw_id", raw.ID, "error", err)
+	}
+
+	// Publish events
+	if ea.bus != nil {
+		_ = ea.bus.Publish(ctx, events.MemoryEncoded{
+			MemoryID:            memoryID,
+			RawID:               raw.ID,
+			Concepts:            memory.Concepts,
+			AssociationsCreated: associationsCreated,
+			Ts:                  time.Now(),
+		})
+		if len(classificationCandidates) > 0 {
+			_ = ea.bus.Publish(ctx, events.AssociationsPendingClassification{
+				Candidates: classificationCandidates,
+				Ts:         time.Now(),
+			})
+		}
+	}
+
+	ea.log.Info("memory encoding completed", "memory_id", memoryID, "raw_id", raw.ID,
+		"concepts", len(memory.Concepts), "associations_created", associationsCreated)
+	return nil
+}
+
+// handleEncodingFailure tracks failures and applies backoff when needed.
+func (ea *EncodingAgent) handleEncodingFailure(ctx context.Context, rawID string, err error, consecutiveFailures *int) {
+	ea.processingMutex.Lock()
+	ea.failureCounts[rawID]++
+	count := ea.failureCounts[rawID]
+	ea.processingMutex.Unlock()
+
+	*consecutiveFailures++
+
+	if count >= maxRetries {
+		ea.log.Warn("encoding permanently failed, marking as processed",
+			"raw_id", rawID, "attempts", count, "error", err)
+		_ = ea.store.MarkRawProcessed(ctx, rawID)
+		ea.processingMutex.Lock()
+		delete(ea.failureCounts, rawID)
+		ea.processingMutex.Unlock()
+	} else {
+		ea.log.Warn("encoding failed, will retry later",
+			"raw_id", rawID, "attempt", count, "max", maxRetries, "error", err)
+	}
+
+	if *consecutiveFailures >= 3 {
+		backoff := time.Duration(*consecutiveFailures) * 30 * time.Second
+		if backoff > 5*time.Minute {
+			backoff = 5 * time.Minute
+		}
+		ea.processingMutex.Lock()
+		ea.backoffUntil = time.Now().Add(backoff)
+		ea.processingMutex.Unlock()
+		ea.log.Warn("multiple encoding failures, backing off",
+			"consecutive_failures", *consecutiveFailures,
+			"backoff_seconds", int(backoff.Seconds()))
+	}
+}
+
+// releaseProcessing clears the processing lock for all given raw memories.
+func (ea *EncodingAgent) releaseProcessing(raws []store.RawMemory) {
+	ea.processingMutex.Lock()
+	for _, raw := range raws {
+		delete(ea.processingMemories, raw.ID)
+	}
+	ea.processingMutex.Unlock()
 }
 
 // encodeMemory performs the complete encoding pipeline for a single raw memory.
