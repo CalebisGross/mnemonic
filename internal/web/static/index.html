@@ -3770,6 +3770,33 @@
         }
     }
 
+    function waitForRestart(expectedVersion) {
+        var attempts = 0;
+        var maxAttempts = 30;
+        var interval = setInterval(async function() {
+            attempts++;
+            try {
+                var resp = await fetch(CONFIG.API_BASE + '/health', {
+                    headers: CONFIG.TOKEN ? { 'Authorization': 'Bearer ' + CONFIG.TOKEN } : {}
+                });
+                if (resp.ok) {
+                    var health = await resp.json();
+                    if (health.version === expectedVersion) {
+                        clearInterval(interval);
+                        showToast('Reloading with v' + expectedVersion + '...', 'success');
+                        setTimeout(function() { location.reload(); }, 500);
+                    }
+                }
+            } catch (_) {
+                // daemon still restarting, keep polling
+            }
+            if (attempts >= maxAttempts) {
+                clearInterval(interval);
+                showToast('Daemon took too long to restart — refresh manually', 'warning');
+            }
+        }, 1000);
+    }
+
     async function triggerUpdate() {
         if (!_updateInfo || !_updateInfo.update_available) return;
         if (!confirm('Update mnemonic to v' + _updateInfo.latest_version + '?\n\nThe daemon will restart automatically.')) return;
@@ -3783,8 +3810,7 @@
             if (data.status === 'updated' && data.restart_pending) {
                 badge.textContent = 'Restarting...';
                 showToast('Updated to v' + data.new_version + ' — restarting...', 'success');
-                // The daemon will restart; WebSocket reconnect will pick up the new version
-                // After reconnect, loadStats will update navVersion and checkForUpdate will hide the badge
+                waitForRestart(data.new_version);
             } else if (data.status === 'updated' && !data.restart_pending) {
                 badge.textContent = 'Restart needed';
                 badge.className = 'update-badge';
