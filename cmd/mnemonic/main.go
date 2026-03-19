@@ -1301,6 +1301,37 @@ func serveCommand(configPath string) {
 		metaCancel2()
 	}
 
+	// Detect version changes and create a memory for release awareness
+	if Version != "" {
+		verCtx, verCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		prevVersion, _ := memStore.GetMeta(verCtx, "daemon_version")
+		verCancel()
+
+		if prevVersion != "" && prevVersion != Version {
+			log.Info("version changed", "previous", prevVersion, "current", Version)
+			raw := store.RawMemory{
+				ID:              uuid.New().String(),
+				Source:          "system",
+				Type:            "version_change",
+				Content:         fmt.Sprintf("Mnemonic updated from %s to %s", prevVersion, Version),
+				Timestamp:       time.Now(),
+				Project:         "mnemonic",
+				InitialSalience: 0.7,
+			}
+			writeCtx, writeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := memStore.WriteRaw(writeCtx, raw); err != nil {
+				log.Warn("failed to record version change", "error", err)
+			} else {
+				log.Info("recorded version change memory", "from", prevVersion, "to", Version)
+			}
+			writeCancel()
+		}
+
+		setCtx, setCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = memStore.SetMeta(setCtx, "daemon_version", Version)
+		setCancel()
+	}
+
 	// Create event bus
 	bus := events.NewInMemoryBus(bufferSize)
 	defer func() { _ = bus.Close() }()
