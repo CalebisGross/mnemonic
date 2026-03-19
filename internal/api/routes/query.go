@@ -81,12 +81,8 @@ func HandleQuery(retriever *retrieval.RetrievalAgent, bus events.Bus, s store.St
 			"results", len(queryResp.Memories),
 			"took_ms", queryResp.TookMs)
 
-		// Save traversal data for feedback loop
-		var retrievedIDs []string
-		for _, mem := range queryResp.Memories {
-			retrievedIDs = append(retrievedIDs, mem.Memory.ID)
-		}
-		SaveRetrievalFeedback(ctx, s, log, queryResp.QueryID, reqBody.Query, retrievedIDs, queryResp.TraversedAssocs)
+		// Save traversal data and access snapshot for feedback loop
+		SaveRetrievalFeedback(ctx, s, log, queryResp.QueryID, reqBody.Query, queryResp.Memories, queryResp.TraversedAssocs)
 
 		// Publish query executed event
 		queryEvt := events.QueryExecuted{

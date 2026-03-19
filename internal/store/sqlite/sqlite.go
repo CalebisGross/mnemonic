@@ -1786,11 +1786,15 @@ func (s *SQLiteStore) WriteRetrievalFeedback(ctx context.Context, fb store.Retri
 	if err != nil {
 		return fmt.Errorf("failed to marshal traversed assocs: %w", err)
 	}
+	snapshotJSON, err := json.Marshal(fb.AccessSnapshot)
+	if err != nil {
+		return fmt.Errorf("failed to marshal access snapshot: %w", err)
+	}
 
 	_, err = s.db.ExecContext(ctx,
-		`INSERT OR REPLACE INTO retrieval_feedback (query_id, query_text, retrieved_memory_ids, traversed_assocs, feedback, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		fb.QueryID, fb.QueryText, string(retrievedJSON), string(traversedJSON), fb.Feedback, fb.CreatedAt.Format(time.RFC3339))
+		`INSERT OR REPLACE INTO retrieval_feedback (query_id, query_text, retrieved_memory_ids, traversed_assocs, access_snapshot, feedback, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		fb.QueryID, fb.QueryText, string(retrievedJSON), string(traversedJSON), string(snapshotJSON), fb.Feedback, fb.CreatedAt.Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("failed to write retrieval feedback: %w", err)
 	}
@@ -1800,12 +1804,12 @@ func (s *SQLiteStore) WriteRetrievalFeedback(ctx context.Context, fb store.Retri
 // GetRetrievalFeedback retrieves a feedback record by query ID.
 func (s *SQLiteStore) GetRetrievalFeedback(ctx context.Context, queryID string) (store.RetrievalFeedback, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT query_id, query_text, retrieved_memory_ids, COALESCE(traversed_assocs, '[]'), COALESCE(feedback, ''), created_at
+		`SELECT query_id, query_text, retrieved_memory_ids, COALESCE(traversed_assocs, '[]'), COALESCE(access_snapshot, '[]'), COALESCE(feedback, ''), created_at
 		 FROM retrieval_feedback WHERE query_id = ?`, queryID)
 
 	var fb store.RetrievalFeedback
-	var retrievedJSON, traversedJSON, createdAtStr string
-	err := row.Scan(&fb.QueryID, &fb.QueryText, &retrievedJSON, &traversedJSON, &fb.Feedback, &createdAtStr)
+	var retrievedJSON, traversedJSON, snapshotJSON, createdAtStr string
+	err := row.Scan(&fb.QueryID, &fb.QueryText, &retrievedJSON, &traversedJSON, &snapshotJSON, &fb.Feedback, &createdAtStr)
 	if err != nil {
 		return store.RetrievalFeedback{}, fmt.Errorf("failed to get retrieval feedback: %w", err)
 	}
@@ -1815,6 +1819,9 @@ func (s *SQLiteStore) GetRetrievalFeedback(ctx context.Context, queryID string) 
 	}
 	if err := json.Unmarshal([]byte(traversedJSON), &fb.TraversedAssocs); err != nil {
 		fb.TraversedAssocs = nil
+	}
+	if err := json.Unmarshal([]byte(snapshotJSON), &fb.AccessSnapshot); err != nil {
+		fb.AccessSnapshot = nil
 	}
 	fb.CreatedAt, _ = time.Parse(time.RFC3339, createdAtStr)
 

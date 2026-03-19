@@ -968,3 +968,104 @@ func TestSanitizeFTSQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestRetrievalFeedbackAccessSnapshot(t *testing.T) {
+	s := createTestStore(t)
+	defer func() { _ = s.Close() }()
+
+	ctx := context.Background()
+
+	t.Run("round-trip with access snapshot", func(t *testing.T) {
+		fb := store.RetrievalFeedback{
+			QueryID:      "q-snap-1",
+			QueryText:    "test query",
+			RetrievedIDs: []string{"mem-1", "mem-2", "mem-3"},
+			TraversedAssocs: []store.TraversedAssoc{
+				{SourceID: "mem-1", TargetID: "mem-2"},
+			},
+			AccessSnapshot: []store.AccessSnapshotEntry{
+				{MemoryID: "mem-1", Rank: 1, Score: 0.95},
+				{MemoryID: "mem-2", Rank: 2, Score: 0.72},
+				{MemoryID: "mem-3", Rank: 3, Score: 0.41},
+			},
+			CreatedAt: time.Now(),
+		}
+
+		if err := s.WriteRetrievalFeedback(ctx, fb); err != nil {
+			t.Fatalf("WriteRetrievalFeedback: %v", err)
+		}
+
+		got, err := s.GetRetrievalFeedback(ctx, "q-snap-1")
+		if err != nil {
+			t.Fatalf("GetRetrievalFeedback: %v", err)
+		}
+
+		if len(got.AccessSnapshot) != 3 {
+			t.Fatalf("expected 3 snapshot entries, got %d", len(got.AccessSnapshot))
+		}
+		if got.AccessSnapshot[0].MemoryID != "mem-1" || got.AccessSnapshot[0].Rank != 1 {
+			t.Errorf("snapshot[0] = %+v, want mem-1 rank 1", got.AccessSnapshot[0])
+		}
+		if got.AccessSnapshot[1].Score != 0.72 {
+			t.Errorf("snapshot[1].Score = %f, want 0.72", got.AccessSnapshot[1].Score)
+		}
+		if got.AccessSnapshot[2].Rank != 3 {
+			t.Errorf("snapshot[2].Rank = %d, want 3", got.AccessSnapshot[2].Rank)
+		}
+	})
+
+	t.Run("backward compat with nil snapshot", func(t *testing.T) {
+		fb := store.RetrievalFeedback{
+			QueryID:      "q-old",
+			QueryText:    "old query",
+			RetrievedIDs: []string{"mem-3"},
+			CreatedAt:    time.Now(),
+		}
+
+		if err := s.WriteRetrievalFeedback(ctx, fb); err != nil {
+			t.Fatalf("WriteRetrievalFeedback: %v", err)
+		}
+
+		got, err := s.GetRetrievalFeedback(ctx, "q-old")
+		if err != nil {
+			t.Fatalf("GetRetrievalFeedback: %v", err)
+		}
+
+		if got.AccessSnapshot != nil && len(got.AccessSnapshot) != 0 {
+			t.Errorf("expected nil or empty snapshot for old record, got %v", got.AccessSnapshot)
+		}
+	})
+
+	t.Run("update preserves snapshot", func(t *testing.T) {
+		// Write initial record with snapshot
+		fb := store.RetrievalFeedback{
+			QueryID:      "q-update",
+			QueryText:    "update test",
+			RetrievedIDs: []string{"mem-4"},
+			AccessSnapshot: []store.AccessSnapshotEntry{
+				{MemoryID: "mem-4", Rank: 1, Score: 0.88},
+			},
+			CreatedAt: time.Now(),
+		}
+		if err := s.WriteRetrievalFeedback(ctx, fb); err != nil {
+			t.Fatalf("WriteRetrievalFeedback: %v", err)
+		}
+
+		// Simulate feedback update (re-write with quality set)
+		fb.Feedback = "helpful"
+		if err := s.WriteRetrievalFeedback(ctx, fb); err != nil {
+			t.Fatalf("WriteRetrievalFeedback (update): %v", err)
+		}
+
+		got, err := s.GetRetrievalFeedback(ctx, "q-update")
+		if err != nil {
+			t.Fatalf("GetRetrievalFeedback: %v", err)
+		}
+		if got.Feedback != "helpful" {
+			t.Errorf("expected feedback 'helpful', got %q", got.Feedback)
+		}
+		if len(got.AccessSnapshot) != 1 || got.AccessSnapshot[0].Score != 0.88 {
+			t.Errorf("snapshot not preserved after update: %+v", got.AccessSnapshot)
+		}
+	})
+}

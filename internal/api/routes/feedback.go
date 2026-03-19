@@ -158,15 +158,28 @@ func HandleFeedback(s store.Store, log *slog.Logger) http.HandlerFunc {
 }
 
 // SaveRetrievalFeedback saves traversal data for a query so feedback can adjust strengths later.
-func SaveRetrievalFeedback(ctx context.Context, s store.Store, log *slog.Logger, queryID string, queryText string, retrievedIDs []string, traversedAssocs []store.TraversedAssoc) {
+// It captures a ranked access snapshot of the returned memories for metacognition analysis.
+func SaveRetrievalFeedback(ctx context.Context, s store.Store, log *slog.Logger, queryID string, queryText string, results []store.RetrievalResult, traversedAssocs []store.TraversedAssoc) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
+	var retrievedIDs []string
+	var snapshot []store.AccessSnapshotEntry
+	for i, r := range results {
+		retrievedIDs = append(retrievedIDs, r.Memory.ID)
+		snapshot = append(snapshot, store.AccessSnapshotEntry{
+			MemoryID: r.Memory.ID,
+			Rank:     i + 1,
+			Score:    r.Score,
+		})
+	}
 
 	fb := store.RetrievalFeedback{
 		QueryID:         queryID,
 		QueryText:       queryText,
 		RetrievedIDs:    retrievedIDs,
 		TraversedAssocs: traversedAssocs,
+		AccessSnapshot:  snapshot,
 		CreatedAt:       time.Now(),
 	}
 	if err := s.WriteRetrievalFeedback(ctx, fb); err != nil {

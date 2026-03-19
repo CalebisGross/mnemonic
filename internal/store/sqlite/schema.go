@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS retrieval_feedback (
     query_text TEXT NOT NULL,
     retrieved_memory_ids JSON,
     traversed_assocs JSON,
+    access_snapshot JSON,
     feedback TEXT,
     notes TEXT,
     created_at DATETIME DEFAULT (datetime('now'))
@@ -386,6 +387,12 @@ func InitSchema(db *sql.DB) error {
 	}
 	// Backfill type from raw_memories where possible
 	_, _ = db.Exec(`UPDATE memories SET type = (SELECT raw_memories.type FROM raw_memories WHERE raw_memories.id = memories.raw_id) WHERE type IS NULL AND raw_id IS NOT NULL AND raw_id != ''`)
+
+	// Migration 009: Add access_snapshot column to retrieval_feedback
+	_, err = db.Exec(`ALTER TABLE retrieval_feedback ADD COLUMN access_snapshot JSON`)
+	if err != nil && !isAlterTableDuplicateColumn(err) {
+		return fmt.Errorf("failed to add retrieval_feedback.access_snapshot column: %w", err)
+	}
 
 	return nil
 }

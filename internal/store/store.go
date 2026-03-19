@@ -285,14 +285,22 @@ type TraversedAssoc struct {
 	TargetID string `json:"target_id"`
 }
 
+// AccessSnapshotEntry records a single memory's rank and score at retrieval time.
+type AccessSnapshotEntry struct {
+	MemoryID string  `json:"memory_id"`
+	Rank     int     `json:"rank"`
+	Score    float32 `json:"score"`
+}
+
 // RetrievalFeedback records a query's traversal path for feedback processing.
 type RetrievalFeedback struct {
-	QueryID         string           `json:"query_id"`
-	QueryText       string           `json:"query_text"`
-	RetrievedIDs    []string         `json:"retrieved_ids"`
-	TraversedAssocs []TraversedAssoc `json:"traversed_assocs"`
-	Feedback        string           `json:"feedback"`
-	CreatedAt       time.Time        `json:"created_at"`
+	QueryID         string                `json:"query_id"`
+	QueryText       string                `json:"query_text"`
+	RetrievedIDs    []string              `json:"retrieved_ids"`
+	TraversedAssocs []TraversedAssoc      `json:"traversed_assocs"`
+	AccessSnapshot  []AccessSnapshotEntry `json:"access_snapshot,omitempty"` // ranked memories at query time
+	Feedback        string                `json:"feedback"`
+	CreatedAt       time.Time             `json:"created_at"`
 }
 
 // Store is the abstraction for persistent memory.

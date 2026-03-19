@@ -398,16 +398,23 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 		return nil, fmt.Errorf("retrieval failed: %w", err)
 	}
 
-	// Save traversal data for feedback loop
+	// Save traversal data and access snapshot for feedback loop
 	var retrievedIDs []string
-	for _, mem := range result.Memories {
+	var snapshot []store.AccessSnapshotEntry
+	for i, mem := range result.Memories {
 		retrievedIDs = append(retrievedIDs, mem.Memory.ID)
+		snapshot = append(snapshot, store.AccessSnapshotEntry{
+			MemoryID: mem.Memory.ID,
+			Rank:     i + 1,
+			Score:    mem.Score,
+		})
 	}
 	fb := store.RetrievalFeedback{
 		QueryID:         result.QueryID,
 		QueryText:       query,
 		RetrievedIDs:    retrievedIDs,
 		TraversedAssocs: result.TraversedAssocs,
+		AccessSnapshot:  snapshot,
 		CreatedAt:       time.Now(),
 	}
 	if err := srv.store.WriteRetrievalFeedback(ctx, fb); err != nil {
