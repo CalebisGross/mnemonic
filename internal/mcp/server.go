@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -59,8 +60,8 @@ type MCPServer struct {
 	maxContentBytes int
 
 	// Proactive context state (session-scoped)
-	lastContextTime    time.Time          // watermark for get_context polling
-	sessionRecalledIDs map[string]bool    // memory IDs already surfaced via recall this session
+	lastContextTime    time.Time       // watermark for get_context polling
+	sessionRecalledIDs map[string]bool // memory IDs already surfaced via recall this session
 }
 
 // NewMCPServer creates a new MCP server with the given dependencies.
@@ -81,15 +82,15 @@ func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, lo
 	log.Info("MCP server initialized", "session_id", sessionID, "project", project)
 
 	return &MCPServer{
-		store:           s,
-		retriever:       r,
-		bus:             bus,
-		log:             log,
-		version:         version,
-		sessionID:       sessionID,
-		project:         project,
-		resolver:        resolver,
-		coachingFile:    coachingFile,
+		store:              s,
+		retriever:          r,
+		bus:                bus,
+		log:                log,
+		version:            version,
+		sessionID:          sessionID,
+		project:            project,
+		resolver:           resolver,
+		coachingFile:       coachingFile,
 		excludePatterns:    excludePatterns,
 		maxContentBytes:    maxContentBytes,
 		lastContextTime:    time.Now(),
@@ -862,6 +863,13 @@ func (srv *MCPServer) handleGetContext(ctx context.Context, args map[string]inte
 		var concepts []string
 		if err == nil && len(mem.Concepts) > 0 {
 			concepts = mem.Concepts
+		} else if raw.Source == "filesystem" {
+			// For filesystem events, extract concepts from the file path
+			// instead of content — raw content is source code whose tokens
+			// (Go keywords, type names, etc.) pollute theme extraction.
+			if pathVal, ok := raw.Metadata["path"].(string); ok && pathVal != "" {
+				concepts = conceptsFromPath(pathVal)
+			}
 		} else {
 			concepts = retrieval.ParseQueryConcepts(raw.Content)
 		}
@@ -969,6 +977,38 @@ func (srv *MCPServer) handleGetContext(ctx context.Context, args map[string]inte
 	}
 
 	return toolResult(sb.String()), nil
+}
+
+// conceptsFromPath extracts meaningful concept tokens from a file path.
+// Used instead of ParseQueryConcepts on raw source code content, which
+// produces garbage themes from language keywords and syntax tokens.
+func conceptsFromPath(path string) []string {
+	// Strip extension and split into directory/file segments.
+	path = strings.TrimSuffix(path, filepath.Ext(path))
+	// Normalize separators and split.
+	parts := strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\' || r == '_' || r == '-' || r == '.'
+	})
+
+	// Filter short/noisy segments.
+	skip := map[string]bool{
+		"internal": true, "cmd": true, "pkg": true, "src": true,
+		"lib": true, "bin": true, "tmp": true, "test": true,
+		"main": true, "index": true, "mod": true, "sum": true,
+		"go": true, "the": true, "and": true, "for": true,
+	}
+
+	seen := make(map[string]bool)
+	var concepts []string
+	for _, seg := range parts {
+		seg = strings.ToLower(seg)
+		if len(seg) <= 2 || skip[seg] || seen[seg] {
+			continue
+		}
+		seen[seg] = true
+		concepts = append(concepts, seg)
+	}
+	return concepts
 }
 
 // handleForget archives a memory by ID.
