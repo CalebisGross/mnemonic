@@ -137,6 +137,7 @@ type QueryRequest struct {
 	Source              string    // if set, filter by memory source (mcp, filesystem, terminal, clipboard)
 	State               string    // if set, filter by memory state (active, fading, archived)
 	MinSalience         float32   // if > 0, filter out memories below this salience
+	IncludeSuppressed   bool      // if true, include recall-suppressed memories
 }
 
 // QueryResponse is the output of a retrieval query.
@@ -1037,6 +1038,9 @@ func (ra *RetrievalAgent) applyFilters(results []store.RetrievalResult, req Quer
 			continue
 		}
 		if req.MinSalience > 0 && r.Memory.Salience < req.MinSalience {
+			continue
+		}
+		if r.Memory.RecallSuppressed && !req.IncludeSuppressed {
 			continue
 		}
 		filtered = append(filtered, r)

@@ -1054,11 +1054,49 @@ func (srv *MCPServer) handleFeedback(ctx context.Context, args map[string]interf
 		}
 	}
 
+	// Update per-memory feedback scores for auto-suppression.
+	// Uses memoryIDs from the feedback call (the memories that were returned).
+	suppressionThreshold := -3
+	suppressed := 0
+	unsuppressed := 0
+	for _, memID := range memoryIDs {
+		mem, err := srv.store.GetMemory(ctx, memID)
+		if err != nil {
+			continue
+		}
+		switch quality {
+		case "helpful":
+			mem.FeedbackScore++
+			// Lift suppression if a helpful rating comes in
+			if mem.RecallSuppressed {
+				mem.RecallSuppressed = false
+				unsuppressed++
+			}
+		case "irrelevant":
+			mem.FeedbackScore--
+		}
+		// Check suppression threshold
+		if mem.FeedbackScore <= suppressionThreshold && !mem.RecallSuppressed {
+			mem.RecallSuppressed = true
+			suppressed++
+		}
+		mem.UpdatedAt = time.Now()
+		if err := srv.store.UpdateMemory(ctx, mem); err != nil {
+			srv.log.Warn("failed to update memory feedback score", "memory_id", memID, "error", err)
+		}
+	}
+
 	srv.log.Info("feedback recorded", "query", query, "quality", quality, "query_id", queryID, "adjustments", adjustments)
 
 	responseText := fmt.Sprintf("Feedback recorded: %s (query: %q)", quality, query)
 	if adjustments > 0 {
 		responseText += fmt.Sprintf(" — adjusted %d association strengths", adjustments)
+	}
+	if suppressed > 0 {
+		responseText += fmt.Sprintf(", suppressed %d memories from future recall", suppressed)
+	}
+	if unsuppressed > 0 {
+		responseText += fmt.Sprintf(", un-suppressed %d memories", unsuppressed)
 	}
 
 	return toolResult(responseText), nil
@@ -1346,9 +1384,6 @@ func parseRecallFilters(args map[string]interface{}) (source, state string, minS
 
 // filterMemories filters a slice of memories by source, state, and minimum salience.
 func filterMemories(memories []store.Memory, source, state string, minSalience float32) []store.Memory {
-	if source == "" && state == "" && minSalience <= 0 {
-		return memories
-	}
 	var filtered []store.Memory
 	for _, m := range memories {
 		if source != "" && m.Source != source {
@@ -1358,6 +1393,9 @@ func filterMemories(memories []store.Memory, source, state string, minSalience f
 			continue
 		}
 		if minSalience > 0 && m.Salience < minSalience {
+			continue
+		}
+		if m.RecallSuppressed {
 			continue
 		}
 		filtered = append(filtered, m)

@@ -348,7 +348,7 @@ func scanRawMemoryRows(rows *sql.Rows) ([]store.RawMemory, error) {
 }
 
 // memoryColumns is the standard column list for memory queries.
-const memoryColumns = `id, raw_id, timestamp, type, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, source, project, session_id, created_at, updated_at`
+const memoryColumns = `id, raw_id, timestamp, type, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, source, project, session_id, created_at, updated_at, feedback_score, recall_suppressed`
 
 // scanMemory scans a memory row from the database.
 func scanMemoryFrom(s scanner) (store.Memory, error) {
@@ -362,6 +362,7 @@ func scanMemoryFrom(s scanner) (store.Memory, error) {
 	var source sql.NullString
 	var project, sessionID sql.NullString
 
+	var recallSuppressed int
 	err := s.Scan(
 		&mem.ID,
 		&mem.RawID,
@@ -382,7 +383,10 @@ func scanMemoryFrom(s scanner) (store.Memory, error) {
 		&sessionID,
 		&mem.CreatedAt,
 		&mem.UpdatedAt,
+		&mem.FeedbackScore,
+		&recallSuppressed,
 	)
+	mem.RecallSuppressed = recallSuppressed != 0
 	if err != nil {
 		return mem, err
 	}
@@ -761,14 +765,19 @@ func (s *SQLiteStore) WriteMemory(ctx context.Context, mem store.Memory) error {
 
 	query := `
 	INSERT INTO memories
-	(id, raw_id, timestamp, type, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, source, project, session_id, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	(id, raw_id, timestamp, type, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, source, project, session_id, created_at, updated_at, feedback_score, recall_suppressed)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	// Convert empty episode ID to nil so FK constraint allows NULL
 	var episodeID interface{}
 	if mem.EpisodeID != "" {
 		episodeID = mem.EpisodeID
+	}
+
+	recallSuppressed := 0
+	if mem.RecallSuppressed {
+		recallSuppressed = 1
 	}
 
 	_, err = s.db.ExecContext(ctx, query,
@@ -791,6 +800,8 @@ func (s *SQLiteStore) WriteMemory(ctx context.Context, mem store.Memory) error {
 		nullableString(mem.SessionID),
 		mem.CreatedAt.Format(time.RFC3339),
 		mem.UpdatedAt.Format(time.RFC3339),
+		mem.FeedbackScore,
+		recallSuppressed,
 	)
 
 	if err != nil {
@@ -1402,14 +1413,19 @@ func (s *SQLiteStore) BatchMergeMemories(ctx context.Context, sourceIDs []string
 
 	writeQuery := `
 	INSERT INTO memories
-	(id, raw_id, timestamp, type, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, source, project, session_id, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	(id, raw_id, timestamp, type, content, summary, concepts, embedding, salience, access_count, last_accessed, state, gist_of, episode_id, source, project, session_id, created_at, updated_at, feedback_score, recall_suppressed)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	// Convert empty episode ID to nil so FK constraint allows NULL
 	var gistEpisodeID interface{}
 	if gist.EpisodeID != "" {
 		gistEpisodeID = gist.EpisodeID
+	}
+
+	gistRecallSuppressed := 0
+	if gist.RecallSuppressed {
+		gistRecallSuppressed = 1
 	}
 
 	_, err = tx.ExecContext(ctx, writeQuery,
@@ -1432,6 +1448,8 @@ func (s *SQLiteStore) BatchMergeMemories(ctx context.Context, sourceIDs []string
 		nullableString(gist.SessionID),
 		gist.CreatedAt.Format(time.RFC3339),
 		gist.UpdatedAt.Format(time.RFC3339),
+		gist.FeedbackScore,
+		gistRecallSuppressed,
 	)
 
 	if err != nil {

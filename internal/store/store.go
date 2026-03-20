@@ -63,11 +63,13 @@ type Memory struct {
 	State        string    `json:"state"`                // "active", "fading", "archived", "merged"
 	GistOf       []string  `json:"gist_of,omitempty"`    // if merged: source memory IDs
 	EpisodeID    string    `json:"episode_id,omitempty"` // link to parent episode
-	Source       string    `json:"source,omitempty"`     // origin: "filesystem", "terminal", "clipboard", "mcp", "consolidation"
-	Project      string    `json:"project,omitempty"`
-	SessionID    string    `json:"session_id,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	Source          string    `json:"source,omitempty"`     // origin: "filesystem", "terminal", "clipboard", "mcp", "consolidation"
+	Project         string    `json:"project,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	FeedbackScore   int       `json:"feedback_score"`    // accumulated: helpful=+1, irrelevant=-1
+	RecallSuppressed bool     `json:"recall_suppressed"` // true when feedback_score <= suppression threshold
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // Association is a weighted link between two memories.
