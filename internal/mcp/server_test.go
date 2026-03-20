@@ -377,3 +377,68 @@ func TestJSONRPCMarshal(t *testing.T) {
 		t.Fatalf("error message mismatch")
 	}
 }
+
+// TestConceptsFromPath tests that file paths produce meaningful concepts
+// and not programming language keywords.
+func TestConceptsFromPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected []string
+	}{
+		{
+			name:     "go agent file",
+			path:     "internal/agent/retrieval/agent.go",
+			expected: []string{"agent", "retrieval"},
+		},
+		{
+			name:     "mcp server",
+			path:     "internal/mcp/server.go",
+			expected: []string{"mcp", "server"},
+		},
+		{
+			name:     "absolute path with project",
+			path:     "/home/user/Projects/mnemonic/internal/store/sqlite/sqlite.go",
+			expected: []string{"home", "user", "projects", "mnemonic", "store", "sqlite"},
+		},
+		{
+			name:     "test file with underscores",
+			path:     "internal/agent/perception/heuristic_filter_test.go",
+			expected: []string{"agent", "perception", "heuristic", "filter"},
+		},
+		{
+			name:     "config yaml",
+			path:     "config.yaml",
+			expected: []string{"config"},
+		},
+		{
+			name:     "short segments filtered",
+			path:     "a/b/cd/mcp.go",
+			expected: []string{"mcp"},
+		},
+		{
+			name:     "no duplicates",
+			path:     "agent/agent/agent.go",
+			expected: []string{"agent"},
+		},
+		{
+			name:     "empty path",
+			path:     "",
+			expected: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := conceptsFromPath(tc.path)
+			if len(got) != len(tc.expected) {
+				t.Fatalf("expected %v, got %v", tc.expected, got)
+			}
+			for i := range tc.expected {
+				if got[i] != tc.expected[i] {
+					t.Fatalf("expected[%d] = %q, got %q (full: %v)", i, tc.expected[i], got[i], got)
+				}
+			}
+		})
+	}
+}
