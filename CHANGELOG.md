@@ -4,6 +4,18 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.29.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.28.0...v0.29.0) (2026-03-20)
+
+
+### Features
+
+* add pipeline observability metrics to get_context ([c566a60](https://github.com/AppSprout-dev/mnemonic/commit/c566a60a530f712c8434f353faccaa45fda9cf1a))
+* add pipeline observability metrics to get_context MCP tool ([aebdaec](https://github.com/AppSprout-dev/mnemonic/commit/aebdaec6f0099dbdb2f1e0901555b616a08a832b))
+* boost recall scores from recent watcher activity ([108af2e](https://github.com/AppSprout-dev/mnemonic/commit/108af2e31e31ea6e5770aa739489c51cca8ecea2))
+* boost recall scores from recent watcher activity ([#277](https://github.com/AppSprout-dev/mnemonic/issues/277)) ([110762a](https://github.com/AppSprout-dev/mnemonic/commit/110762a4f609f898eadc463fea1effcfd50f0d35))
+* enrich get_context themes with event types and terminal commands ([86c6a52](https://github.com/AppSprout-dev/mnemonic/commit/86c6a5262e1be01cd05d1e1fd72170d97323d3b3))
+* enrich get_context themes with event types and terminal commands ([b0257e9](https://github.com/AppSprout-dev/mnemonic/commit/b0257e9ae3b2bc1e19bf058f449e9ad5bd3d3c52))
+
 ## [0.28.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.27.0...v0.28.0) (2026-03-20)
 
 
