@@ -416,6 +416,11 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 		state = s
 	}
 
+	memType := ""
+	if t, ok := args["type"].(string); ok {
+		memType = t
+	}
+
 	var minSalience float32
 	if ms, ok := args["min_salience"].(float64); ok {
 		minSalience = float32(ms)
@@ -457,7 +462,7 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 			srv.log.Error("concept recall failed", "concepts", concepts, "error", err)
 			return nil, fmt.Errorf("concept recall failed: %w", err)
 		}
-		filtered := filterMemories(memories, source, state, minSalience)
+		filtered := filterMemories(memories, source, state, memType, minSalience)
 		text := fmt.Sprintf("Found %d memories matching concepts %v:\n\n", len(filtered), concepts)
 		for i, mem := range filtered {
 			text += fmt.Sprintf("%d. %s\n   Summary: %s\n   Concepts: %v\n\n",
@@ -477,6 +482,7 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 		Project:             project,
 		Source:              source,
 		State:               state,
+		Type:                memType,
 		MinSalience:         minSalience,
 	}
 
@@ -779,8 +785,12 @@ func (srv *MCPServer) handleRecallProject(ctx context.Context, args map[string]i
 		limit = int(l)
 	}
 
-	// Parse optional filters
-	source, state, minSalience := parseRecallFilters(args)
+	// Parse optional filters — default min_salience to 0.7 for project recall
+	// to filter out watcher noise that agents don't need.
+	source, state, memType, minSalience := parseRecallFilters(args)
+	if _, explicit := args["min_salience"]; !explicit && minSalience == 0 {
+		minSalience = 0.7
+	}
 
 	// Get project summary
 	summary, err := srv.store.GetProjectSummary(ctx, project)
@@ -824,6 +834,7 @@ func (srv *MCPServer) handleRecallProject(ctx context.Context, args map[string]i
 			Project:             project,
 			Source:              source,
 			State:               state,
+			Type:                memType,
 			MinSalience:         minSalience,
 		}
 
@@ -849,7 +860,7 @@ func (srv *MCPServer) handleRecallProject(ctx context.Context, args map[string]i
 			srv.log.Error("project recall failed", "project", project, "error", err)
 			return nil, fmt.Errorf("project recall failed: %w", err)
 		}
-		filtered := filterMemories(memories, source, state, minSalience)
+		filtered := filterMemories(memories, source, state, memType, minSalience)
 
 		text += fmt.Sprintf("\nMemories (%d):\n\n", len(filtered))
 		for i, mem := range filtered {
@@ -875,7 +886,7 @@ func (srv *MCPServer) handleRecallTimeline(ctx context.Context, args map[string]
 		limit = int(l)
 	}
 
-	source, state, minSalience := parseRecallFilters(args)
+	source, state, memType, minSalience := parseRecallFilters(args)
 
 	from := time.Now().Add(-time.Duration(hoursBack) * time.Hour)
 	to := time.Now()
@@ -886,7 +897,7 @@ func (srv *MCPServer) handleRecallTimeline(ctx context.Context, args map[string]
 		return nil, fmt.Errorf("timeline recall failed: %w", err)
 	}
 
-	filtered := filterMemories(memories, source, state, minSalience)
+	filtered := filterMemories(memories, source, state, memType, minSalience)
 
 	text := fmt.Sprintf("Timeline (last %dh, %d memories):\n\n", hoursBack, len(filtered))
 	for i, mem := range filtered {
@@ -1511,12 +1522,15 @@ func toolError(text string) map[string]interface{} {
 }
 
 // parseRecallFilters extracts optional source/state/min_salience from MCP args.
-func parseRecallFilters(args map[string]interface{}) (source, state string, minSalience float32) {
+func parseRecallFilters(args map[string]interface{}) (source, state, memType string, minSalience float32) {
 	if s, ok := args["source"].(string); ok {
 		source = s
 	}
 	if s, ok := args["state"].(string); ok {
 		state = s
+	}
+	if t, ok := args["type"].(string); ok {
+		memType = t
 	}
 	if ms, ok := args["min_salience"].(float64); ok {
 		minSalience = float32(ms)
@@ -1525,13 +1539,16 @@ func parseRecallFilters(args map[string]interface{}) (source, state string, minS
 }
 
 // filterMemories filters a slice of memories by source, state, and minimum salience.
-func filterMemories(memories []store.Memory, source, state string, minSalience float32) []store.Memory {
+func filterMemories(memories []store.Memory, source, state, memType string, minSalience float32) []store.Memory {
 	var filtered []store.Memory
 	for _, m := range memories {
 		if source != "" && m.Source != source {
 			continue
 		}
 		if state != "" && m.State != state {
+			continue
+		}
+		if memType != "" && m.Type != memType {
 			continue
 		}
 		if minSalience > 0 && m.Salience < minSalience {
@@ -1625,6 +1642,11 @@ func (srv *MCPServer) handleRecallSession(ctx context.Context, args map[string]i
 	sessionID, ok := args["session_id"].(string)
 	if !ok || sessionID == "" {
 		return nil, fmt.Errorf("session_id parameter is required")
+	}
+
+	// Allow "current" to resolve to the active MCP session.
+	if sessionID == "current" {
+		sessionID = srv.sessionID
 	}
 
 	limit := 20

@@ -61,6 +61,11 @@ func recallToolDef() ToolDefinition {
 					"type":        "string",
 					"description": "Filter by memory source: mcp, filesystem, terminal, clipboard",
 				},
+				"type": map[string]interface{}{
+					"type":        "string",
+					"description": "Filter by memory type: decision, error, insight, learning, general",
+					"enum":        []string{"decision", "error", "insight", "learning", "general"},
+				},
 				"min_salience": map[string]interface{}{
 					"type":        "number",
 					"description": "Minimum salience threshold (0.0-1.0). Filters out low-quality memories.",
@@ -370,7 +375,7 @@ func listSessionsToolDef() ToolDefinition {
 func recallSessionToolDef() ToolDefinition {
 	return ToolDefinition{
 		Name:        "recall_session",
-		Description: "Retrieve all memories from a specific MCP session, ordered by creation time. Use list_sessions to find session IDs.",
+		Description: "Retrieve all memories from a specific MCP session, ordered by creation time. Use \"current\" for the active session, or list_sessions to find past session IDs.",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{

@@ -136,6 +136,7 @@ type QueryRequest struct {
 	TimeTo              time.Time // if set, filter memories created before this time
 	Source              string    // if set, filter by memory source (mcp, filesystem, terminal, clipboard)
 	State               string    // if set, filter by memory state (active, fading, archived)
+	Type                string    // if set, filter by memory type (decision, error, insight, learning, general)
 	MinSalience         float32   // if > 0, filter out memories below this salience
 	IncludeSuppressed   bool      // if true, include recall-suppressed memories
 }
@@ -265,7 +266,7 @@ func (ra *RetrievalAgent) Query(ctx context.Context, req QueryRequest) (QueryRes
 	ranked := ra.rankResults(ctx, activated, req.IncludeReasoning)
 
 	// Step 7: Apply filters (project, time, source, state, salience)
-	if req.Project != "" || !req.TimeFrom.IsZero() || !req.TimeTo.IsZero() || req.Source != "" || req.State != "" || req.MinSalience > 0 {
+	if req.Project != "" || !req.TimeFrom.IsZero() || !req.TimeTo.IsZero() || req.Source != "" || req.State != "" || req.Type != "" || req.MinSalience > 0 {
 		ranked = ra.applyFilters(ranked, req)
 	}
 
@@ -1059,6 +1060,9 @@ func (ra *RetrievalAgent) applyFilters(results []store.RetrievalResult, req Quer
 			continue
 		}
 		if req.State != "" && r.Memory.State != req.State {
+			continue
+		}
+		if req.Type != "" && r.Memory.Type != req.Type {
 			continue
 		}
 		if req.MinSalience > 0 && r.Memory.Salience < req.MinSalience {
