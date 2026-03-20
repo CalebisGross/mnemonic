@@ -4,6 +4,18 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.26.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.25.0...v0.26.0) (2026-03-20)
+
+
+### Features
+
+* agent UX improvements for recall filtering and noise reduction ([89328ec](https://github.com/AppSprout-dev/mnemonic/commit/89328ec983b3d5cb0622fc5f194bbd0729b00982))
+
+
+### Bug Fixes
+
+* comprehensive dedup quality with type/project/source awareness ([4342c39](https://github.com/AppSprout-dev/mnemonic/commit/4342c39beca53dc66756364bba17a4804ecc657c)), closes [#266](https://github.com/AppSprout-dev/mnemonic/issues/266)
+
 ## [0.25.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.24.0...v0.25.0) (2026-03-20)
 
 
