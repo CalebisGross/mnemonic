@@ -140,7 +140,7 @@ Triggered by `RawMemoryCreated` event. MCP-sourced memories are processed first 
 
 ### Layer 3 — Consolidation (Sleep Cycle)
 
-Runs every 6 hours (or on-demand). **Budget-constrained**: max 100 memories per cycle.
+Runs periodically (configurable, default 1h) or on-demand. **Budget-constrained**: max 100 memories per cycle.
 
 Operations in order:
 1. **Decay**: `new_salience = salience * decay_rate^(hours_since_access)` with recency protection
@@ -572,7 +572,7 @@ mnemonic/
 
 ## Build History
 
-All original build phases are **complete**. Current focus is SDK features, dashboard polish, and recall quality.
+All original build phases are **complete**. Current focus is memory quality, retrieval intelligence, and training a bespoke local LLM (Mnemonic-LM).
 
 ### Completed
 
@@ -590,12 +590,9 @@ All original build phases are **complete**. Current focus is SDK features, dashb
 
 - **Multi-modal memory** (images, audio) — text-only for v1
 - **Cross-device sync** — single machine for v1
-- **User preference learning** — needs feedback data from v1
 - **Advanced consolidation** (hierarchical memory, schema learning)
 - **Database encryption** — air-gapped assumption covers v1
-- **Local model fine-tuning** — LM Studio handles v1
 - **Native macOS menu bar widget** — web dashboard covers v1, native UI later
-- ~~**MCP server integration**~~ — **Done.** 13 MCP tools implemented (`internal/mcp/server.go`)
 
 ---
 

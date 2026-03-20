@@ -42,7 +42,7 @@ Or [build from source](#development) (requires Go 1.23+).
 **Configure and run:**
 
 ```bash
-cp config.yaml ~/.mnemonic/config.yaml
+cp config.example.yaml ~/.mnemonic/config.yaml
 # Edit ~/.mnemonic/config.yaml — set llm.endpoint, llm.chat_model, llm.embedding_model
 # For local LLM: see docs/setup-lmstudio.md
 # For Gemini: set endpoint to Gemini API URL and export LLM_API_KEY
@@ -185,7 +185,7 @@ All settings live in `config.yaml`. Key sections:
 - **perception** — Watch directories, shell, clipboard; heuristic thresholds; project identity
 - **encoding** — Concept extraction, similarity search, contextual encoding
 - **consolidation** — Decay rate, salience thresholds, pattern extraction
-- **retrieval** — Spread activation hops, decay, synthesis tokens
+- **retrieval** — Spread activation hops, decay, synthesis tokens, source weights, feedback weight
 - **metacognition** — Reflection interval, feedback processing
 - **episoding** — Episode window, minimum events
 - **dreaming** — Replay interval, association boost, noise pruning
