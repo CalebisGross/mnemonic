@@ -1,7 +1,7 @@
 .PHONY: build run clean test fmt vet start stop restart status watch install uninstall export backup insights dream-cycle mcp benchmark benchmark-quality benchmark-compare setup-hooks lint
 
 BUILD_DIR=bin
-VERSION=0.23.0 # x-release-please-version
+VERSION=0.24.0 # x-release-please-version
 LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION)"
 TAGS=
 

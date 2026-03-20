@@ -4,6 +4,21 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.24.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.23.0...v0.24.0) (2026-03-20)
+
+
+### Features
+
+* add Windows binary to release pipeline and self-updater ([27fbb1a](https://github.com/AppSprout-dev/mnemonic/commit/27fbb1a5aad592321b42859508ef794244c6d9b5))
+* add Windows binary to release pipeline and self-updater ([6ec4ecc](https://github.com/AppSprout-dev/mnemonic/commit/6ec4ecc131a9417c775a45e56f9935b7b54d7b4e))
+
+
+### Bug Fixes
+
+* address PR feedback — zip test coverage and nullglob ([112f376](https://github.com/AppSprout-dev/mnemonic/commit/112f3760ee74987bdc010e93207e224c6b871e9f))
+* use logo in dashboard header and tab title ([0e33f28](https://github.com/AppSprout-dev/mnemonic/commit/0e33f283eedeb63eaf6a32ef69de36a096a78e93))
+* use logo in dashboard header and tab title ([f1e51c6](https://github.com/AppSprout-dev/mnemonic/commit/f1e51c6c7b205aceeb0416097132df6bfa7d58b1))
+
 ## [0.23.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.22.0...v0.23.0) (2026-03-20)
 
 
