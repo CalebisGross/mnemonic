@@ -9,6 +9,7 @@ make build                    # go build ...
 make test                     # go test ./... -v
 make check                    # go fmt + go vet
 make run                      # Build and run in foreground (serve mode)
+make lifecycle-test           # Build + run full lifecycle simulation
 golangci-lint run             # Lint (uses .golangci.yml config)
 ```
 
@@ -20,6 +21,7 @@ golangci-lint run             # Lint (uses .golangci.yml config)
 cmd/mnemonic/          CLI + daemon entry point
 cmd/benchmark/         End-to-end benchmark
 cmd/benchmark-quality/ Memory quality IR benchmark
+cmd/lifecycle-test/    Full lifecycle simulation (install → 3 months)
 internal/
   agent/               8 cognitive agents + orchestrator + reactor
     perception/        Watch filesystem/terminal/clipboard, heuristic filter
@@ -45,6 +47,7 @@ internal/
   config/              Config loading (config.yaml)
   logger/              Structured logging (slog)
   backup/              Export/import
+  testutil/            Shared test infrastructure (stub LLM provider)
 sdk/                   Python agent SDK (self-evolving assistant)
   agent/evolution/     Agent evolution data (created at runtime, gitignored)
   agent/evolution/examples/  Example evolution data for reference
