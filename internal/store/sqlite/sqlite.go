@@ -479,8 +479,8 @@ func (s *SQLiteStore) WriteRaw(ctx context.Context, raw store.RawMemory) error {
 
 	query := `
 	INSERT INTO raw_memories
-	(id, timestamp, source, type, content, metadata, heuristic_score, initial_salience, processed, project, session_id, created_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	(id, timestamp, source, type, content, metadata, heuristic_score, initial_salience, processed, project, session_id, content_hash, created_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = s.db.ExecContext(ctx, query,
@@ -495,6 +495,7 @@ func (s *SQLiteStore) WriteRaw(ctx context.Context, raw store.RawMemory) error {
 		boolToInt(raw.Processed),
 		nullableString(raw.Project),
 		nullableString(raw.SessionID),
+		nullableString(raw.ContentHash),
 		raw.CreatedAt.Format(time.RFC3339),
 	)
 
@@ -503,6 +504,22 @@ func (s *SQLiteStore) WriteRaw(ctx context.Context, raw store.RawMemory) error {
 	}
 
 	return nil
+}
+
+// RawMemoryExistsByHash checks if a raw memory with the given content hash
+// exists in the last 24 hours. Used for early dedup before LLM calls.
+func (s *SQLiteStore) RawMemoryExistsByHash(ctx context.Context, contentHash string) (bool, error) {
+	if contentHash == "" {
+		return false, nil
+	}
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(1) FROM raw_memories WHERE content_hash = ? AND created_at > datetime('now', '-24 hours')`,
+		contentHash).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("checking content hash: %w", err)
+	}
+	return count > 0, nil
 }
 
 // RawMemoryExistsByPath checks if a raw memory with the given source, project, and file path already exists.

@@ -75,6 +75,9 @@ func (MockStore) SearchByConceptsInProject(context.Context, []string, string, in
 func (MockStore) GetAnalytics(context.Context) (store.AnalyticsData, error) {
 	return store.AnalyticsData{}, nil
 }
+func (MockStore) RawMemoryExistsByHash(context.Context, string) (bool, error) {
+	return false, nil
+}
 
 // --- Association graph operations ---
 

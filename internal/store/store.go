@@ -44,6 +44,7 @@ type RawMemory struct {
 	Processed       bool                   `json:"processed"`
 	Project         string                 `json:"project,omitempty"`
 	SessionID       string                 `json:"session_id,omitempty"`
+	ContentHash     string                 `json:"content_hash,omitempty"`
 	CreatedAt       time.Time              `json:"created_at"`
 }
 
@@ -356,6 +357,7 @@ type RetrievalFeedback struct {
 type Store interface {
 	// --- Raw memory operations ---
 	WriteRaw(ctx context.Context, raw RawMemory) error
+	RawMemoryExistsByHash(ctx context.Context, contentHash string) (bool, error)
 	GetRaw(ctx context.Context, id string) (RawMemory, error)
 	ListRawUnprocessed(ctx context.Context, limit int) ([]RawMemory, error)
 	ListRawMemoriesAfter(ctx context.Context, after time.Time, limit int) ([]RawMemory, error)

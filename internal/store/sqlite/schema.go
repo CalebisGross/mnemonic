@@ -470,6 +470,13 @@ CREATE TABLE IF NOT EXISTS memory_amendments (
 CREATE INDEX IF NOT EXISTS idx_amendments_memory ON memory_amendments(memory_id);
 `)
 
+	// Migration 014: Content hash for early dedup.
+	_, err = db.Exec(`ALTER TABLE raw_memories ADD COLUMN content_hash TEXT`)
+	if err != nil && !isAlterTableDuplicateColumn(err) {
+		return fmt.Errorf("failed to add raw_memories.content_hash column: %w", err)
+	}
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_raw_content_hash ON raw_memories(content_hash)`)
+
 	return nil
 }
 

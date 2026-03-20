@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/appsprout-dev/mnemonic/internal/agent/agentutil"
+	"github.com/appsprout-dev/mnemonic/internal/agent/retrieval"
 	"github.com/appsprout-dev/mnemonic/internal/events"
 	"github.com/appsprout-dev/mnemonic/internal/llm"
 	"github.com/appsprout-dev/mnemonic/internal/store"
@@ -953,19 +954,40 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 
 	ea.log.Debug("encoding raw memory", "raw_id", raw.ID, "source", raw.Source)
 
-	// Step 2: Call LLM to compress and extract concepts
-	compression, err := ea.compressAndExtractConcepts(ctx, raw)
-	if err != nil {
-		ea.log.Error("failed to compress raw memory with LLM", "raw_id", raw.ID, "error", err)
-		// For filesystem events, don't create garbage fallback memories.
-		// The raw memory stays unprocessed and will be retried on the next polling cycle.
-		if raw.Source == "filesystem" {
-			ea.log.Info("skipping fallback encoding for filesystem event, will retry later", "raw_id", raw.ID)
-			return fmt.Errorf("LLM unavailable for filesystem encoding: %w", err)
+	// Step 1b: Tier 2 concept pre-check — skip expensive LLM compression if a
+	// semantically similar memory likely already exists (zero LLM cost).
+	skipCompression := false
+	if raw.Source != "mcp" { // Never skip MCP memories — they're explicit user input.
+		rawConcepts := retrieval.ParseQueryConcepts(raw.Content)
+		if len(rawConcepts) >= 3 {
+			candidates, cerr := ea.store.SearchByConceptsInProject(ctx, rawConcepts, raw.Project, 5)
+			if cerr == nil && len(candidates) > 0 {
+				for _, cand := range candidates {
+					if conceptOverlap(rawConcepts, cand.Concepts) >= 0.8 {
+						ea.log.Info("tier2-dedup: likely duplicate, skipping LLM compression",
+							"raw_id", raw.ID, "existing_id", cand.ID)
+						skipCompression = true
+						break
+					}
+				}
+			}
 		}
-		// Non-filesystem sources (MCP remember, terminal) use fallback since their
-		// content is already human-authored and meaningful without LLM compression.
+	}
+
+	// Step 2: Call LLM to compress and extract concepts (skipped if Tier 2 dedup triggered)
+	var compression *compressionResponse
+	if skipCompression {
 		compression = ea.fallbackCompression(raw)
+	} else {
+		compression, err = ea.compressAndExtractConcepts(ctx, raw)
+		if err != nil {
+			ea.log.Error("failed to compress raw memory with LLM", "raw_id", raw.ID, "error", err)
+			if raw.Source == "filesystem" {
+				ea.log.Info("skipping fallback encoding for filesystem event, will retry later", "raw_id", raw.ID)
+				return fmt.Errorf("LLM unavailable for filesystem encoding: %w", err)
+			}
+			compression = ea.fallbackCompression(raw)
+		}
 	}
 
 	ea.log.Debug("compression completed", "raw_id", raw.ID, "summary_length", len(compression.Summary))
@@ -1997,4 +2019,23 @@ func findDuplicate(results []store.RetrievalResult, dc dedupContext) *store.Retr
 		return r
 	}
 	return nil
+}
+
+// conceptOverlap returns the fraction of query concepts that appear in the
+// candidate's concept list. Used for Tier 2 pre-dedup before LLM compression.
+func conceptOverlap(queryConcepts, candidateConcepts []string) float64 {
+	if len(queryConcepts) == 0 {
+		return 0
+	}
+	candidateSet := make(map[string]bool, len(candidateConcepts))
+	for _, c := range candidateConcepts {
+		candidateSet[strings.ToLower(c)] = true
+	}
+	matches := 0
+	for _, c := range queryConcepts {
+		if candidateSet[strings.ToLower(c)] {
+			matches++
+		}
+	}
+	return float64(matches) / float64(len(queryConcepts))
 }

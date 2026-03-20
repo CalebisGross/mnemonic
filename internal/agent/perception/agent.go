@@ -382,12 +382,28 @@ func (pa *PerceptionAgent) processEvent(ctx context.Context, event Event) {
 		}
 	}
 
-	// 3. Create a raw memory entry
+	// 3. Compute content hash for early dedup
+	truncatedContent := pa.truncateContent(event.Content, pa.maxRawContentLen())
+	contentHash := computeContentHash(event.Source, event.Type, truncatedContent)
+
+	// 3b. Check if identical content already exists in last 24h (Tier 1 dedup)
+	exists, err := pa.store.RawMemoryExistsByHash(ctx, contentHash)
+	if err != nil {
+		pa.log.Warn("content hash dedup check failed", "error", err)
+	} else if exists {
+		pa.log.Debug("content-hash dedup: skipping duplicate",
+			"source", event.Source,
+			"type", event.Type,
+			"hash", contentHash[:12])
+		return
+	}
+
+	// 4. Create a raw memory entry
 	rawMemory := store.RawMemory{
 		ID:              uuid.New().String(),
 		Source:          event.Source,
 		Type:            event.Type,
-		Content:         pa.truncateContent(event.Content, pa.maxRawContentLen()),
+		Content:         truncatedContent,
 		Timestamp:       event.Timestamp,
 		CreatedAt:       time.Now(),
 		Metadata:        pa.mergeMetadata(event.Metadata, event.Path, heuristicResult.Score),
@@ -395,9 +411,10 @@ func (pa *PerceptionAgent) processEvent(ctx context.Context, event Event) {
 		InitialSalience: salience,
 		Processed:       false,
 		Project:         pa.resolveProject(event.Path),
+		ContentHash:     contentHash,
 	}
 
-	// 4. Write to store
+	// 5. Write to store
 	if err := pa.store.WriteRaw(ctx, rawMemory); err != nil {
 		pa.log.Error(
 			"failed to write raw memory",
@@ -544,6 +561,13 @@ func (pa *PerceptionAgent) truncateContent(content string, maxLen int) string {
 		return content
 	}
 	return content[:maxLen]
+}
+
+// computeContentHash returns a hex-encoded SHA-256 hash of source+type+content.
+// Used for Tier 1 early dedup — identical content produces identical hashes.
+func computeContentHash(source, memType, content string) string {
+	h := sha256.Sum256([]byte(source + "\x00" + memType + "\x00" + content))
+	return hex.EncodeToString(h[:16]) // 32-char hex string (128 bits)
 }
 
 // mergeMetadata merges event metadata with additional fields.
