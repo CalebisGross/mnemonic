@@ -319,6 +319,15 @@ type Abstraction struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
+// SessionSummary aggregates metadata about an MCP session.
+type SessionSummary struct {
+	SessionID   string    `json:"session_id"`
+	StartTime   time.Time `json:"start_time"`
+	EndTime     time.Time `json:"end_time"`
+	MemoryCount int       `json:"memory_count"`
+	TopConcepts []string  `json:"top_concepts"`
+}
+
 // TraversedAssoc records an association traversed during spread activation.
 type TraversedAssoc struct {
 	SourceID string `json:"source_id"`
@@ -479,6 +488,10 @@ type Store interface {
 	ListMemoriesBySession(ctx context.Context, sessionID string) ([]Memory, error)
 	GetProjectSummary(ctx context.Context, project string) (map[string]interface{}, error)
 	ListProjects(ctx context.Context) ([]string, error)
+
+	// --- Session queries ---
+	ListSessions(ctx context.Context, since time.Time, limit int) ([]SessionSummary, error)
+	GetSessionMemories(ctx context.Context, sessionID string, limit int) ([]Memory, error)
 
 	// --- Housekeeping ---
 	GetStatistics(ctx context.Context) (StoreStatistics, error)

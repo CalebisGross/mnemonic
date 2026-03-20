@@ -264,6 +264,15 @@ func (MockStore) GetProjectSummary(context.Context, string) (map[string]interfac
 }
 func (MockStore) ListProjects(context.Context) ([]string, error) { return nil, nil }
 
+// --- Session queries ---
+
+func (MockStore) ListSessions(context.Context, time.Time, int) ([]store.SessionSummary, error) {
+	return nil, nil
+}
+func (MockStore) GetSessionMemories(context.Context, string, int) ([]store.Memory, error) {
+	return nil, nil
+}
+
 // --- Housekeeping ---
 
 func (MockStore) GetStatistics(context.Context) (store.StoreStatistics, error) {

@@ -245,6 +245,10 @@ func (srv *MCPServer) handleToolCall(ctx context.Context, req *jsonRPCRequest) *
 		result, toolErr = srv.handleCoachLocalLLM(ctx, params.Arguments)
 	case "ingest_project":
 		result, toolErr = srv.handleIngestProject(ctx, params.Arguments)
+	case "list_sessions":
+		result, toolErr = srv.handleListSessions(ctx, params.Arguments)
+	case "recall_session":
+		result, toolErr = srv.handleRecallSession(ctx, params.Arguments)
 	case "amend":
 		result, toolErr = srv.handleAmend(ctx, params.Arguments)
 	case "check_memory":
@@ -1480,6 +1484,70 @@ func (srv *MCPServer) onSessionEnd(ctx context.Context) {
 	}
 
 	srv.log.Info("MCP session ended", "session_id", srv.sessionID, "memories_created", memCount)
+}
+
+// handleListSessions returns recent MCP sessions with metadata.
+func (srv *MCPServer) handleListSessions(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	limit := 10
+	if l, ok := args["limit"].(float64); ok && int(l) > 0 {
+		limit = int(l)
+	}
+
+	daysBack := 30
+	if d, ok := args["days_back"].(float64); ok && int(d) > 0 {
+		daysBack = int(d)
+	}
+
+	since := time.Now().AddDate(0, 0, -daysBack)
+	sessions, err := srv.store.ListSessions(ctx, since, limit)
+	if err != nil {
+		return nil, fmt.Errorf("listing sessions: %w", err)
+	}
+
+	if len(sessions) == 0 {
+		return toolResult("No sessions found."), nil
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Found %d sessions:\n\n", len(sessions))
+	for i, s := range sessions {
+		fmt.Fprintf(&sb, "%d. %s\n   Time: %s to %s\n   Memories: %d\n\n",
+			i+1, s.SessionID,
+			s.StartTime.Format("2006-01-02 15:04"),
+			s.EndTime.Format("2006-01-02 15:04"),
+			s.MemoryCount)
+	}
+	return toolResult(sb.String()), nil
+}
+
+// handleRecallSession retrieves all memories from a specific session.
+func (srv *MCPServer) handleRecallSession(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	sessionID, ok := args["session_id"].(string)
+	if !ok || sessionID == "" {
+		return nil, fmt.Errorf("session_id parameter is required")
+	}
+
+	limit := 20
+	if l, ok := args["limit"].(float64); ok && int(l) > 0 {
+		limit = int(l)
+	}
+
+	memories, err := srv.store.GetSessionMemories(ctx, sessionID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("getting session memories: %w", err)
+	}
+
+	if len(memories) == 0 {
+		return toolResult(fmt.Sprintf("No memories found for session %s.", sessionID)), nil
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Session %s (%d memories):\n\n", sessionID, len(memories))
+	for i, mem := range memories {
+		fmt.Fprintf(&sb, "%d. [%s] %s\n   Summary: %s\n   Concepts: %v\n   Type: %s\n\n",
+			i+1, mem.CreatedAt.Format("15:04:05"), mem.ID, mem.Summary, mem.Concepts, mem.Type)
+	}
+	return toolResult(sb.String()), nil
 }
 
 // handleAmend updates a memory's content in place, preserving associations and history.

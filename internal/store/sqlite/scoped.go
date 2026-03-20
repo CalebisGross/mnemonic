@@ -68,6 +68,46 @@ func (s *SQLiteStore) ListMemoriesBySession(ctx context.Context, sessionID strin
 	return scanMemoryRows(rows)
 }
 
+// ListSessions returns recent sessions with metadata.
+func (s *SQLiteStore) ListSessions(ctx context.Context, since time.Time, limit int) ([]store.SessionSummary, error) {
+	query := `
+	SELECT session_id, MIN(created_at), MAX(created_at), COUNT(*)
+	FROM memories
+	WHERE session_id IS NOT NULL AND session_id != '' AND created_at >= ?
+	GROUP BY session_id
+	ORDER BY MAX(created_at) DESC
+	LIMIT ?`
+
+	rows, err := s.db.QueryContext(ctx, query, since.Format(time.RFC3339), limit)
+	if err != nil {
+		return nil, fmt.Errorf("listing sessions: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var sessions []store.SessionSummary
+	for rows.Next() {
+		var ss store.SessionSummary
+		var startStr, endStr string
+		if err := rows.Scan(&ss.SessionID, &startStr, &endStr, &ss.MemoryCount); err != nil {
+			continue
+		}
+		ss.StartTime, _ = time.Parse(time.RFC3339, startStr)
+		ss.EndTime, _ = time.Parse(time.RFC3339, endStr)
+		sessions = append(sessions, ss)
+	}
+	return sessions, rows.Err()
+}
+
+// GetSessionMemories returns memories for a specific session, ordered by creation time.
+func (s *SQLiteStore) GetSessionMemories(ctx context.Context, sessionID string, limit int) ([]store.Memory, error) {
+	query := `SELECT ` + memoryColumns + ` FROM memories WHERE session_id = ? ORDER BY created_at ASC LIMIT ?`
+	rows, err := s.db.QueryContext(ctx, query, sessionID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("getting session memories: %w", err)
+	}
+	return scanMemoryRows(rows)
+}
+
 // GetProjectSummary returns aggregate stats for a specific project.
 func (s *SQLiteStore) GetProjectSummary(ctx context.Context, project string) (map[string]interface{}, error) {
 	summary := make(map[string]interface{})
