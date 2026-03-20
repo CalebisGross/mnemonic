@@ -1,14 +1,36 @@
 name: CI
 
+# Runs on release-please PRs (pre-release gate) and release tags (final check).
+# Regular PRs rely on local pre-commit hooks (go fmt, go vet, golangci-lint).
 on:
   push:
-    branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 jobs:
+  # Skip CI for non-release PRs (dependabot, feature branches, etc.)
+  # Release-please branches match: release-please--branches--main
+  should-run:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - name: Check if CI should run
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.head_ref }}" == release-please--* ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   test-matrix:
+    needs: [should-run]
+    if: needs.should-run.outputs.run == 'true'
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -28,10 +50,9 @@ jobs:
         shell: bash
         run: go test -race -count=1 ./...
 
-  # Gate job — preserves the "test" check name for branch protection rules.
   test:
-    needs: [test-matrix]
-    if: always()
+    needs: [should-run, test-matrix]
+    if: always() && needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check matrix results
@@ -42,6 +63,8 @@ jobs:
           fi
 
   lint:
+    needs: [should-run]
+    if: needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -56,6 +79,8 @@ jobs:
           version: v2.11.3
 
   build-matrix:
+    needs: [should-run]
+    if: needs.should-run.outputs.run == 'true'
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -71,10 +96,9 @@ jobs:
         shell: bash
         run: go build -ldflags "-s -w" -o bin/mnemonic ./cmd/mnemonic
 
-  # Gate job — preserves the "build" check name for branch protection rules.
   build:
-    needs: [build-matrix]
-    if: always()
+    needs: [should-run, build-matrix]
+    if: always() && needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check matrix results
