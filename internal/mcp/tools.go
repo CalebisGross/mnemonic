@@ -159,6 +159,11 @@ func recallProjectToolDef() ToolDefinition {
 					"description": "Filter by memory state: active, fading, archived",
 					"enum":        []string{"active", "fading", "archived"},
 				},
+				"format": map[string]interface{}{
+					"type":        "string",
+					"description": "Output format: text (default) or json (structured data)",
+					"enum":        []string{"text", "json"},
+				},
 			},
 			"required": []string{},
 		},
@@ -192,6 +197,11 @@ func recallTimelineToolDef() ToolDefinition {
 					"type":        "string",
 					"description": "Filter by memory state: active, fading, archived",
 					"enum":        []string{"active", "fading", "archived"},
+				},
+				"format": map[string]interface{}{
+					"type":        "string",
+					"description": "Output format: text (default) or json (structured data)",
+					"enum":        []string{"text", "json"},
 				},
 			},
 			"required": []string{},
@@ -386,6 +396,11 @@ func recallSessionToolDef() ToolDefinition {
 				"limit": map[string]interface{}{
 					"type":        "integer",
 					"description": "Maximum memories to return (default: 20)",
+				},
+				"format": map[string]interface{}{
+					"type":        "string",
+					"description": "Output format: text (default) or json (structured data)",
+					"enum":        []string{"text", "json"},
 				},
 			},
 			"required": []string{"session_id"},

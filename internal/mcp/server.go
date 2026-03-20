@@ -597,17 +597,21 @@ func formatRecallJSON(result retrieval.QueryResponse) map[string]interface{} {
 	memories := make([]map[string]interface{}, len(result.Memories))
 	for i, m := range result.Memories {
 		memories[i] = map[string]interface{}{
-			"id":          m.Memory.ID,
-			"score":       m.Score,
-			"summary":     m.Memory.Summary,
-			"content":     m.Memory.Content,
-			"concepts":    m.Memory.Concepts,
-			"source":      m.Memory.Source,
-			"type":        m.Memory.Type,
-			"project":     m.Memory.Project,
-			"salience":    m.Memory.Salience,
-			"created_at":  m.Memory.CreatedAt,
-			"explanation": m.Explanation,
+			"id":           m.Memory.ID,
+			"raw_id":       m.Memory.RawID,
+			"score":        m.Score,
+			"summary":      m.Memory.Summary,
+			"content":      m.Memory.Content,
+			"concepts":     m.Memory.Concepts,
+			"source":       m.Memory.Source,
+			"type":         m.Memory.Type,
+			"project":      m.Memory.Project,
+			"salience":     m.Memory.Salience,
+			"state":        m.Memory.State,
+			"access_count": m.Memory.AccessCount,
+			"session_id":   m.Memory.SessionID,
+			"created_at":   m.Memory.CreatedAt,
+			"explanation":  m.Explanation,
 		}
 	}
 
@@ -639,6 +643,45 @@ func formatRecallJSON(result retrieval.QueryResponse) map[string]interface{} {
 		"synthesis":    result.Synthesis,
 		"took_ms":      result.TookMs,
 	}
+}
+
+// formatMemoriesJSON builds a JSON array from a slice of memories (for recall_project, recall_timeline, recall_session).
+func formatMemoriesJSON(memories []store.Memory) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(memories))
+	for i, m := range memories {
+		result[i] = map[string]interface{}{
+			"id":           m.ID,
+			"raw_id":       m.RawID,
+			"summary":      m.Summary,
+			"content":      m.Content,
+			"concepts":     m.Concepts,
+			"source":       m.Source,
+			"type":         m.Type,
+			"project":      m.Project,
+			"salience":     m.Salience,
+			"state":        m.State,
+			"access_count": m.AccessCount,
+			"session_id":   m.SessionID,
+			"created_at":   m.CreatedAt,
+		}
+	}
+	return result
+}
+
+// formatPatternsJSON builds a JSON array from a slice of patterns.
+func formatPatternsJSON(patterns []store.Pattern) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(patterns))
+	for i, p := range patterns {
+		result[i] = map[string]interface{}{
+			"title":       p.Title,
+			"type":        p.PatternType,
+			"strength":    p.Strength,
+			"description": p.Description,
+			"concepts":    p.Concepts,
+			"project":     p.Project,
+		}
+	}
+	return result
 }
 
 // handleForget archives a memory by ID.
@@ -785,6 +828,11 @@ func (srv *MCPServer) handleRecallProject(ctx context.Context, args map[string]i
 		limit = int(l)
 	}
 
+	outputFormat := "text"
+	if f, ok := args["format"].(string); ok && f == "json" {
+		outputFormat = f
+	}
+
 	// Parse optional filters — default min_salience to 0.7 for project recall
 	// to filter out watcher noise that agents don't need.
 	source, state, memType, minSalience := parseRecallFilters(args)
@@ -822,7 +870,10 @@ func (srv *MCPServer) handleRecallProject(ctx context.Context, args map[string]i
 		}
 	}
 
-	// Route through retrieval agent if we have a query
+	// Collect memories from either the retrieval agent or recent project search.
+	var resultMemories []store.Memory
+	var synthesis string
+
 	if query != "" {
 		queryReq := retrieval.QueryRequest{
 			Query:               query,
@@ -844,32 +895,47 @@ func (srv *MCPServer) handleRecallProject(ctx context.Context, args map[string]i
 			return nil, fmt.Errorf("project recall failed: %w", err)
 		}
 
-		text += fmt.Sprintf("\nMemories (%d):\n\n", len(result.Memories))
-		for i, mem := range result.Memories {
-			text += fmt.Sprintf("%d. %s\n   Summary: %s\n   Concepts: %v\n   State: %s\n\n",
-				i+1, mem.Memory.ID, mem.Memory.Summary, mem.Memory.Concepts, mem.Memory.State)
+		for _, mem := range result.Memories {
+			resultMemories = append(resultMemories, mem.Memory)
 		}
-
-		if result.Synthesis != "" {
-			text += fmt.Sprintf("\nSynthesis:\n%s\n", result.Synthesis)
-		}
+		synthesis = result.Synthesis
 	} else {
-		// No query: fall back to recent project memories
 		memories, err := srv.store.SearchByProject(ctx, project, "", limit)
 		if err != nil {
 			srv.log.Error("project recall failed", "project", project, "error", err)
 			return nil, fmt.Errorf("project recall failed: %w", err)
 		}
-		filtered := filterMemories(memories, source, state, memType, minSalience)
-
-		text += fmt.Sprintf("\nMemories (%d):\n\n", len(filtered))
-		for i, mem := range filtered {
-			text += fmt.Sprintf("%d. %s\n   Summary: %s\n   Concepts: %v\n   State: %s\n\n",
-				i+1, mem.ID, mem.Summary, mem.Concepts, mem.State)
-		}
+		resultMemories = filterMemories(memories, source, state, memType, minSalience)
 	}
 
 	srv.log.Info("project recall completed", "project", project)
+
+	if outputFormat == "json" {
+		jsonResp := map[string]interface{}{
+			"project":  project,
+			"summary":  summary,
+			"patterns": formatPatternsJSON(patterns),
+			"memories": formatMemoriesJSON(resultMemories),
+		}
+		if synthesis != "" {
+			jsonResp["synthesis"] = synthesis
+		}
+		jsonBytes, err := json.Marshal(jsonResp)
+		if err != nil {
+			return toolResult(text), nil
+		}
+		return toolResult(string(jsonBytes)), nil
+	}
+
+	// Text output.
+	text += fmt.Sprintf("\nMemories (%d):\n\n", len(resultMemories))
+	for i, mem := range resultMemories {
+		text += fmt.Sprintf("%d. %s\n   Summary: %s\n   Concepts: %v\n   State: %s\n\n",
+			i+1, mem.ID, mem.Summary, mem.Concepts, mem.State)
+	}
+	if synthesis != "" {
+		text += fmt.Sprintf("\nSynthesis:\n%s\n", synthesis)
+	}
 
 	return toolResult(text), nil
 }
@@ -888,6 +954,11 @@ func (srv *MCPServer) handleRecallTimeline(ctx context.Context, args map[string]
 
 	source, state, memType, minSalience := parseRecallFilters(args)
 
+	outputFormat := "text"
+	if f, ok := args["format"].(string); ok && f == "json" {
+		outputFormat = f
+	}
+
 	from := time.Now().Add(-time.Duration(hoursBack) * time.Hour)
 	to := time.Now()
 
@@ -899,6 +970,20 @@ func (srv *MCPServer) handleRecallTimeline(ctx context.Context, args map[string]
 
 	filtered := filterMemories(memories, source, state, memType, minSalience)
 
+	srv.log.Info("timeline recall completed", "hours_back", hoursBack, "memories", len(filtered))
+
+	if outputFormat == "json" {
+		jsonResp := map[string]interface{}{
+			"hours_back": hoursBack,
+			"memories":   formatMemoriesJSON(filtered),
+		}
+		jsonBytes, err := json.Marshal(jsonResp)
+		if err != nil {
+			return toolResult("json marshal error"), nil
+		}
+		return toolResult(string(jsonBytes)), nil
+	}
+
 	text := fmt.Sprintf("Timeline (last %dh, %d memories):\n\n", hoursBack, len(filtered))
 	for i, mem := range filtered {
 		projectInfo := ""
@@ -909,8 +994,6 @@ func (srv *MCPServer) handleRecallTimeline(ctx context.Context, args map[string]
 			i+1, mem.Timestamp.Format("2006-01-02 15:04:05"), projectInfo,
 			mem.Summary, mem.Concepts)
 	}
-
-	srv.log.Info("timeline recall completed", "hours_back", hoursBack, "memories", len(filtered))
 
 	return toolResult(text), nil
 }
@@ -1654,13 +1737,37 @@ func (srv *MCPServer) handleRecallSession(ctx context.Context, args map[string]i
 		limit = int(l)
 	}
 
+	outputFormat := "text"
+	if f, ok := args["format"].(string); ok && f == "json" {
+		outputFormat = f
+	}
+
 	memories, err := srv.store.GetSessionMemories(ctx, sessionID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("getting session memories: %w", err)
 	}
 
 	if len(memories) == 0 {
+		if outputFormat == "json" {
+			jsonBytes, _ := json.Marshal(map[string]interface{}{
+				"session_id": sessionID,
+				"memories":   []interface{}{},
+			})
+			return toolResult(string(jsonBytes)), nil
+		}
 		return toolResult(fmt.Sprintf("No memories found for session %s.", sessionID)), nil
+	}
+
+	if outputFormat == "json" {
+		jsonResp := map[string]interface{}{
+			"session_id": sessionID,
+			"memories":   formatMemoriesJSON(memories),
+		}
+		jsonBytes, err := json.Marshal(jsonResp)
+		if err != nil {
+			return toolResult("json marshal error"), nil
+		}
+		return toolResult(string(jsonBytes)), nil
 	}
 
 	var sb strings.Builder
