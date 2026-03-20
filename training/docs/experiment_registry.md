@@ -130,3 +130,18 @@ Pre-registered experiments for Felix-LM v3 100M pretraining on mnemonic's curate
 - **Early observation:** LR 1e-3 beats 6e-4 by 6% lower loss at 4000 micro-steps, consistent with prediction (5-15%). Next run (LR 2e-3) will test whether the optimum is higher still or if 1e-3 is the sweet spot.
 - **Verdict:** (pending — 3 runs remaining)
 - **Analysis:** (pending)
+
+### EXP-3: LR Bisection Search
+
+- **Date:** 2026-03-20
+- **Status:** REGISTERED
+- **Hypothesis:** The EXP-2 sweep showed loss still decreasing at LR 2e-3 (the highest tested). A quadratic fit in log-LR space predicts the optimum is beyond 2e-3, but extrapolation from 3 points is unreliable. Binary search over [2e-3, 2e-2] will bracket the true optimum more reliably than curve fitting.
+- **Variable:** Learning rate (bisection search in [2e-3, 2e-2])
+- **Control:** LR 2e-3 / WD 0.1 (best from EXP-2, loss 4.250)
+- **Prediction:** Optimum LR is in [3e-3, 6e-3]. LR 2e-2 will be worse than 2e-3 (overshoot). Expect the confirmed optimum to beat 2e-3 by 3-8% lower loss.
+- **Config:** v3_mnemonic_100m, batch 10, accum 4, probes at 1000 micro-steps (~35min each), confirmation at 4000 micro-steps, torch.compile, no wandb for probes
+- **Hardware:** AMD RX 7800 XT 16GB, ROCm, Linux x86_64
+- **Method:** 1 upper-bound probe + 3 bisection rounds + 1 full confirmation. Probe results logged to probe_results.tsv, confirmation to sweep_results.tsv.
+- **Result:** (pending)
+- **Verdict:** (pending)
+- **Analysis:** (pending)
