@@ -415,6 +415,25 @@ CREATE INDEX IF NOT EXISTS idx_tool_usage_tool ON tool_usage(tool_name);
 		return fmt.Errorf("failed to add retrieval_feedback.access_snapshot column: %w", err)
 	}
 
+	// Migration 011: Unique constraint on memories.raw_id to prevent duplicate encoding.
+	// Multiple mnemonic processes (daemon + MCP instances) share the same DB; without a
+	// DB-level guard, each process can independently encode the same raw memory.
+	// Step 1: Delete duplicate encoded memories, keeping the oldest per raw_id.
+	_, _ = db.Exec(`
+		DELETE FROM memories
+		WHERE raw_id IS NOT NULL
+		  AND id NOT IN (
+		    SELECT id FROM (
+		      SELECT id, ROW_NUMBER() OVER (PARTITION BY raw_id ORDER BY created_at ASC) as rn
+		      FROM memories
+		      WHERE raw_id IS NOT NULL
+		    ) ranked
+		    WHERE rn = 1
+		  )
+	`)
+	// Step 2: Create unique partial index (allows NULLs for gist/consolidated memories).
+	_, _ = db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_raw_id_unique ON memories(raw_id) WHERE raw_id IS NOT NULL`)
+
 	return nil
 }
 

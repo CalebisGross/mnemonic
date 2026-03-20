@@ -24,18 +24,19 @@ import (
 
 type mockStore struct {
 	storetest.MockStore
-	getRawFn             func(ctx context.Context, id string) (store.RawMemory, error)
-	listRawUnprocessedFn func(ctx context.Context, limit int) ([]store.RawMemory, error)
-	markRawProcessedFn   func(ctx context.Context, id string) error
-	writeMemoryFn        func(ctx context.Context, mem store.Memory) error
-	searchByEmbeddingFn  func(ctx context.Context, embedding []float32, limit int) ([]store.RetrievalResult, error)
-	createAssociationFn  func(ctx context.Context, assoc store.Association) error
-	countMemoriesFn      func(ctx context.Context) (int, error)
-	getOpenEpisodeFn     func(ctx context.Context) (store.Episode, error)
-	searchByConceptsFn   func(ctx context.Context, concepts []string, limit int) ([]store.Memory, error)
-	writeMemoryResFn     func(ctx context.Context, res store.MemoryResolution) error
-	writeConceptSetFn    func(ctx context.Context, cs store.ConceptSet) error
-	writeMemoryAttrsFn   func(ctx context.Context, attrs store.MemoryAttributes) error
+	getRawFn              func(ctx context.Context, id string) (store.RawMemory, error)
+	listRawUnprocessedFn  func(ctx context.Context, limit int) ([]store.RawMemory, error)
+	markRawProcessedFn    func(ctx context.Context, id string) error
+	claimRawForEncodingFn func(ctx context.Context, id string) error
+	writeMemoryFn         func(ctx context.Context, mem store.Memory) error
+	searchByEmbeddingFn   func(ctx context.Context, embedding []float32, limit int) ([]store.RetrievalResult, error)
+	createAssociationFn   func(ctx context.Context, assoc store.Association) error
+	countMemoriesFn       func(ctx context.Context) (int, error)
+	getOpenEpisodeFn      func(ctx context.Context) (store.Episode, error)
+	searchByConceptsFn    func(ctx context.Context, concepts []string, limit int) ([]store.Memory, error)
+	writeMemoryResFn      func(ctx context.Context, res store.MemoryResolution) error
+	writeConceptSetFn     func(ctx context.Context, cs store.ConceptSet) error
+	writeMemoryAttrsFn    func(ctx context.Context, attrs store.MemoryAttributes) error
 }
 
 func (m *mockStore) GetRaw(ctx context.Context, id string) (store.RawMemory, error) {
@@ -53,6 +54,12 @@ func (m *mockStore) ListRawUnprocessed(ctx context.Context, limit int) ([]store.
 func (m *mockStore) MarkRawProcessed(ctx context.Context, id string) error {
 	if m.markRawProcessedFn != nil {
 		return m.markRawProcessedFn(ctx, id)
+	}
+	return nil
+}
+func (m *mockStore) ClaimRawForEncoding(ctx context.Context, id string) error {
+	if m.claimRawForEncodingFn != nil {
+		return m.claimRawForEncodingFn(ctx, id)
 	}
 	return nil
 }
@@ -943,7 +950,7 @@ func TestEncodeMemory(t *testing.T) {
 				writtenMemory = mem
 				return nil
 			},
-			markRawProcessedFn: func(_ context.Context, id string) error {
+			claimRawForEncodingFn: func(_ context.Context, id string) error {
 				if id == "raw-1" {
 					markedProcessed = true
 				}

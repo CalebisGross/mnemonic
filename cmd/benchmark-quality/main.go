@@ -312,22 +312,21 @@ func runScenario(
 	retAgent := retrieval.NewRetrievalAgent(s, p, cfg.Retrieval, log)
 	consolAgent := consolidation.NewConsolidationAgent(s, p, cfg.Consolidation, log)
 
-	// Phase 1: Create a dummy raw memory so FK constraints are satisfied,
-	// then ingest all benchmark memories referencing it.
-	rawID := "bench-raw-" + sc.Name
-	if err := s.WriteRaw(ctx, store.RawMemory{
-		ID:        rawID,
-		Timestamp: time.Now(),
-		Source:    "benchmark",
-		Type:      "synthetic",
-		Content:   "Benchmark scenario: " + sc.Name,
-		Processed: true,
-		CreatedAt: time.Now(),
-	}); err != nil {
-		return result, fmt.Errorf("writing raw memory: %w", err)
-	}
-
-	for i := range sc.Memories {
+	// Phase 1: Create a raw memory per benchmark memory so FK and UNIQUE
+	// constraints are satisfied, then ingest all benchmark memories.
+	for i, mem := range sc.Memories {
+		rawID := fmt.Sprintf("bench-raw-%s-%d", sc.Name, i)
+		if err := s.WriteRaw(ctx, store.RawMemory{
+			ID:        rawID,
+			Timestamp: time.Now(),
+			Source:    "benchmark",
+			Type:      "synthetic",
+			Content:   "Benchmark memory: " + mem.Memory.Summary,
+			Processed: true,
+			CreatedAt: time.Now(),
+		}); err != nil {
+			return result, fmt.Errorf("writing raw memory: %w", err)
+		}
 		sc.Memories[i].Memory.RawID = rawID
 	}
 

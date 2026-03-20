@@ -4,6 +4,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -935,6 +936,93 @@ func TestMarkRawProcessed(t *testing.T) {
 
 	if !retrieved.Processed {
 		t.Fatal("expected raw memory to be marked processed")
+	}
+}
+
+// TestClaimRawForEncoding tests the atomic claim-or-skip behavior.
+func TestClaimRawForEncoding(t *testing.T) {
+	s := createTestStore(t)
+	defer func() { _ = s.Close() }()
+
+	ctx := context.Background()
+
+	raw := store.RawMemory{
+		ID:              "claim-test-1",
+		Timestamp:       time.Now(),
+		Source:          "test",
+		Content:         "test content",
+		Processed:       false,
+		CreatedAt:       time.Now(),
+		HeuristicScore:  0.5,
+		InitialSalience: 0.6,
+	}
+
+	if err := s.WriteRaw(ctx, raw); err != nil {
+		t.Fatalf("write raw failed: %v", err)
+	}
+
+	// First claim should succeed
+	if err := s.ClaimRawForEncoding(ctx, raw.ID); err != nil {
+		t.Fatalf("first claim should succeed: %v", err)
+	}
+
+	// Second claim should return ErrAlreadyClaimed
+	err := s.ClaimRawForEncoding(ctx, raw.ID)
+	if err == nil {
+		t.Fatal("second claim should fail")
+	}
+	if !errors.Is(err, store.ErrAlreadyClaimed) {
+		t.Fatalf("expected ErrAlreadyClaimed, got: %v", err)
+	}
+
+	// Verify raw is marked processed
+	retrieved, err := s.GetRaw(ctx, raw.ID)
+	if err != nil {
+		t.Fatalf("get raw failed: %v", err)
+	}
+	if !retrieved.Processed {
+		t.Fatal("expected raw memory to be marked processed after claim")
+	}
+}
+
+// TestWriteMemoryDuplicateRawID tests the UNIQUE constraint on raw_id.
+func TestWriteMemoryDuplicateRawID(t *testing.T) {
+	s := createTestStore(t)
+	defer func() { _ = s.Close() }()
+
+	ctx := context.Background()
+
+	mem1 := store.Memory{
+		ID:        "m1",
+		RawID:     "raw-1",
+		Timestamp: time.Now(),
+		Content:   "first encoding",
+		Summary:   "first",
+		State:     "active",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	mem2 := store.Memory{
+		ID:        "m2",
+		RawID:     "raw-1", // same raw_id
+		Timestamp: time.Now(),
+		Content:   "duplicate encoding",
+		Summary:   "duplicate",
+		State:     "active",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := s.WriteMemory(ctx, mem1); err != nil {
+		t.Fatalf("first write should succeed: %v", err)
+	}
+
+	err := s.WriteMemory(ctx, mem2)
+	if err == nil {
+		t.Fatal("second write with same raw_id should fail")
+	}
+	if !errors.Is(err, store.ErrDuplicateRawID) {
+		t.Fatalf("expected ErrDuplicateRawID, got: %v", err)
 	}
 }
 

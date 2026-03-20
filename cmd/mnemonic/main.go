@@ -2575,8 +2575,13 @@ func mcpCommand(configPath string) {
 	bus := events.NewInMemoryBus(100)
 	defer func() { _ = bus.Close() }()
 
-	// Create encoding agent so remembered memories get encoded
-	encoder := encoding.NewEncodingAgentWithConfig(db, llmProvider, log, buildEncodingConfig(cfg))
+	// Create encoding agent so remembered memories get encoded.
+	// Polling is disabled in MCP mode — each MCP process only encodes via events
+	// for memories it creates. The daemon is the sole poller. This prevents N
+	// MCP processes from independently encoding the same unprocessed raw memories.
+	mcpEncodingCfg := buildEncodingConfig(cfg)
+	mcpEncodingCfg.DisablePolling = true
+	encoder := encoding.NewEncodingAgentWithConfig(db, llmProvider, log, mcpEncodingCfg)
 	if err := encoder.Start(ctx, bus); err != nil {
 		log.Error("failed to start encoding agent for MCP", "error", err)
 	}

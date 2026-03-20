@@ -160,22 +160,20 @@ func runComparisonScenario(
 		p = cfg.Provider
 	}
 
-	// Create dummy raw memory for FK constraint.
-	rawID := "compare-raw-" + sc.Name
-	if err := s.WriteRaw(ctx, store.RawMemory{
-		ID:        rawID,
-		Timestamp: time.Now(),
-		Source:    "benchmark",
-		Type:      "synthetic",
-		Content:   "Comparison scenario: " + sc.Name,
-		Processed: true,
-		CreatedAt: time.Now(),
-	}); err != nil {
-		return result, fmt.Errorf("writing raw memory: %w", err)
-	}
-
-	// Ingest all memories.
-	for i := range sc.Memories {
+	// Create a raw memory per benchmark memory for FK + UNIQUE constraints.
+	for i, mem := range sc.Memories {
+		rawID := fmt.Sprintf("compare-raw-%s-%d", sc.Name, i)
+		if err := s.WriteRaw(ctx, store.RawMemory{
+			ID:        rawID,
+			Timestamp: time.Now(),
+			Source:    "benchmark",
+			Type:      "synthetic",
+			Content:   "Comparison memory: " + mem.Memory.Summary,
+			Processed: true,
+			CreatedAt: time.Now(),
+		}); err != nil {
+			return result, fmt.Errorf("writing raw memory: %w", err)
+		}
 		sc.Memories[i].Memory.RawID = rawID
 	}
 	for _, mem := range sc.Memories {

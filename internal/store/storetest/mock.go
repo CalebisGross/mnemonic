@@ -30,7 +30,9 @@ func (MockStore) ListRawUnprocessed(context.Context, int) ([]store.RawMemory, er
 func (MockStore) ListRawMemoriesAfter(context.Context, time.Time, int) ([]store.RawMemory, error) {
 	return nil, nil
 }
-func (MockStore) MarkRawProcessed(context.Context, string) error { return nil }
+func (MockStore) MarkRawProcessed(context.Context, string) error    { return nil }
+func (MockStore) ClaimRawForEncoding(context.Context, string) error { return nil }
+func (MockStore) UnclaimRawMemory(context.Context, string) error    { return nil }
 
 // --- Encoded memory operations ---
 

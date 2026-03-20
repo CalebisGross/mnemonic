@@ -3,6 +3,7 @@ package encoding
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -73,6 +74,7 @@ type EncodingConfig struct {
 	EmbedBatchSize          int      // max memories to batch-embed in one call (default 10)
 	DeduplicationThreshold  float32  // cosine sim above which new memory is a duplicate (default: 0.9)
 	SalienceFloor           float32  // min salience to encode; non-MCP sources below this are skipped (default: 0.0)
+	DisablePolling          bool     // if true, skip the polling loop (MCP processes should not poll)
 }
 
 // compressedMemory holds the intermediate state between compression and embedding.
@@ -340,10 +342,16 @@ func (ea *EncodingAgent) Start(ctx context.Context, bus events.Bus) error {
 		ea.log.Info("LLM association classification enabled", "agent", ea.name)
 	}
 
-	// Start the polling loop as a fallback mechanism
-	ea.wg.Add(1)
-	go ea.pollingLoop()
-	ea.log.Info("started polling loop", "agent", ea.name, "interval", ea.config.PollingInterval)
+	// Start the polling loop as a fallback mechanism.
+	// MCP processes disable polling — they only encode via events for memories
+	// they themselves create. The daemon's polling loop is the single poller.
+	if !ea.config.DisablePolling {
+		ea.wg.Add(1)
+		go ea.pollingLoop()
+		ea.log.Info("started polling loop", "agent", ea.name, "interval", ea.config.PollingInterval)
+	} else {
+		ea.log.Info("polling disabled (event-only mode)", "agent", ea.name)
+	}
 
 	return nil
 }
@@ -536,7 +544,9 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 
 	ea.log.Debug("polling found unprocessed memories", "count", len(unprocessed))
 
-	// Filter and claim memories for processing
+	// Filter and atomically claim memories for processing.
+	// ClaimRawForEncoding is the cross-process guard: it flips processed 0→1
+	// atomically so only one process can encode each raw memory.
 	var toProcess []store.RawMemory
 	for _, raw := range unprocessed {
 		if path, ok := raw.Metadata["path"]; ok {
@@ -560,6 +570,19 @@ func (ea *EncodingAgent) pollAndProcessRawMemories(ctx context.Context) error {
 			ea.processingMutex.Unlock()
 			continue
 		}
+		ea.processingMutex.Unlock()
+
+		// Atomically claim in DB before adding to in-memory set.
+		if err := ea.store.ClaimRawForEncoding(ctx, raw.ID); err != nil {
+			if errors.Is(err, store.ErrAlreadyClaimed) {
+				ea.log.Debug("raw memory already claimed by another process, skipping", "raw_id", raw.ID)
+				continue
+			}
+			ea.log.Warn("failed to claim raw memory for encoding", "raw_id", raw.ID, "error", err)
+			continue
+		}
+
+		ea.processingMutex.Lock()
 		ea.processingMemories[raw.ID] = true
 		ea.processingMutex.Unlock()
 
@@ -707,9 +730,7 @@ func (ea *EncodingAgent) finalizeEncodedMemory(ctx context.Context, raw store.Ra
 				if err := ea.store.IncrementAccess(ctx, dup.Memory.ID); err != nil {
 					ea.log.Warn("dedup: failed to increment access", "memory_id", dup.Memory.ID, "error", err)
 				}
-				if err := ea.store.MarkRawProcessed(ctx, raw.ID); err != nil {
-					ea.log.Warn("dedup: failed to mark raw as processed", "raw_id", raw.ID, "error", err)
-				}
+				// Raw was already claimed — no MarkRawProcessed needed.
 				return nil
 			}
 
@@ -752,6 +773,10 @@ func (ea *EncodingAgent) finalizeEncodedMemory(ctx context.Context, raw store.Ra
 		SessionID:    raw.SessionID,
 	}
 	if err := ea.store.WriteMemory(ctx, memory); err != nil {
+		if errors.Is(err, store.ErrDuplicateRawID) {
+			ea.log.Info("dedup: another process already encoded this raw memory", "raw_id", raw.ID)
+			return nil
+		}
 		return fmt.Errorf("failed to write encoded memory: %w", err)
 	}
 
@@ -829,10 +854,8 @@ func (ea *EncodingAgent) finalizeEncodedMemory(ctx context.Context, raw store.Ra
 		}
 	}
 
-	// Mark raw as processed
-	if err := ea.store.MarkRawProcessed(ctx, raw.ID); err != nil {
-		ea.log.Error("failed to mark raw memory as processed", "raw_id", raw.ID, "error", err)
-	}
+	// Raw was already claimed (processed=1) by pollAndProcessRawMemories before
+	// compression started. No additional MarkRawProcessed needed.
 
 	// Publish events
 	if ea.bus != nil {
@@ -873,7 +896,9 @@ func (ea *EncodingAgent) handleEncodingFailure(ctx context.Context, rawID string
 		delete(ea.failureCounts, rawID)
 		ea.processingMutex.Unlock()
 	} else {
-		ea.log.Warn("encoding failed, will retry later",
+		// Unclaim so the raw can be retried on the next poll cycle.
+		_ = ea.store.UnclaimRawMemory(ctx, rawID)
+		ea.log.Warn("encoding failed, unclaimed for retry",
 			"raw_id", rawID, "attempt", count, "max", ea.maxRetries(), "error", err)
 	}
 
@@ -899,16 +924,30 @@ func (ea *EncodingAgent) releaseProcessing(raws []store.RawMemory) {
 
 // encodeMemory performs the complete encoding pipeline for a single raw memory.
 func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
+	// Step 0: Atomically claim the raw memory for encoding.
+	// This is the cross-process guard: multiple mnemonic processes (daemon + MCP
+	// instances) share the same DB. Only the process that successfully flips
+	// processed from 0→1 proceeds; all others bail out.
+	if err := ea.store.ClaimRawForEncoding(ctx, rawID); err != nil {
+		if errors.Is(err, store.ErrAlreadyClaimed) {
+			ea.log.Debug("raw memory already claimed by another process, skipping", "raw_id", rawID)
+			return nil
+		}
+		return fmt.Errorf("failed to claim raw memory: %w", err)
+	}
+	// If encoding fails after claiming, unclaim so the raw can be retried.
+	claimed := true
+	defer func() {
+		if claimed {
+			ea.log.Debug("unclaiming raw memory after encoding failure", "raw_id", rawID)
+			_ = ea.store.UnclaimRawMemory(ctx, rawID)
+		}
+	}()
+
 	// Step 1: Get the raw memory from store
 	raw, err := ea.store.GetRaw(ctx, rawID)
 	if err != nil {
 		return fmt.Errorf("failed to get raw memory: %w", err)
-	}
-
-	// Guard: skip if already processed (race between event handler and polling)
-	if raw.Processed {
-		ea.log.Debug("raw memory already processed, skipping", "raw_id", raw.ID)
-		return nil
 	}
 
 	ea.log.Debug("encoding raw memory", "raw_id", raw.ID, "source", raw.Source)
@@ -968,9 +1007,8 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 				if err := ea.store.IncrementAccess(ctx, dup.Memory.ID); err != nil {
 					ea.log.Warn("dedup: failed to increment access", "memory_id", dup.Memory.ID, "error", err)
 				}
-				if err := ea.store.MarkRawProcessed(ctx, raw.ID); err != nil {
-					ea.log.Warn("dedup: failed to mark raw as processed", "raw_id", raw.ID, "error", err)
-				}
+				// Raw was already claimed in Step 0 — no MarkRawProcessed needed.
+				claimed = false // dedup success — don't unclaim
 				return nil
 			}
 
@@ -1020,8 +1058,18 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 	}
 
 	if err := ea.store.WriteMemory(ctx, memory); err != nil {
+		// UNIQUE constraint on raw_id: another process encoded this raw memory
+		// between our claim and our write. Treat as successful dedup.
+		if errors.Is(err, store.ErrDuplicateRawID) {
+			ea.log.Info("dedup: another process already encoded this raw memory", "raw_id", raw.ID)
+			claimed = false // don't unclaim — encoding succeeded elsewhere
+			return nil
+		}
 		return fmt.Errorf("failed to write encoded memory: %w", err)
 	}
+
+	// Encoding succeeded — don't unclaim on defer.
+	claimed = false
 
 	ea.log.Debug("memory written to store", "memory_id", memoryID, "raw_id", raw.ID)
 
@@ -1097,11 +1145,7 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 		}
 	}
 
-	// Step 7: Mark the raw memory as processed
-	if err := ea.store.MarkRawProcessed(ctx, raw.ID); err != nil {
-		ea.log.Error("failed to mark raw memory as processed", "raw_id", raw.ID, "error", err)
-		// Don't fail the entire operation, just log
-	}
+	// Step 7: Raw was already claimed (processed=1) in Step 0. No additional mark needed.
 
 	// Step 8: Publish MemoryEncoded event
 	encodedEvent := events.MemoryEncoded{

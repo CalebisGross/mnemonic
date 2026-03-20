@@ -708,6 +708,38 @@ func (s *SQLiteStore) MarkRawProcessed(ctx context.Context, id string) error {
 	return nil
 }
 
+// ClaimRawForEncoding atomically claims a raw memory for encoding.
+// It sets processed=1 only if the current value is 0 (unclaimed).
+// Returns store.ErrAlreadyClaimed if another process already claimed it.
+func (s *SQLiteStore) ClaimRawForEncoding(ctx context.Context, id string) error {
+	query := `UPDATE raw_memories SET processed = 1 WHERE id = ? AND processed = 0`
+
+	result, err := s.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to claim raw memory for encoding: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return store.ErrAlreadyClaimed
+	}
+
+	return nil
+}
+
+// UnclaimRawMemory resets a raw memory to unprocessed so it can be retried.
+func (s *SQLiteStore) UnclaimRawMemory(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE raw_memories SET processed = 0 WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("failed to unclaim raw memory: %w", err)
+	}
+	return nil
+}
+
 // Memory Operations
 
 // WriteMemory writes a memory to the database.
@@ -762,6 +794,10 @@ func (s *SQLiteStore) WriteMemory(ctx context.Context, mem store.Memory) error {
 	)
 
 	if err != nil {
+		// Check for UNIQUE constraint violation on raw_id (cross-process dedup).
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") && strings.Contains(err.Error(), "raw_id") {
+			return fmt.Errorf("memory for raw_id %s: %w", mem.RawID, store.ErrDuplicateRawID)
+		}
 		return fmt.Errorf("failed to write memory: %w", err)
 	}
 

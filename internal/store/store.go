@@ -11,6 +11,12 @@ import (
 // ErrNotFound is returned when a requested entity does not exist.
 var ErrNotFound = errors.New("not found")
 
+// ErrAlreadyClaimed is returned when a raw memory has already been claimed for encoding by another process.
+var ErrAlreadyClaimed = errors.New("already claimed")
+
+// ErrDuplicateRawID is returned when a memory with the same raw_id already exists.
+var ErrDuplicateRawID = errors.New("duplicate raw_id")
+
 // Memory state constants.
 const (
 	MemoryStateActive   = "active"
@@ -120,7 +126,7 @@ type LLMChartBucket struct {
 // ToolUsageRecord captures metrics from a single MCP tool invocation.
 type ToolUsageRecord struct {
 	Timestamp    time.Time `json:"timestamp"`
-	ToolName     string    `json:"tool_name"`     // "recall", "remember", "feedback", etc.
+	ToolName     string    `json:"tool_name"` // "recall", "remember", "feedback", etc.
 	SessionID    string    `json:"session_id"`
 	Project      string    `json:"project"`
 	LatencyMs    int64     `json:"latency_ms"`
@@ -135,11 +141,11 @@ type ToolUsageRecord struct {
 
 // ToolUsageSummary aggregates MCP tool usage metrics over a time period.
 type ToolUsageSummary struct {
-	TotalCalls   int                `json:"total_calls"`
-	AvgLatencyMs float64            `json:"avg_latency_ms"`
-	ErrorCount   int                `json:"error_count"`
-	ByTool       map[string]int     `json:"by_tool"`
-	ByProject    map[string]int     `json:"by_project"`
+	TotalCalls   int            `json:"total_calls"`
+	AvgLatencyMs float64        `json:"avg_latency_ms"`
+	ErrorCount   int            `json:"error_count"`
+	ByTool       map[string]int `json:"by_tool"`
+	ByProject    map[string]int `json:"by_project"`
 }
 
 // ToolChartBucket holds pre-aggregated tool call counts for a single time bucket.
@@ -343,6 +349,14 @@ type Store interface {
 	ListRawUnprocessed(ctx context.Context, limit int) ([]RawMemory, error)
 	ListRawMemoriesAfter(ctx context.Context, after time.Time, limit int) ([]RawMemory, error)
 	MarkRawProcessed(ctx context.Context, id string) error
+	// ClaimRawForEncoding atomically marks a raw memory as processed only if it
+	// hasn't been claimed yet (processed=0). Returns ErrAlreadyClaimed if another
+	// process already claimed it. This prevents duplicate encoding across multiple
+	// mnemonic processes sharing the same database.
+	ClaimRawForEncoding(ctx context.Context, id string) error
+	// UnclaimRawMemory resets a raw memory to unprocessed (processed=0) so it
+	// can be retried after a failed encoding attempt.
+	UnclaimRawMemory(ctx context.Context, id string) error
 
 	// --- Encoded memory operations ---
 	WriteMemory(ctx context.Context, mem Memory) error
