@@ -162,6 +162,9 @@ func (MockStore) GetRetrievalFeedback(context.Context, string) (store.RetrievalF
 func (MockStore) ListRecentRetrievalFeedback(context.Context, time.Time, int) ([]store.RetrievalFeedback, error) {
 	return nil, nil
 }
+func (MockStore) GetMemoryFeedbackScores(context.Context, []string) (map[string]float32, error) {
+	return nil, nil
+}
 
 // --- Episode operations ---
 

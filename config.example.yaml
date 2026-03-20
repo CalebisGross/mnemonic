@@ -359,6 +359,19 @@ retrieval:
   # Bonus for memories found by both FTS and embedding search
   dual_hit_bonus: 0.15
 
+  # Weight of user feedback in ranking (0.0-1.0).
+  # Memories rated "helpful" get +feedback_weight, "irrelevant" get -feedback_weight.
+  feedback_weight: 0.15
+
+  # Per-source multipliers for unfiltered recall.
+  # Noisier sources (filesystem, clipboard) are down-weighted relative to MCP memories.
+  # Unknown sources default to 1.0.
+  source_weights:
+    mcp: 1.0
+    terminal: 0.8
+    clipboard: 0.6
+    filesystem: 0.5
+
 # Metacognition Configuration
 metacognition:
   # Enable metacognitive reflection

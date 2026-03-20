@@ -55,6 +55,12 @@ type RetrievalConfig struct {
 	// Diversity filtering (MMR)
 	DiversityLambda    float32 // 0=max diversity, 1=pure relevance (default: 0.7)
 	DiversityThreshold float32 // cosine sim above which memories are near-duplicates (default: 0.85)
+
+	// Feedback-informed ranking
+	FeedbackWeight float32 // weight of user feedback score in ranking (default: 0.15)
+
+	// Source-weighted scoring
+	SourceWeights map[string]float32 // per-source multipliers (default: mcp=1.0, terminal=0.8, clipboard=0.6, filesystem=0.5)
 }
 
 // DefaultConfig returns sensible defaults for retrieval configuration.
@@ -91,6 +97,14 @@ func DefaultConfig() RetrievalConfig {
 
 		DiversityLambda:    0.7,
 		DiversityThreshold: 0.85,
+
+		FeedbackWeight: 0.15,
+		SourceWeights: map[string]float32{
+			"mcp":        1.0,
+			"terminal":   0.8,
+			"clipboard":  0.6,
+			"filesystem": 0.5,
+		},
 	}
 }
 
@@ -505,12 +519,28 @@ func (ra *RetrievalAgent) spreadActivation(ctx context.Context, entryPoints map[
 // rankResults sorts activated memories by a combined score and prepares results.
 func (ra *RetrievalAgent) rankResults(ctx context.Context, activated map[string]activationState, includeReasoning bool) []store.RetrievalResult {
 	type scoredMemory struct {
-		mem           store.Memory
-		activation    float32
-		finalScore    float32
-		recencyBonus  float32
-		activityBonus float32
+		mem            store.Memory
+		activation     float32
+		finalScore     float32
+		recencyBonus   float32
+		activityBonus  float32
+		sourceWeight   float32
+		feedbackAdjust float32
 	}
+
+	// Collect memory IDs for batch feedback lookup
+	memoryIDs := make([]string, 0, len(activated))
+	for memID := range activated {
+		memoryIDs = append(memoryIDs, memID)
+	}
+
+	// Fetch feedback scores for all candidate memories
+	feedbackScores, err := ra.store.GetMemoryFeedbackScores(ctx, memoryIDs)
+	if err != nil {
+		ra.log.Warn("failed to fetch feedback scores for ranking", "error", err)
+		feedbackScores = nil
+	}
+	feedbackWt := f32Or(ra.config.FeedbackWeight, 0.15)
 
 	scored := make([]scoredMemory, 0, len(activated))
 
@@ -538,25 +568,43 @@ func (ra *RetrievalAgent) rankResults(ctx context.Context, activated map[string]
 		activityBonus := float32(math.Min(actMax, actScale*math.Log1p(float64(state.activationCount))))
 
 		// Combined score
-		finalScore := state.activation * (1.0 + recencyBonus + activityBonus)
+		baseScore := state.activation * (1.0 + recencyBonus + activityBonus)
 
 		// Valence boost for significant memories
 		attrs, attrErr := ra.store.GetMemoryAttributes(ctx, memID)
 		if attrErr == nil {
 			switch attrs.Significance {
 			case "critical":
-				finalScore *= f32Or(ra.config.CriticalBoost, 1.2)
+				baseScore *= f32Or(ra.config.CriticalBoost, 1.2)
 			case "important":
-				finalScore *= f32Or(ra.config.ImportantBoost, 1.1)
+				baseScore *= f32Or(ra.config.ImportantBoost, 1.1)
 			}
 		}
 
+		// Apply source weight as a multiplier (before feedback adjustment)
+		sourceWeight := float32(1.0)
+		if ra.config.SourceWeights != nil {
+			if sw, ok := ra.config.SourceWeights[mem.Source]; ok && sw > 0 {
+				sourceWeight = sw
+			}
+		}
+		finalScore := baseScore * sourceWeight
+
+		// Apply feedback adjustment (after source weighting)
+		var feedbackAdjust float32
+		if fbScore, ok := feedbackScores[memID]; ok {
+			feedbackAdjust = fbScore * feedbackWt
+			finalScore += feedbackAdjust
+		}
+
 		scored = append(scored, scoredMemory{
-			mem:           mem,
-			activation:    state.activation,
-			finalScore:    finalScore,
-			recencyBonus:  recencyBonus,
-			activityBonus: activityBonus,
+			mem:            mem,
+			activation:     state.activation,
+			finalScore:     finalScore,
+			recencyBonus:   recencyBonus,
+			activityBonus:  activityBonus,
+			sourceWeight:   sourceWeight,
+			feedbackAdjust: feedbackAdjust,
 		})
 	}
 
@@ -571,8 +619,8 @@ func (ra *RetrievalAgent) rankResults(ctx context.Context, activated map[string]
 		explanation := ""
 		if includeReasoning {
 			explanation = fmt.Sprintf(
-				"activation: %.3f, recency_bonus: %.3f, activity_bonus: %.3f, combined_score: %.3f",
-				sm.activation, sm.recencyBonus, sm.activityBonus, sm.finalScore,
+				"activation: %.3f, recency_bonus: %.3f, activity_bonus: %.3f, source_weight: %.2f, feedback_adjust: %.3f, combined_score: %.3f",
+				sm.activation, sm.recencyBonus, sm.activityBonus, sm.sourceWeight, sm.feedbackAdjust, sm.finalScore,
 			)
 		}
 

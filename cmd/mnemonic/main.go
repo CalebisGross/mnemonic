@@ -1794,7 +1794,22 @@ func buildRetrievalConfig(cfg *config.Config) retrieval.RetrievalConfig {
 
 		DiversityLambda:    float32(cfg.Retrieval.DiversityLambda),
 		DiversityThreshold: float32(cfg.Retrieval.DiversityThreshold),
+
+		FeedbackWeight: float32(cfg.Retrieval.FeedbackWeight),
+		SourceWeights:  convertSourceWeights(cfg.Retrieval.SourceWeights),
 	}
+}
+
+// convertSourceWeights converts map[string]float64 to map[string]float32.
+func convertSourceWeights(src map[string]float64) map[string]float32 {
+	if src == nil {
+		return nil
+	}
+	out := make(map[string]float32, len(src))
+	for k, v := range src {
+		out[k] = float32(v)
+	}
+	return out
 }
 
 // initRuntime loads config, opens store and LLM for CLI commands.

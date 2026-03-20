@@ -1911,6 +1911,78 @@ func (s *SQLiteStore) ListRecentRetrievalFeedback(ctx context.Context, since tim
 	return results, rows.Err()
 }
 
+// GetMemoryFeedbackScores computes a normalized feedback score for each memory ID
+// by scanning retrieval_feedback rows where the memory appears in retrieved_memory_ids.
+// "helpful" = +1, "irrelevant" = -1, "partial" = 0. Returns sum/count per memory.
+func (s *SQLiteStore) GetMemoryFeedbackScores(ctx context.Context, memoryIDs []string) (map[string]float32, error) {
+	if len(memoryIDs) == 0 {
+		return nil, nil
+	}
+
+	// Build a set of target memory IDs for fast lookup
+	targetSet := make(map[string]bool, len(memoryIDs))
+	for _, id := range memoryIDs {
+		targetSet[id] = true
+	}
+
+	// Query all feedback rows that have a non-empty feedback rating
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT retrieved_memory_ids, feedback FROM retrieval_feedback WHERE feedback != '' AND feedback IS NOT NULL`)
+	if err != nil {
+		return nil, fmt.Errorf("querying retrieval feedback scores: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	type accumulator struct {
+		sum   float32
+		count int
+	}
+	accum := make(map[string]*accumulator)
+
+	for rows.Next() {
+		var idsJSON, feedback string
+		if err := rows.Scan(&idsJSON, &feedback); err != nil {
+			return nil, fmt.Errorf("scanning retrieval feedback row: %w", err)
+		}
+
+		var feedbackScore float32
+		switch feedback {
+		case "helpful":
+			feedbackScore = 1.0
+		case "irrelevant":
+			feedbackScore = -1.0
+		case "partial":
+			feedbackScore = 0.0
+		default:
+			continue
+		}
+
+		var retrievedIDs []string
+		_ = json.Unmarshal([]byte(idsJSON), &retrievedIDs)
+
+		for _, memID := range retrievedIDs {
+			if !targetSet[memID] {
+				continue
+			}
+			if accum[memID] == nil {
+				accum[memID] = &accumulator{}
+			}
+			accum[memID].sum += feedbackScore
+			accum[memID].count++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating retrieval feedback rows: %w", err)
+	}
+
+	// Normalize: sum / count
+	result := make(map[string]float32, len(accum))
+	for memID, a := range accum {
+		result[memID] = a.sum / float32(a.count)
+	}
+	return result, nil
+}
+
 // ListMetaObservations retrieves observations, optionally filtered by type.
 func (s *SQLiteStore) ListMetaObservations(ctx context.Context, observationType string, limit int) ([]store.MetaObservation, error) {
 	var rows *sql.Rows

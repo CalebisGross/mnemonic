@@ -85,7 +85,8 @@ type mockStore struct {
 	getAssociationsFunc   func(ctx context.Context, memoryID string) ([]store.Association, error)
 	getMemoryFunc         func(ctx context.Context, id string) (store.Memory, error)
 	incrementAccessFunc   func(ctx context.Context, id string) error
-	getMemoryAttrsFunc    func(ctx context.Context, memoryID string) (store.MemoryAttributes, error)
+	getMemoryAttrsFunc         func(ctx context.Context, memoryID string) (store.MemoryAttributes, error)
+	getMemoryFeedbackScoresFunc func(ctx context.Context, memoryIDs []string) (map[string]float32, error)
 
 	// Call tracking
 	incrementAccessCalls []string
@@ -130,6 +131,12 @@ func (m *mockStore) GetMemoryAttributes(ctx context.Context, memoryID string) (s
 		return m.getMemoryAttrsFunc(ctx, memoryID)
 	}
 	return store.MemoryAttributes{}, fmt.Errorf("no attributes")
+}
+func (m *mockStore) GetMemoryFeedbackScores(ctx context.Context, memoryIDs []string) (map[string]float32, error) {
+	if m.getMemoryFeedbackScoresFunc != nil {
+		return m.getMemoryFeedbackScoresFunc(ctx, memoryIDs)
+	}
+	return nil, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -1008,4 +1015,231 @@ func abs32(x float32) float32 {
 		return -x
 	}
 	return x
+}
+
+// ---------------------------------------------------------------------------
+// Feedback-informed ranking tests
+// ---------------------------------------------------------------------------
+
+func TestRankResults_FeedbackInfluence(t *testing.T) {
+	// Two memories with identical activation scores; feedback should differentiate them.
+	memA := store.Memory{ID: "helpful-mem", Summary: "helpful memory", Salience: 0.5, Source: "mcp", LastAccessed: time.Now()}
+	memB := store.Memory{ID: "irrelevant-mem", Summary: "irrelevant memory", Salience: 0.5, Source: "mcp", LastAccessed: time.Now()}
+
+	s := &mockStore{
+		getMemoryFunc: func(_ context.Context, id string) (store.Memory, error) {
+			switch id {
+			case memA.ID:
+				return memA, nil
+			case memB.ID:
+				return memB, nil
+			default:
+				return store.Memory{}, fmt.Errorf("not found")
+			}
+		},
+		getMemoryFeedbackScoresFunc: func(_ context.Context, ids []string) (map[string]float32, error) {
+			return map[string]float32{
+				"helpful-mem":    1.0,  // consistently helpful
+				"irrelevant-mem": -1.0, // consistently irrelevant
+			}, nil
+		},
+	}
+
+	cfg := DefaultConfig()
+	cfg.FeedbackWeight = 0.15
+	agent := NewRetrievalAgent(s, &mockLLMProvider{}, cfg, testLogger())
+
+	activated := map[string]activationState{
+		memA.ID: {activation: 0.8},
+		memB.ID: {activation: 0.8},
+	}
+
+	results := agent.rankResults(context.Background(), activated, true)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	// The helpful memory should rank higher
+	if results[0].Memory.ID != "helpful-mem" {
+		t.Errorf("expected helpful-mem to rank first, got %s", results[0].Memory.ID)
+	}
+	if results[1].Memory.ID != "irrelevant-mem" {
+		t.Errorf("expected irrelevant-mem to rank second, got %s", results[1].Memory.ID)
+	}
+
+	// Score difference should be ~0.3 (0.15 * 1.0 - 0.15 * -1.0)
+	diff := results[0].Score - results[1].Score
+	if diff < 0.2 || diff > 0.4 {
+		t.Errorf("expected score difference ~0.3 from feedback, got %.3f (scores: %.3f, %.3f)",
+			diff, results[0].Score, results[1].Score)
+	}
+}
+
+func TestRankResults_FeedbackErrorGraceful(t *testing.T) {
+	// When feedback lookup fails, ranking should still work (graceful degradation).
+	mem := store.Memory{ID: "m1", Summary: "test", Salience: 0.5, Source: "mcp", LastAccessed: time.Now()}
+
+	s := &mockStore{
+		getMemoryFunc: func(_ context.Context, id string) (store.Memory, error) {
+			return mem, nil
+		},
+		getMemoryFeedbackScoresFunc: func(_ context.Context, _ []string) (map[string]float32, error) {
+			return nil, fmt.Errorf("database error")
+		},
+	}
+
+	cfg := DefaultConfig()
+	agent := NewRetrievalAgent(s, &mockLLMProvider{}, cfg, testLogger())
+
+	activated := map[string]activationState{
+		"m1": {activation: 0.7},
+	}
+
+	results := agent.rankResults(context.Background(), activated, false)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result despite feedback error, got %d", len(results))
+	}
+	if results[0].Score <= 0 {
+		t.Errorf("expected positive score, got %f", results[0].Score)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Source-weighted scoring tests
+// ---------------------------------------------------------------------------
+
+func TestRankResults_SourceWeighting(t *testing.T) {
+	// Two memories with identical activation, different sources.
+	now := time.Now()
+	mcpMem := store.Memory{ID: "mcp-mem", Summary: "mcp memory", Salience: 0.5, Source: "mcp", LastAccessed: now}
+	fsMem := store.Memory{ID: "fs-mem", Summary: "filesystem memory", Salience: 0.5, Source: "filesystem", LastAccessed: now}
+
+	s := &mockStore{
+		getMemoryFunc: func(_ context.Context, id string) (store.Memory, error) {
+			switch id {
+			case mcpMem.ID:
+				return mcpMem, nil
+			case fsMem.ID:
+				return fsMem, nil
+			default:
+				return store.Memory{}, fmt.Errorf("not found")
+			}
+		},
+	}
+
+	cfg := DefaultConfig()
+	cfg.SourceWeights = map[string]float32{
+		"mcp":        1.0,
+		"filesystem": 0.5,
+	}
+	agent := NewRetrievalAgent(s, &mockLLMProvider{}, cfg, testLogger())
+
+	activated := map[string]activationState{
+		mcpMem.ID: {activation: 0.8},
+		fsMem.ID:  {activation: 0.8},
+	}
+
+	results := agent.rankResults(context.Background(), activated, false)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	// MCP memory (weight 1.0) should rank higher than filesystem (weight 0.5)
+	if results[0].Memory.ID != "mcp-mem" {
+		t.Errorf("expected mcp-mem to rank first, got %s", results[0].Memory.ID)
+	}
+
+	// The filesystem score should be roughly half the MCP score
+	ratio := results[1].Score / results[0].Score
+	if ratio < 0.4 || ratio > 0.6 {
+		t.Errorf("expected score ratio ~0.5, got %.3f (mcp=%.3f, fs=%.3f)",
+			ratio, results[0].Score, results[1].Score)
+	}
+}
+
+func TestRankResults_UnknownSourceGetsWeight1(t *testing.T) {
+	// Unknown source should default to weight 1.0 (no penalty).
+	now := time.Now()
+	mem := store.Memory{ID: "m1", Summary: "test", Salience: 0.5, Source: "unknown_source", LastAccessed: now}
+
+	s := &mockStore{
+		getMemoryFunc: func(_ context.Context, id string) (store.Memory, error) {
+			return mem, nil
+		},
+	}
+
+	cfg := DefaultConfig()
+	cfg.SourceWeights = map[string]float32{
+		"mcp":        1.0,
+		"filesystem": 0.5,
+	}
+	agent := NewRetrievalAgent(s, &mockLLMProvider{}, cfg, testLogger())
+
+	activated := map[string]activationState{
+		"m1": {activation: 0.8},
+	}
+
+	results := agent.rankResults(context.Background(), activated, false)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	// With source weight 1.0 (default) and activation 0.8, the base score should be
+	// 0.8 * (1.0 + recency_bonus + activity_bonus) ~ 0.8 * (1.0 + ~0.2) = ~0.96
+	// The important thing is it's not penalized.
+	if results[0].Score < 0.7 {
+		t.Errorf("expected score > 0.7 for unknown source (weight 1.0), got %f", results[0].Score)
+	}
+}
+
+func TestRankResults_SourceAndFeedbackCombined(t *testing.T) {
+	// Source weighting applies first (as multiplier), then feedback adjustment (additive).
+	now := time.Now()
+	fsMem := store.Memory{ID: "fs-helpful", Summary: "fs helpful", Salience: 0.5, Source: "filesystem", LastAccessed: now}
+	mcpMem := store.Memory{ID: "mcp-irrelevant", Summary: "mcp irrelevant", Salience: 0.5, Source: "mcp", LastAccessed: now}
+
+	s := &mockStore{
+		getMemoryFunc: func(_ context.Context, id string) (store.Memory, error) {
+			switch id {
+			case fsMem.ID:
+				return fsMem, nil
+			case mcpMem.ID:
+				return mcpMem, nil
+			default:
+				return store.Memory{}, fmt.Errorf("not found")
+			}
+		},
+		getMemoryFeedbackScoresFunc: func(_ context.Context, _ []string) (map[string]float32, error) {
+			return map[string]float32{
+				"fs-helpful":      1.0,  // strong positive feedback
+				"mcp-irrelevant": -1.0, // strong negative feedback
+			}, nil
+		},
+	}
+
+	cfg := DefaultConfig()
+	cfg.SourceWeights = map[string]float32{
+		"mcp":        1.0,
+		"filesystem": 0.5,
+	}
+	cfg.FeedbackWeight = 0.3 // high weight to override source bias
+	agent := NewRetrievalAgent(s, &mockLLMProvider{}, cfg, testLogger())
+
+	activated := map[string]activationState{
+		fsMem.ID:  {activation: 0.8},
+		mcpMem.ID: {activation: 0.8},
+	}
+
+	results := agent.rankResults(context.Background(), activated, false)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	// With high feedback weight, the filesystem memory (helpful, +0.3) should overcome
+	// its 0.5x source penalty relative to the MCP memory (irrelevant, -0.3).
+	// fs score: 0.8 * ~1.2 * 0.5 + 0.3 = ~0.78
+	// mcp score: 0.8 * ~1.2 * 1.0 - 0.3 = ~0.66
+	if results[0].Memory.ID != "fs-helpful" {
+		t.Errorf("expected feedback to override source bias; got %s first", results[0].Memory.ID)
+	}
 }

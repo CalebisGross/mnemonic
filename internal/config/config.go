@@ -257,6 +257,12 @@ type RetrievalConfig struct {
 	// Diversity filtering (MMR)
 	DiversityLambda    float64 `yaml:"diversity_lambda"`    // 0=max diversity, 1=pure relevance (default 0.7)
 	DiversityThreshold float64 `yaml:"diversity_threshold"` // cosine sim above which memories are near-duplicates (default 0.85)
+
+	// Feedback-informed ranking
+	FeedbackWeight float64 `yaml:"feedback_weight"` // weight of user feedback score in ranking (default 0.15)
+
+	// Source-weighted scoring
+	SourceWeights map[string]float64 `yaml:"source_weights"` // per-source multipliers (default: mcp=1.0, terminal=0.8, clipboard=0.6, filesystem=0.5)
 }
 
 // MetacognitionConfig holds metacognition settings.
@@ -593,6 +599,14 @@ func Default() *Config {
 
 			DiversityLambda:    0.7,
 			DiversityThreshold: 0.85,
+
+			FeedbackWeight: 0.15,
+			SourceWeights: map[string]float64{
+				"mcp":        1.0,
+				"terminal":   0.8,
+				"clipboard":  0.6,
+				"filesystem": 0.5,
+			},
 		},
 		Metacognition: MetacognitionConfig{
 			Enabled:     true,
