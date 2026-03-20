@@ -13,7 +13,7 @@ A local-first semantic memory daemon that watches your work, learns from it, and
 - **Autonomous** — Watches your filesystem, terminal, and clipboard. Encodes memories without you lifting a finger.
 - **Biological** — Memories consolidate, decay, form patterns, and become principles. It doesn't just store — it *processes*.
 - **Local-first** — Air-gapped, SQLite-backed, never phones home. Your data stays on your machine.
-- **13 MCP tools** — Drop-in memory layer for Claude Code and other AI agents.
+- **19 MCP tools** — Drop-in memory layer for Claude Code and other AI agents.
 - **Self-updating** — Built-in update mechanism checks GitHub Releases and applies updates in-place.
 - **Cross-platform** — macOS, Linux, and Windows. Daemon management via launchd, systemd, or Windows Services.
 
@@ -72,6 +72,7 @@ Open `http://127.0.0.1:9999` for the embedded web UI:
 - **Explore** — Browse episodes, memories, patterns, and abstractions
 - **Timeline** — Chronological view with date range filters and type/tag filtering
 - **LLM** — Per-agent token consumption, cost tracking, and usage charts
+- **Tools** — MCP tool usage analytics: call frequency, latency, error rates
 - **SDK** — Agent evolution dashboard: principles, strategies, session timeline, chat interface
 - **Activity drawer** — Slide-out panel with live event feed and metacognition insights
 - **Themes** — 5 dashboard themes: Midnight, Ember, Nord, Slate, Parchment
@@ -87,8 +88,8 @@ Mnemonic implements a cognitive pipeline inspired by neuroscience — 8 agents p
 1. **Perception** — Watch filesystem, terminal, clipboard, MCP events. Pre-filter with heuristics.
 2. **Encoding** — LLM-powered compression into memories. Extract concepts, generate embeddings, create association links.
 3. **Episoding** — Cluster memories into temporal episodes with LLM synthesis.
-4. **Consolidation** — Sleep cycle (every 6h). Decay salience, merge related memories, extract recurring patterns.
-5. **Retrieval** — Spread activation: embed query, find entry points (FTS + embedding), traverse association graph 3 hops, LLM synthesis with tool-use.
+4. **Consolidation** — Sleep cycle. Decay salience, merge related memories, extract patterns, archive never-recalled watcher noise.
+5. **Retrieval** — Spread activation: embed query, find entry points (FTS + embedding), traverse association graph 3 hops, rank by feedback history + source weight + pattern evidence, optional LLM synthesis.
 6. **Metacognition** — Self-reflection. Audit memory quality, analyze feedback, re-embed orphaned memories.
 7. **Dreaming** — Replay memories, strengthen associations, cross-pollinate across projects, generate insights.
 8. **Abstraction** — Build hierarchical knowledge: patterns (level 1) → principles (level 2) → axioms (level 3).
@@ -97,7 +98,7 @@ Mnemonic implements a cognitive pipeline inspired by neuroscience — 8 agents p
 
 **Reactor** — Event-driven rule engine. Fires condition → action chains in response to system events.
 
-**Feedback loop** — Helpful recalls strengthen associations and boost salience. Irrelevant results weaken them. The system learns from usage.
+**Feedback loop** — Helpful recalls strengthen associations, boost salience, and inform future ranking. Irrelevant results weaken associations and can auto-suppress noisy memories. Feedback scores directly influence retrieval ranking, and patterns discovered from your usage boost evidence memories.
 
 All agents communicate via an event bus — none call each other directly.
 
@@ -105,7 +106,7 @@ For the full deep dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## MCP Integration
 
-Mnemonic exposes 13 tools via the [Model Context Protocol](https://modelcontextprotocol.io/) for Claude Code and other AI agents:
+Mnemonic exposes 19 tools via the [Model Context Protocol](https://modelcontextprotocol.io/) for Claude Code and other AI agents:
 
 **Claude Code config** (`~/.claude/settings.local.json`):
 
@@ -124,19 +125,25 @@ Mnemonic exposes 13 tools via the [Model Context Protocol](https://modelcontextp
 
 | Tool | Purpose |
 | ---- | ------- |
-| `remember` | Store decisions, errors, insights, learnings |
-| `recall` | Semantic search with spread activation |
+| `remember` | Store decisions, errors, insights, learnings (returns salience + encoding status) |
+| `recall` | Semantic search with spread activation, feedback-informed ranking, optional synthesis |
 | `forget` | Archive a memory |
-| `status` | System health and stats |
+| `amend` | Update a memory's content in place (preserves associations and history) |
+| `check_memory` | Inspect encoding status, concepts, associations for a specific memory |
+| `status` | System health, pipeline status, source distribution |
 | `recall_project` | Project-scoped context and patterns |
 | `recall_timeline` | Chronological retrieval within a time range |
+| `recall_session` | Retrieve all memories from a specific session |
+| `list_sessions` | List recent MCP sessions with metadata |
 | `session_summary` | Summarize current/recent session |
 | `get_patterns` | View discovered recurring patterns |
 | `get_insights` | View metacognition observations and abstractions |
-| `feedback` | Report recall quality (trains retrieval) |
+| `feedback` | Report recall quality (drives ranking, can auto-suppress noisy memories) |
 | `audit_encodings` | Review encoding quality |
 | `coach_local_llm` | Write coaching guidance for local LLM prompts |
 | `ingest_project` | Bulk-ingest a project directory |
+| `exclude_path` | Add a watcher exclusion pattern at runtime |
+| `list_exclusions` | List all runtime watcher exclusions |
 
 See [CLAUDE.md](CLAUDE.md) for Claude Code usage guidelines.
 
@@ -211,7 +218,7 @@ internal/
   agent/            8 cognitive agents + orchestrator + reactor
   api/              HTTP + WebSocket server
   web/              Embedded dashboard (single-page app)
-  mcp/              MCP server (13 tools)
+  mcp/              MCP server (19 tools)
   store/            Store interface + SQLite (FTS5 + vector search)
   llm/              LLM provider interface (LM Studio, Gemini, cloud APIs)
   ingest/           Project ingestion engine
