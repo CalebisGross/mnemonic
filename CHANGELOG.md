@@ -4,6 +4,20 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.28.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.27.0...v0.28.0) (2026-03-20)
+
+
+### Features
+
+* 2-tier early dedup to prevent wasted LLM tokens ([4bcfef3](https://github.com/AppSprout-dev/mnemonic/commit/4bcfef36422cf210080563baff3c0ea93aa56bba))
+* research analytics dashboard and API endpoint ([0d4d9d2](https://github.com/AppSprout-dev/mnemonic/commit/0d4d9d2a97d20ace00cb128b744055b877fb0444))
+
+
+### Bug Fixes
+
+* extract get_context themes from file paths instead of source code ([15cf4af](https://github.com/AppSprout-dev/mnemonic/commit/15cf4afc545b2c222424b8c72caa7643f58c034f))
+* extract get_context themes from file paths instead of source code ([654bc54](https://github.com/AppSprout-dev/mnemonic/commit/654bc5437a3fc88c83db152611c24886a7fdd7be))
+
 ## [0.27.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.26.1...v0.27.0) (2026-03-20)
 
 
