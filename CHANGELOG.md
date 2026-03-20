@@ -4,6 +4,19 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.25.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.24.0...v0.25.0) (2026-03-20)
+
+
+### Features
+
+* add lifecycle simulation test suite ([63b3490](https://github.com/AppSprout-dev/mnemonic/commit/63b3490576c7295393a124c82c59597200262922))
+* expand synthetic data catalogs for lifecycle test ([9103a2c](https://github.com/AppSprout-dev/mnemonic/commit/9103a2c8cf1d52a1a66fee03626cfa1ac1540e03)), closes [#257](https://github.com/AppSprout-dev/mnemonic/issues/257)
+
+
+### Bug Fixes
+
+* add missing columns to FTS5 search query ([ca8c967](https://github.com/AppSprout-dev/mnemonic/commit/ca8c967959b7a9722db8ce99773fbdb224c89a91))
+
 ## [0.24.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.23.0...v0.24.0) (2026-03-20)
 
 
