@@ -4,6 +4,16 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.27.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.26.1...v0.27.0) (2026-03-20)
+
+
+### Features
+
+* add batch_recall MCP tool for parallel multi-query recall ([1d3cc08](https://github.com/AppSprout-dev/mnemonic/commit/1d3cc08dc3883c706533f5397ab19fd796e00f56)), closes [#275](https://github.com/AppSprout-dev/mnemonic/issues/275)
+* add DB checkpointing to lifecycle test ([020ee54](https://github.com/AppSprout-dev/mnemonic/commit/020ee549012486cd8341844a8b5840b0c502ac94)), closes [#272](https://github.com/AppSprout-dev/mnemonic/issues/272)
+* add proactive context push via get_context MCP tool ([7bedc64](https://github.com/AppSprout-dev/mnemonic/commit/7bedc641e59987d90ae690fa70f68dde5aea487d))
+* structured JSON output for all recall MCP tools ([3df5c75](https://github.com/AppSprout-dev/mnemonic/commit/3df5c75b032586028849e266dafaf1a709a15993)), closes [#276](https://github.com/AppSprout-dev/mnemonic/issues/276)
+
 ## [0.26.1](https://github.com/AppSprout-dev/mnemonic/compare/v0.26.0...v0.26.1) (2026-03-20)
 
 
