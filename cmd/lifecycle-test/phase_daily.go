@@ -88,8 +88,8 @@ func (p *PhaseDaily) Run(ctx context.Context, h *Harness, verbose bool) (*PhaseR
 		return result, fmt.Errorf("getting statistics: %w", err)
 	}
 
-	// Encoding dedup merges identical templates, so unique count is lower than written count.
-	result.AssertGE("total memories", stats.TotalMemories, 30)
+	// Encoding dedup merges semantically identical content, so unique count is lower than raw count.
+	result.AssertGE("total memories", stats.TotalMemories, 40)
 	result.AssertGE("episodes created", stats.TotalEpisodes, 5)
 	result.AssertGE("associations created", stats.TotalAssociations, 1)
 	result.Metrics["total_memories"] = float64(stats.TotalMemories)
