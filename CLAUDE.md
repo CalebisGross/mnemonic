@@ -36,7 +36,7 @@ internal/
     reactor/           Event-driven rule engine
   api/                 REST API server + routes
   web/                 Embedded dashboard (single-page app, D3.js charts)
-  mcp/                 MCP server (19 tools for Claude Code)
+  mcp/                 MCP server (21 tools for Claude Code)
   store/               Store interface + SQLite implementation
   llm/                 LLM provider interface + implementations (LM Studio, Gemini/cloud API)
   ingest/              Project ingestion engine
@@ -112,12 +112,14 @@ See [GitHub Issues](https://github.com/appsprout-dev/mnemonic/issues) for tracke
 
 ## MCP Tools Available
 
-You have 19 tools via the `mnemonic` MCP server:
+You have 21 tools via the `mnemonic` MCP server:
 
 | Tool | When to Use |
 |------|-------------|
 | `remember` | Store decisions, errors, insights, learnings (returns raw ID + salience) |
-| `recall` | Semantic search with spread activation (`explain`, `include_associations`, `format`, `synthesize` params) |
+| `recall` | Semantic search with spread activation (`explain`, `include_associations`, `format`, `type`, `synthesize` params) |
+| `batch_recall` | Run multiple recall queries in parallel — ideal for session start |
+| `get_context` | Proactive suggestions based on recent daemon activity — call at natural breakpoints |
 | `forget` | Archive irrelevant memories |
 | `amend` | Update a memory's content in place (preserves associations, history, salience) |
 | `check_memory` | Inspect a memory's encoding status, concepts, and associations |

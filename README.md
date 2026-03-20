@@ -13,7 +13,7 @@ A local-first semantic memory daemon that watches your work, learns from it, and
 - **Autonomous** — Watches your filesystem, terminal, and clipboard. Encodes memories without you lifting a finger.
 - **Biological** — Memories consolidate, decay, form patterns, and become principles. It doesn't just store — it *processes*.
 - **Local-first** — Air-gapped, SQLite-backed, never phones home. Your data stays on your machine.
-- **19 MCP tools** — Drop-in memory layer for Claude Code and other AI agents.
+- **21 MCP tools** — Drop-in memory layer for Claude Code and other AI agents.
 - **Self-updating** — Built-in update mechanism checks GitHub Releases and applies updates in-place.
 - **Cross-platform** — macOS, Linux, and Windows. Daemon management via launchd, systemd, or Windows Services.
 
@@ -127,6 +127,8 @@ Mnemonic exposes 19 tools via the [Model Context Protocol](https://modelcontextp
 | ---- | ------- |
 | `remember` | Store decisions, errors, insights, learnings (returns salience + encoding status) |
 | `recall` | Semantic search with spread activation, feedback-informed ranking, optional synthesis |
+| `batch_recall` | Run multiple recall queries in parallel (structured JSON results) |
+| `get_context` | Proactive suggestions based on recent daemon activity — no query needed |
 | `forget` | Archive a memory |
 | `amend` | Update a memory's content in place (preserves associations and history) |
 | `check_memory` | Inspect encoding status, concepts, associations for a specific memory |
@@ -214,11 +216,13 @@ See `config.yaml` for all defaults with inline documentation.
 
 ```text
 cmd/mnemonic/       CLI + daemon entry point
+cmd/lifecycle-test/ Full lifecycle simulation (install → 3 months)
+cmd/benchmark*/     Performance and quality benchmarks
 internal/
   agent/            8 cognitive agents + orchestrator + reactor
   api/              HTTP + WebSocket server
   web/              Embedded dashboard (single-page app)
-  mcp/              MCP server (19 tools)
+  mcp/              MCP server (21 tools)
   store/            Store interface + SQLite (FTS5 + vector search)
   llm/              LLM provider interface (LM Studio, Gemini, cloud APIs)
   ingest/           Project ingestion engine
@@ -229,6 +233,7 @@ internal/
   config/           Configuration loading
   logger/           Structured logging (slog)
   backup/           Export/import/backup/restore
+  testutil/         Shared test infrastructure (stub LLM provider)
 sdk/                Python agent SDK (self-evolving assistant)
 migrations/         SQLite schema migrations
 ```
@@ -241,6 +246,7 @@ make run            # Build and run (foreground)
 make test           # Run tests
 make check          # fmt + vet
 make lint           # golangci-lint
+make lifecycle-test # Full lifecycle simulation (8 phases, stub LLM)
 make tidy           # go mod tidy
 make clean          # Remove binaries
 make setup-hooks    # Configure git pre-commit hooks
