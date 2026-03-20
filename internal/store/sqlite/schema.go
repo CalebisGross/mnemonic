@@ -477,6 +477,12 @@ CREATE INDEX IF NOT EXISTS idx_amendments_memory ON memory_amendments(memory_id)
 	}
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_raw_content_hash ON raw_memories(content_hash)`)
 
+	// Migration 015: Add suggested_ids to tool_usage for get_context acceptance tracking.
+	_, err = db.Exec(`ALTER TABLE tool_usage ADD COLUMN suggested_ids TEXT NOT NULL DEFAULT ''`)
+	if err != nil && !isAlterTableDuplicateColumn(err) {
+		return fmt.Errorf("failed to add tool_usage.suggested_ids column: %w", err)
+	}
+
 	return nil
 }
 

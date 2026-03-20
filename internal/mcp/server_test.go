@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/appsprout-dev/mnemonic/internal/events"
 	"github.com/appsprout-dev/mnemonic/internal/store/storetest"
@@ -539,5 +540,96 @@ func TestConceptsFromCommand(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestFormatDuration tests human-readable duration formatting.
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		name     string
+		d        time.Duration
+		expected string
+	}{
+		{"seconds", 45 * time.Second, "45s"},
+		{"minutes", 3*time.Minute + 30*time.Second, "3m"},
+		{"hours and minutes", 2*time.Hour + 15*time.Minute, "2h15m"},
+		{"zero", 0, "0s"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := formatDuration(tc.d)
+			if got != tc.expected {
+				t.Fatalf("formatDuration(%v) = %q, want %q", tc.d, got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestCheckAcceptance tests that suggested IDs are detected in recall results.
+func TestCheckAcceptance(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv := NewMCPServer(&mockStore{}, nil, &mockBus{}, logger, "test", "", []string{}, 0, nil)
+
+	// Simulate get_context suggesting two memory IDs.
+	srv.contextSuggestedIDs["abc-123"] = time.Now()
+	srv.contextSuggestedIDs["def-456"] = time.Now()
+	srv.contextTotalOffered = 2
+
+	// Simulate a recall result containing one of the suggested IDs.
+	result := map[string]interface{}{
+		"content": []map[string]interface{}{
+			{"type": "text", "text": "Found memory abc-123: some relevant context"},
+		},
+	}
+	srv.checkAcceptance(result)
+
+	if srv.contextAccepted != 1 {
+		t.Fatalf("expected 1 acceptance, got %d", srv.contextAccepted)
+	}
+	if _, exists := srv.contextSuggestedIDs["abc-123"]; exists {
+		t.Fatal("expected abc-123 to be removed from suggested IDs after acceptance")
+	}
+	if _, exists := srv.contextSuggestedIDs["def-456"]; !exists {
+		t.Fatal("expected def-456 to still be in suggested IDs")
+	}
+}
+
+// TestContextMetricsJSON tests that contextMetrics marshals all expected fields.
+func TestContextMetricsJSON(t *testing.T) {
+	m := contextMetrics{
+		EncodedCount:     6,
+		FallbackCount:    2,
+		CoveragePct:      75.0,
+		CandidatesBefore: 12,
+		CandidatesAfter:  5,
+		NoveltyPct:       41.67,
+		ThemeHits:        map[string]int{"retrieval": 4, "mcp": 3},
+		AvgEncodeLatMs:   4500.0,
+		OldestUnencoded:  "2m",
+		QueueDepth:       3,
+		AcceptancePct:    60.0,
+	}
+
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("failed to marshal contextMetrics: %v", err)
+	}
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	checks := []string{
+		"encoded_count", "fallback_count", "encoding_coverage_pct",
+		"candidates_before_dedup", "candidates_after_dedup", "novelty_pct",
+		"theme_match_counts", "avg_encode_latency_ms", "oldest_unencoded_age",
+		"encoding_queue_depth", "acceptance_rate_pct",
+	}
+	for _, key := range checks {
+		if _, ok := decoded[key]; !ok {
+			t.Fatalf("missing key %q in JSON output", key)
+		}
 	}
 }

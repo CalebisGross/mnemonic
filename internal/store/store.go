@@ -140,6 +140,7 @@ type ToolUsageRecord struct {
 	MemoryType   string    `json:"memory_type,omitempty"`   // for remember: decision/error/insight/etc.
 	Rating       string    `json:"rating,omitempty"`        // for feedback: helpful/partial/irrelevant
 	ResponseSize int       `json:"response_size,omitempty"` // response payload bytes
+	SuggestedIDs string    `json:"suggested_ids,omitempty"` // for get_context: comma-separated memory IDs offered
 }
 
 // ToolUsageSummary aggregates MCP tool usage metrics over a time period.

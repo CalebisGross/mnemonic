@@ -2563,11 +2563,12 @@ func (s *SQLiteStore) RecordToolUsage(ctx context.Context, record store.ToolUsag
 		success = 1
 	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO tool_usage (timestamp, tool_name, session_id, project, latency_ms, success, error_message, query_text, result_count, memory_type, rating, response_size)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO tool_usage (timestamp, tool_name, session_id, project, latency_ms, success, error_message, query_text, result_count, memory_type, rating, response_size, suggested_ids)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		record.Timestamp.Format(time.RFC3339), record.ToolName, record.SessionID, record.Project,
 		record.LatencyMs, success, record.ErrorMessage,
-		record.QueryText, record.ResultCount, record.MemoryType, record.Rating, record.ResponseSize)
+		record.QueryText, record.ResultCount, record.MemoryType, record.Rating, record.ResponseSize,
+		record.SuggestedIDs)
 	if err != nil {
 		return fmt.Errorf("failed to record tool usage: %w", err)
 	}
@@ -2632,7 +2633,7 @@ func (s *SQLiteStore) GetToolUsageSummary(ctx context.Context, since time.Time) 
 // GetToolUsageLog returns recent tool usage records.
 func (s *SQLiteStore) GetToolUsageLog(ctx context.Context, since time.Time, limit int) ([]store.ToolUsageRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT timestamp, tool_name, session_id, project, latency_ms, success, error_message, query_text, result_count, memory_type, rating, response_size
+		`SELECT timestamp, tool_name, session_id, project, latency_ms, success, error_message, query_text, result_count, memory_type, rating, response_size, suggested_ids
 		 FROM tool_usage WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT ?`,
 		since.Format(time.RFC3339), limit)
 	if err != nil {
@@ -2647,7 +2648,8 @@ func (s *SQLiteStore) GetToolUsageLog(ctx context.Context, since time.Time, limi
 		var success int
 		if err := rows.Scan(&tsStr, &rec.ToolName, &rec.SessionID, &rec.Project,
 			&rec.LatencyMs, &success, &rec.ErrorMessage, &rec.QueryText,
-			&rec.ResultCount, &rec.MemoryType, &rec.Rating, &rec.ResponseSize); err != nil {
+			&rec.ResultCount, &rec.MemoryType, &rec.Rating, &rec.ResponseSize,
+			&rec.SuggestedIDs); err != nil {
 			return nil, fmt.Errorf("scan tool usage: %w", err)
 		}
 		rec.Timestamp, _ = time.Parse(time.RFC3339, tsStr)

@@ -62,6 +62,12 @@ type MCPServer struct {
 	// Proactive context state (session-scoped)
 	lastContextTime    time.Time       // watermark for get_context polling
 	sessionRecalledIDs map[string]bool // memory IDs already surfaced via recall this session
+
+	// Suggestion acceptance tracking (session-scoped)
+	contextSuggestedIDs map[string]time.Time // memory IDs suggested by get_context → when
+	contextAccepted     int                  // count of suggested IDs later recalled/rated
+	contextTotalOffered int                  // total IDs offered across all get_context calls
+	lastSuggestedIDsCSV string               // comma-separated IDs from last get_context (for tool_usage recording)
 }
 
 // NewMCPServer creates a new MCP server with the given dependencies.
@@ -82,19 +88,20 @@ func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, lo
 	log.Info("MCP server initialized", "session_id", sessionID, "project", project)
 
 	return &MCPServer{
-		store:              s,
-		retriever:          r,
-		bus:                bus,
-		log:                log,
-		version:            version,
-		sessionID:          sessionID,
-		project:            project,
-		resolver:           resolver,
-		coachingFile:       coachingFile,
-		excludePatterns:    excludePatterns,
-		maxContentBytes:    maxContentBytes,
-		lastContextTime:    time.Now(),
-		sessionRecalledIDs: make(map[string]bool),
+		store:               s,
+		retriever:           r,
+		bus:                 bus,
+		log:                 log,
+		version:             version,
+		sessionID:           sessionID,
+		project:             project,
+		resolver:            resolver,
+		coachingFile:        coachingFile,
+		excludePatterns:     excludePatterns,
+		maxContentBytes:     maxContentBytes,
+		lastContextTime:     time.Now(),
+		sessionRecalledIDs:  make(map[string]bool),
+		contextSuggestedIDs: make(map[string]time.Time),
 	}
 }
 
@@ -311,17 +318,59 @@ func (srv *MCPServer) recordToolUsage(ctx context.Context, params toolCallParams
 		if r, ok := params.Arguments["quality"].(string); ok {
 			rec.Rating = r
 		}
+	case "get_context":
+		rec.SuggestedIDs = srv.lastSuggestedIDsCSV
 	}
 
-	// Measure response size
+	// Measure response size and track get_context acceptance.
 	if result != nil {
 		if respBytes, err := json.Marshal(result); err == nil {
 			rec.ResponseSize = len(respBytes)
 		}
 	}
 
+	// Track suggestion acceptance: if a recall or feedback call references
+	// memory IDs that get_context previously suggested, count as accepted.
+	if len(srv.contextSuggestedIDs) > 0 {
+		switch params.Name {
+		case "recall", "recall_project", "recall_timeline", "recall_session", "batch_recall":
+			srv.checkAcceptance(result)
+		case "feedback":
+			if ids, ok := params.Arguments["memory_ids"]; ok {
+				if idList, ok := ids.([]interface{}); ok {
+					for _, id := range idList {
+						if idStr, ok := id.(string); ok {
+							if _, suggested := srv.contextSuggestedIDs[idStr]; suggested {
+								srv.contextAccepted++
+								delete(srv.contextSuggestedIDs, idStr)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if err := srv.store.RecordToolUsage(ctx, rec); err != nil {
 		srv.log.Warn("failed to record tool usage", "tool", params.Name, "error", err)
+	}
+}
+
+// checkAcceptance scans a recall result for memory IDs that were previously
+// suggested by get_context and marks them as accepted.
+func (srv *MCPServer) checkAcceptance(result interface{}) {
+	// The result is a toolResult map with "content" containing text.
+	// Memory IDs appear as UUIDs in the text output — scan for matches.
+	resultBytes, err := json.Marshal(result)
+	if err != nil {
+		return
+	}
+	resultStr := string(resultBytes)
+	for id := range srv.contextSuggestedIDs {
+		if strings.Contains(resultStr, id) {
+			srv.contextAccepted++
+			delete(srv.contextSuggestedIDs, id)
+		}
 	}
 }
 
@@ -855,14 +904,24 @@ func (srv *MCPServer) handleGetContext(ctx context.Context, args map[string]inte
 		return toolResult("No recent activity detected. The daemon watcher hasn't observed new events since your last check."), nil
 	}
 
-	// Step 2: Extract concepts from recent activity.
+	// Step 2: Extract concepts from recent activity, tracking encoding coverage.
 	conceptCounts := make(map[string]int)
+	var encodedCount, fallbackCount int
+	var encodeLats []float64 // encode latencies in ms for encoded memories
 	for _, raw := range relevant {
 		// Prefer encoded memory concepts if available.
 		mem, err := srv.store.GetMemoryByRawID(ctx, raw.ID)
 		var concepts []string
 		if err == nil && len(mem.Concepts) > 0 {
 			concepts = mem.Concepts
+			encodedCount++
+			// Track encoding latency: time from raw creation to encoded memory creation.
+			if !mem.CreatedAt.IsZero() && !raw.CreatedAt.IsZero() {
+				latMs := float64(mem.CreatedAt.Sub(raw.CreatedAt).Milliseconds())
+				if latMs >= 0 {
+					encodeLats = append(encodeLats, latMs)
+				}
+			}
 		} else if raw.Source == "filesystem" {
 			// For filesystem events, extract concepts from the file path
 			// instead of content — raw content is source code whose tokens
@@ -874,12 +933,15 @@ func (srv *MCPServer) handleGetContext(ctx context.Context, args map[string]inte
 			if action := conceptFromEventType(raw.Type); action != "" {
 				concepts = append(concepts, action)
 			}
+			fallbackCount++
 		} else if raw.Source == "terminal" {
 			// For terminal events, extract command name and subcommand
 			// rather than treating the full command as natural language.
 			concepts = conceptsFromCommand(raw.Content)
+			fallbackCount++
 		} else {
 			concepts = retrieval.ParseQueryConcepts(raw.Content)
+			fallbackCount++
 		}
 		for _, c := range concepts {
 			conceptCounts[c]++
@@ -920,7 +982,9 @@ func (srv *MCPServer) handleGetContext(ctx context.Context, args map[string]inte
 	}
 
 	// Step 5: Filter — exclude already-recalled, suppressed, archived, low-match.
+	// Track all passing candidates (before limit) for novelty metrics.
 	var suggestions []store.Memory
+	var allPassing int
 	for _, mem := range candidates {
 		if srv.sessionRecalledIDs[mem.ID] {
 			continue
@@ -941,11 +1005,89 @@ func (srv *MCPServer) handleGetContext(ctx context.Context, args map[string]inte
 		if matches < 2 {
 			continue
 		}
-		suggestions = append(suggestions, mem)
-		if len(suggestions) >= limit {
-			break
+		allPassing++
+		if len(suggestions) < limit {
+			suggestions = append(suggestions, mem)
 		}
 	}
+
+	// Compute theme match counts: for each top concept, how many suggestions have it.
+	themeHits := make(map[string]int, len(topConcepts))
+	for _, tc := range topConcepts {
+		for _, mem := range suggestions {
+			for _, mc := range mem.Concepts {
+				if mc == tc {
+					themeHits[tc]++
+					break
+				}
+			}
+		}
+	}
+
+	// Compute encoding queue depth and oldest unencoded age.
+	var queueDepth int
+	var oldestUnencoded string
+	unprocessed, listErr := srv.store.ListRawUnprocessed(ctx, 1000)
+	if listErr == nil {
+		queueDepth = len(unprocessed)
+		if queueDepth > 0 {
+			oldest := unprocessed[len(unprocessed)-1]
+			age := time.Since(oldest.CreatedAt)
+			oldestUnencoded = formatDuration(age)
+		}
+	}
+
+	// Compute average encode latency.
+	var avgEncodeLat float64
+	if len(encodeLats) > 0 {
+		var sum float64
+		for _, l := range encodeLats {
+			sum += l
+		}
+		avgEncodeLat = sum / float64(len(encodeLats))
+	}
+
+	// Compute novelty rate.
+	var noveltyPct float64
+	if len(candidates) > 0 {
+		noveltyPct = float64(allPassing) / float64(len(candidates)) * 100
+	}
+
+	// Compute encoding coverage.
+	var coveragePct float64
+	if len(relevant) > 0 {
+		coveragePct = float64(encodedCount) / float64(len(relevant)) * 100
+	}
+
+	// Compute acceptance rate from prior suggestions.
+	var acceptancePct float64
+	if srv.contextTotalOffered > 0 {
+		acceptancePct = float64(srv.contextAccepted) / float64(srv.contextTotalOffered) * 100
+	}
+
+	// Build metrics.
+	metrics := contextMetrics{
+		EncodedCount:     encodedCount,
+		FallbackCount:    fallbackCount,
+		CoveragePct:      coveragePct,
+		CandidatesBefore: len(candidates),
+		CandidatesAfter:  allPassing,
+		NoveltyPct:       noveltyPct,
+		ThemeHits:        themeHits,
+		AvgEncodeLatMs:   avgEncodeLat,
+		OldestUnencoded:  oldestUnencoded,
+		QueueDepth:       queueDepth,
+		AcceptancePct:    acceptancePct,
+	}
+
+	// Track suggested IDs for acceptance measurement and tool_usage recording.
+	var suggestedIDs []string
+	for _, mem := range suggestions {
+		srv.contextSuggestedIDs[mem.ID] = time.Now()
+		suggestedIDs = append(suggestedIDs, mem.ID)
+	}
+	srv.contextTotalOffered += len(suggestions)
+	srv.lastSuggestedIDsCSV = strings.Join(suggestedIDs, ",")
 
 	// Step 6: Update watermark.
 	srv.lastContextTime = time.Now()
@@ -953,7 +1095,10 @@ func (srv *MCPServer) handleGetContext(ctx context.Context, args map[string]inte
 	srv.log.Info("proactive context generated",
 		"recent_events", len(relevant),
 		"themes", topConcepts,
-		"suggestions", len(suggestions))
+		"suggestions", len(suggestions),
+		"encoding_coverage_pct", coveragePct,
+		"novelty_pct", noveltyPct,
+		"queue_depth", queueDepth)
 
 	// Format output.
 	if outputFormat == "json" {
@@ -961,6 +1106,7 @@ func (srv *MCPServer) handleGetContext(ctx context.Context, args map[string]inte
 			"recent_events": len(relevant),
 			"themes":        topConcepts,
 			"suggestions":   formatMemoriesJSON(suggestions),
+			"metrics":       metrics,
 		}
 		jsonBytes, err := json.Marshal(jsonResp)
 		if err != nil {
@@ -984,7 +1130,62 @@ func (srv *MCPServer) handleGetContext(ctx context.Context, args map[string]inte
 		}
 	}
 
+	// Pipeline metrics footer.
+	sb.WriteString("--- Pipeline ---\n")
+	fmt.Fprintf(&sb, "Coverage: %.0f%% encoded (%d/%d)", coveragePct, encodedCount, len(relevant))
+	if queueDepth > 0 {
+		fmt.Fprintf(&sb, " | Queue: %d pending, oldest %s ago", queueDepth, oldestUnencoded)
+	}
+	sb.WriteString("\n")
+	if len(candidates) > 0 {
+		fmt.Fprintf(&sb, "Candidates: %d -> %d after dedup (%.0f%% novel)\n", len(candidates), allPassing, noveltyPct)
+	}
+	if len(themeHits) > 0 {
+		sb.WriteString("Theme hits: [")
+		first := true
+		for _, tc := range topConcepts {
+			if n, ok := themeHits[tc]; ok && n > 0 {
+				if !first {
+					sb.WriteString(", ")
+				}
+				fmt.Fprintf(&sb, "%s:%d", tc, n)
+				first = false
+			}
+		}
+		sb.WriteString("]\n")
+	}
+	if srv.contextTotalOffered > 0 {
+		fmt.Fprintf(&sb, "Acceptance: %.0f%% (%d/%d suggestions led to recall)\n",
+			acceptancePct, srv.contextAccepted, srv.contextTotalOffered)
+	}
+
 	return toolResult(sb.String()), nil
+}
+
+// contextMetrics holds pipeline observability data for the get_context tool.
+type contextMetrics struct {
+	EncodedCount     int            `json:"encoded_count"`
+	FallbackCount    int            `json:"fallback_count"`
+	CoveragePct      float64        `json:"encoding_coverage_pct"`
+	CandidatesBefore int            `json:"candidates_before_dedup"`
+	CandidatesAfter  int            `json:"candidates_after_dedup"`
+	NoveltyPct       float64        `json:"novelty_pct"`
+	ThemeHits        map[string]int `json:"theme_match_counts"`
+	AvgEncodeLatMs   float64        `json:"avg_encode_latency_ms"`
+	OldestUnencoded  string         `json:"oldest_unencoded_age"`
+	QueueDepth       int            `json:"encoding_queue_depth"`
+	AcceptancePct    float64        `json:"acceptance_rate_pct"`
+}
+
+// formatDuration returns a human-readable short duration string.
+func formatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
 }
 
 // conceptsFromPath extracts meaningful concept tokens from a file path.
