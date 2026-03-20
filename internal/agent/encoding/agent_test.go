@@ -2100,12 +2100,14 @@ func TestCompressionResponseRoundTrip(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestFindDuplicate(t *testing.T) {
+	baseDC := dedupContext{Threshold: 0.9, MCPThreshold: 0.98}
+
 	t.Run("returns first result above threshold", func(t *testing.T) {
 		results := []store.RetrievalResult{
 			{Memory: store.Memory{ID: "a"}, Score: 0.95},
 			{Memory: store.Memory{ID: "b"}, Score: 0.85},
 		}
-		dup := findDuplicate(results, 0.9)
+		dup := findDuplicate(results, baseDC)
 		if dup == nil {
 			t.Fatal("expected duplicate to be found")
 		}
@@ -2119,14 +2121,14 @@ func TestFindDuplicate(t *testing.T) {
 			{Memory: store.Memory{ID: "a"}, Score: 0.85},
 			{Memory: store.Memory{ID: "b"}, Score: 0.70},
 		}
-		dup := findDuplicate(results, 0.9)
+		dup := findDuplicate(results, baseDC)
 		if dup != nil {
 			t.Errorf("expected nil, got %q", dup.Memory.ID)
 		}
 	})
 
 	t.Run("empty results returns nil", func(t *testing.T) {
-		dup := findDuplicate(nil, 0.9)
+		dup := findDuplicate(nil, baseDC)
 		if dup != nil {
 			t.Error("expected nil for empty results")
 		}
@@ -2136,9 +2138,75 @@ func TestFindDuplicate(t *testing.T) {
 		results := []store.RetrievalResult{
 			{Memory: store.Memory{ID: "a"}, Score: 0.9},
 		}
-		dup := findDuplicate(results, 0.9)
+		dup := findDuplicate(results, baseDC)
 		if dup == nil {
 			t.Fatal("expected duplicate at exact threshold")
+		}
+	})
+
+	t.Run("skips cross-type dedup", func(t *testing.T) {
+		results := []store.RetrievalResult{
+			{Memory: store.Memory{ID: "a", Type: "error"}, Score: 0.99},
+		}
+		dc := dedupContext{Threshold: 0.9, RawType: "decision"}
+		dup := findDuplicate(results, dc)
+		if dup != nil {
+			t.Error("should not dedup across different types")
+		}
+	})
+
+	t.Run("allows same-type dedup", func(t *testing.T) {
+		results := []store.RetrievalResult{
+			{Memory: store.Memory{ID: "a", Type: "decision"}, Score: 0.95},
+		}
+		dc := dedupContext{Threshold: 0.9, RawType: "decision"}
+		dup := findDuplicate(results, dc)
+		if dup == nil {
+			t.Fatal("should dedup same type above threshold")
+		}
+	})
+
+	t.Run("skips cross-project dedup", func(t *testing.T) {
+		results := []store.RetrievalResult{
+			{Memory: store.Memory{ID: "a", Project: "felix-lm"}, Score: 0.99},
+		}
+		dc := dedupContext{Threshold: 0.9, RawProject: "mnemonic"}
+		dup := findDuplicate(results, dc)
+		if dup != nil {
+			t.Error("should not dedup across different projects")
+		}
+	})
+
+	t.Run("MCP source uses higher threshold", func(t *testing.T) {
+		results := []store.RetrievalResult{
+			{Memory: store.Memory{ID: "a"}, Score: 0.96},
+		}
+		dc := dedupContext{Threshold: 0.95, MCPThreshold: 0.98, RawSource: "mcp"}
+		dup := findDuplicate(results, dc)
+		if dup != nil {
+			t.Error("MCP at 0.96 should NOT dedup when MCP threshold is 0.98")
+		}
+	})
+
+	t.Run("MCP source dedupes above MCP threshold", func(t *testing.T) {
+		results := []store.RetrievalResult{
+			{Memory: store.Memory{ID: "a"}, Score: 0.99},
+		}
+		dc := dedupContext{Threshold: 0.95, MCPThreshold: 0.98, RawSource: "mcp"}
+		dup := findDuplicate(results, dc)
+		if dup == nil {
+			t.Fatal("MCP at 0.99 should dedup when MCP threshold is 0.98")
+		}
+	})
+
+	t.Run("non-MCP source uses base threshold", func(t *testing.T) {
+		results := []store.RetrievalResult{
+			{Memory: store.Memory{ID: "a"}, Score: 0.96},
+		}
+		dc := dedupContext{Threshold: 0.95, MCPThreshold: 0.98, RawSource: "filesystem"}
+		dup := findDuplicate(results, dc)
+		if dup == nil {
+			t.Fatal("filesystem at 0.96 should dedup when base threshold is 0.95")
 		}
 	})
 }

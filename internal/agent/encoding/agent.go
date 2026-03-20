@@ -72,8 +72,9 @@ type EncodingConfig struct {
 	BatchSizeEvent          int      // batch size for EncodeAllPending (default: 50)
 	BatchSizePoll           int      // batch size for polling loop (default: 10)
 	EmbedBatchSize          int      // max memories to batch-embed in one call (default 10)
-	DeduplicationThreshold  float32  // cosine sim above which new memory is a duplicate (default: 0.9)
-	SalienceFloor           float32  // min salience to encode; non-MCP sources below this are skipped (default: 0.0)
+	DeduplicationThreshold     float32  // cosine sim above which new memory is a duplicate (default: 0.95)
+	MCPDeduplicationThreshold  float32  // higher threshold for MCP-sourced memories (default: 0.98)
+	SalienceFloor              float32  // min salience to encode; non-MCP sources below this are skipped (default: 0.0)
 	DisablePolling          bool     // if true, skip the polling loop (MCP processes should not poll)
 }
 
@@ -124,8 +125,10 @@ func DefaultConfig() EncodingConfig {
 		BackoffThreshold:        3,
 		BackoffBaseSec:          30,
 		BackoffMaxSec:           300,
-		BatchSizeEvent:          50,
-		BatchSizePoll:           10,
+		BatchSizeEvent:             50,
+		BatchSizePoll:              10,
+		DeduplicationThreshold:     0.95,
+		MCPDeduplicationThreshold:  0.98,
 	}
 }
 
@@ -710,11 +713,8 @@ func (ea *EncodingAgent) finalizeEncodedMemory(ctx context.Context, raw store.Ra
 			ea.log.Warn("failed to search for similar memories", "raw_id", raw.ID, "error", err)
 		} else {
 			// Check for near-duplicate before creating a new memory
-			dedupThreshold := ea.config.DeduplicationThreshold
-			if dedupThreshold <= 0 {
-				dedupThreshold = 0.9
-			}
-			if dup := findDuplicate(similar, dedupThreshold); dup != nil {
+			dc := ea.buildDedupContext(raw)
+			if dup := findDuplicate(similar, dc); dup != nil {
 				ea.log.Info("dedup: boosting existing memory instead of creating duplicate",
 					"raw_id", raw.ID,
 					"existing_id", dup.Memory.ID,
@@ -990,11 +990,8 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 			ea.log.Debug("similarity search completed", "raw_id", raw.ID, "results", len(similar))
 
 			// Dedup check: if a near-duplicate already exists, boost it instead of creating a new memory
-			dedupThreshold := ea.config.DeduplicationThreshold
-			if dedupThreshold <= 0 {
-				dedupThreshold = 0.9
-			}
-			if dup := findDuplicate(similar, dedupThreshold); dup != nil {
+			dc := ea.buildDedupContext(raw)
+			if dup := findDuplicate(similar, dc); dup != nil {
 				ea.log.Info("dedup: boosting existing memory instead of creating duplicate",
 					"raw_id", raw.ID, "existing_id", dup.Memory.ID, "similarity", dup.Score)
 				newSalience := dup.Memory.Salience + 0.05
@@ -1939,12 +1936,64 @@ func truncateString(s string, maxLen int) string {
 	return string(runes[:maxLen]) + "..."
 }
 
-// findDuplicate returns the first result above the dedup threshold, or nil.
-func findDuplicate(results []store.RetrievalResult, threshold float32) *store.RetrievalResult {
+// buildDedupContext creates a dedup context from the agent config and raw memory.
+func (ea *EncodingAgent) buildDedupContext(raw store.RawMemory) dedupContext {
+	threshold := ea.config.DeduplicationThreshold
+	if threshold <= 0 {
+		threshold = 0.95
+	}
+	mcpThreshold := ea.config.MCPDeduplicationThreshold
+	if mcpThreshold <= 0 {
+		mcpThreshold = 0.98
+	}
+	return dedupContext{
+		Threshold:    threshold,
+		MCPThreshold: mcpThreshold,
+		RawSource:    raw.Source,
+		RawType:      raw.Type,
+		RawProject:   raw.Project,
+	}
+}
+
+// dedupContext holds the context needed for smart deduplication decisions.
+type dedupContext struct {
+	Threshold    float32 // base cosine similarity threshold
+	MCPThreshold float32 // higher threshold for MCP-sourced memories (explicit user input)
+	RawSource    string  // source of the incoming memory
+	RawType      string  // type of the incoming memory (decision, error, insight, etc.)
+	RawProject   string  // project of the incoming memory
+}
+
+// findDuplicate returns the best dedup candidate, applying type-aware,
+// project-aware, and source-aware filtering. Returns nil if no valid
+// duplicate is found.
+//
+// Rules:
+//   - Never dedup across different memory types (decision != error)
+//   - Never dedup across different projects
+//   - MCP-sourced memories use a higher threshold (default 0.98) since
+//     they represent explicit user/agent input worth preserving
+//   - All other sources use the base threshold (default 0.95)
+func findDuplicate(results []store.RetrievalResult, dc dedupContext) *store.RetrievalResult {
+	threshold := dc.Threshold
+	if dc.RawSource == "mcp" && dc.MCPThreshold > 0 {
+		threshold = dc.MCPThreshold
+	}
+
 	for i := range results {
-		if results[i].Score >= threshold {
-			return &results[i]
+		r := &results[i]
+		if r.Score < threshold {
+			continue
 		}
+		// Skip cross-type dedup: a decision and an error are never duplicates.
+		if dc.RawType != "" && r.Memory.Type != "" && dc.RawType != r.Memory.Type {
+			continue
+		}
+		// Skip cross-project dedup: same topic in different projects is distinct.
+		if dc.RawProject != "" && r.Memory.Project != "" && dc.RawProject != r.Memory.Project {
+			continue
+		}
+		return r
 	}
 	return nil
 }

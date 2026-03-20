@@ -382,7 +382,7 @@ func (srv *MCPServer) handleRemember(ctx context.Context, args map[string]interf
 
 	srv.log.Info("memory stored", "id", raw.ID, "source", source, "type", memType, "project", project)
 
-	return toolResult(fmt.Sprintf("Stored memory %s (type: %s, project: %s)\n  Raw ID: %s\n  Initial salience: %.2f\n  Encoding: queued (async)\n\nTip: Use check_memory with raw_id \"%s\" to verify encoding status.",
+	return toolResult(fmt.Sprintf("Stored memory %s (type: %s, project: %s)\n  Raw ID: %s\n  Initial salience: %.2f\n  Encoding: queued (async)\n\nTip: Use check_memory with raw_id %q to verify encoding status. Dedup protections: same-type, same-project, source-aware thresholds.",
 		raw.ID, memType, project, raw.ID, raw.InitialSalience, raw.ID)), nil
 }
 
@@ -1757,9 +1757,9 @@ func (srv *MCPServer) handleCheckMemory(ctx context.Context, args map[string]int
 			if err != nil {
 				return toolResult(fmt.Sprintf("No memory found for raw_id %q or memory_id %q.", rawID, memoryID)), nil
 			}
-			status := "pending"
+			status := "pending encoding"
 			if raw.Processed {
-				status = "processed (encoding may have been deduplicated)"
+				status = "deduplicated — a similar memory already existed, so this one boosted its salience instead of creating a duplicate"
 			}
 			return toolResult(fmt.Sprintf("Raw memory %s found but not yet encoded.\n  Status: %s\n  Source: %s\n  Type: %s\n  Salience: %.2f\n  Created: %s",
 				raw.ID, status, raw.Source, raw.Type, raw.InitialSalience, raw.CreatedAt.Format(time.RFC3339))), nil
