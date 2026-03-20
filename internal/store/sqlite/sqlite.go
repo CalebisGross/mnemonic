@@ -670,7 +670,9 @@ func (s *SQLiteStore) GetRaw(ctx context.Context, id string) (store.RawMemory, e
 
 // ListRawUnprocessed lists raw memories that haven't been processed yet.
 func (s *SQLiteStore) ListRawUnprocessed(ctx context.Context, limit int) ([]store.RawMemory, error) {
-	query := `SELECT ` + rawMemoryColumns + ` FROM raw_memories WHERE processed = 0 OR processed = 'false' ORDER BY created_at ASC LIMIT ?`
+	// Priority ordering: MCP first (highest signal), then terminal, clipboard, filesystem.
+	// Within same priority, FIFO by creation time.
+	query := `SELECT ` + rawMemoryColumns + ` FROM raw_memories WHERE processed = 0 OR processed = 'false' ORDER BY CASE source WHEN 'mcp' THEN 0 WHEN 'terminal' THEN 1 WHEN 'clipboard' THEN 2 ELSE 3 END, created_at ASC LIMIT ?`
 
 	rows, err := s.db.QueryContext(ctx, query, limit)
 	if err != nil {

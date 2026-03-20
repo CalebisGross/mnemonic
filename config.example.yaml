@@ -333,6 +333,9 @@ consolidation:
   # Minimum cluster size for merging memories
   min_cluster_size: 3
 
+  # Archive non-MCP memories with 0 recalls after this many days (0 = disabled)
+  never_recalled_archive_days: 30
+
 # Retrieval Configuration
 retrieval:
   # Maximum hops in associative retrieval graph

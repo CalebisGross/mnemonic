@@ -216,6 +216,9 @@ type ConsolidationConfig struct {
 	SelfSustainingMinEvidence int     `yaml:"self_sustaining_min_evidence"`
 	SelfSustainingMinStrength float64 `yaml:"self_sustaining_min_strength"`
 	SelfSustainingDecay       float64 `yaml:"self_sustaining_decay"`
+
+	// Never-recalled watcher memory archival
+	NeverRecalledArchiveDays int `yaml:"never_recalled_archive_days"`
 }
 
 // RetrievalConfig holds retrieval settings.

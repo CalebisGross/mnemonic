@@ -57,6 +57,9 @@ type ConsolidationConfig struct {
 	SelfSustainingMinEvidence int     // evidence count to qualify (default 10)
 	SelfSustainingMinStrength float32 // minimum strength to qualify (default 0.9)
 	SelfSustainingDecay       float32 // reduced decay for qualifying patterns (default 0.9999)
+
+	// Never-recalled watcher memory archival
+	NeverRecalledArchiveDays int // archive non-MCP memories with 0 access after this many days (default 30, 0=disabled)
 }
 
 // DefaultConfig returns sensible defaults for consolidation.
@@ -91,6 +94,7 @@ func DefaultConfig() ConsolidationConfig {
 		SelfSustainingMinEvidence: 10,
 		SelfSustainingMinStrength: 0.9,
 		SelfSustainingDecay:       0.9999,
+		NeverRecalledArchiveDays:  30,
 	}
 }
 
@@ -255,6 +259,7 @@ type CycleReport struct {
 	AbstractionsZombied      int
 	PatternsDecayed          int
 	PatternsDeduplicated     int
+	NeverRecalledArchived    int
 }
 
 // runCycle executes the full consolidation pipeline.
@@ -317,6 +322,15 @@ func (ca *ConsolidationAgent) runCycle(ctx context.Context) (*CycleReport, error
 		ca.log.Warn("expired deletion failed", "error", err)
 	}
 	report.ExpiredDeleted = deleted
+
+	// Step 6b: Archive never-recalled non-MCP memories older than threshold
+	if ca.config.NeverRecalledArchiveDays > 0 {
+		nrArchived, nrErr := ca.archiveNeverRecalled(ctx)
+		if nrErr != nil {
+			ca.log.Warn("never-recalled archival failed", "error", nrErr)
+		}
+		report.NeverRecalledArchived = nrArchived
+	}
 
 	// Step 7: Deduplicate abstractions (no LLM needed — compares existing embeddings + titles)
 	abstDeduped, err := ca.dedupAbstractions(ctx)
@@ -1631,6 +1645,43 @@ func (ca *ConsolidationAgent) dedupPatterns(ctx context.Context) (int, error) {
 
 	if archived > 0 {
 		ca.log.Info("pattern dedup completed", "archived", archived)
+	}
+	return archived, nil
+}
+
+// archiveNeverRecalled archives non-MCP memories that have never been recalled
+// and are older than the configured threshold.
+func (ca *ConsolidationAgent) archiveNeverRecalled(ctx context.Context) (int, error) {
+	cutoff := time.Now().AddDate(0, 0, -ca.config.NeverRecalledArchiveDays)
+
+	// Get active memories older than cutoff with zero access
+	memories, err := ca.store.ListMemories(ctx, "active", ca.config.MaxMemoriesPerCycle, 0)
+	if err != nil {
+		return 0, fmt.Errorf("listing memories for never-recalled check: %w", err)
+	}
+
+	archived := 0
+	for _, mem := range memories {
+		if mem.Source == "mcp" {
+			continue // never archive MCP memories via this rule
+		}
+		if mem.AccessCount > 0 {
+			continue // has been recalled at least once
+		}
+		if mem.CreatedAt.After(cutoff) {
+			continue // too young
+		}
+
+		if err := ca.store.UpdateState(ctx, mem.ID, "archived"); err != nil {
+			ca.log.Warn("failed to archive never-recalled memory", "id", mem.ID, "error", err)
+			continue
+		}
+		archived++
+	}
+
+	if archived > 0 {
+		ca.log.Info("archived never-recalled watcher memories",
+			"archived", archived, "cutoff_days", ca.config.NeverRecalledArchiveDays)
 	}
 	return archived, nil
 }

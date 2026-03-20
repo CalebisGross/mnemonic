@@ -313,6 +313,30 @@ func (ra *RetrievalAgent) Query(ctx context.Context, req QueryRequest) (QueryRes
 		}
 	}
 
+	// Step 10b: Boost ranked results that are evidence for matching patterns/abstractions
+	if len(matchedPatterns) > 0 || len(matchedAbstractions) > 0 {
+		evidenceBoost := make(map[string]float32)
+		for _, p := range matchedPatterns {
+			for _, eid := range p.EvidenceIDs {
+				evidenceBoost[eid] += 0.1
+			}
+		}
+		for _, a := range matchedAbstractions {
+			for _, mid := range a.SourceMemoryIDs {
+				evidenceBoost[mid] += 0.05
+			}
+		}
+		for i, r := range ranked {
+			if boost, ok := evidenceBoost[r.Memory.ID]; ok {
+				ranked[i].Score += boost
+			}
+		}
+		// Re-sort after boosting
+		sort.Slice(ranked, func(i, j int) bool {
+			return ranked[i].Score > ranked[j].Score
+		})
+	}
+
 	// Step 11: Optional synthesis (now includes patterns and abstractions)
 	var synthesis string
 	if req.Synthesize {

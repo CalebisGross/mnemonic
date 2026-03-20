@@ -78,6 +78,10 @@ func recallToolDef() ToolDefinition {
 					"type":        "boolean",
 					"description": "If true, include top associated memories for each result (default: false)",
 				},
+				"synthesize": map[string]interface{}{
+					"type":        "boolean",
+					"description": "If true, include LLM-generated synthesis narrative (default: false). Adds 3-8s latency.",
+				},
 			},
 			"required": []string{"query"},
 		},

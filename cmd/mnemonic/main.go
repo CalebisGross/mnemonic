@@ -1874,6 +1874,7 @@ func toConsolidationConfig(cfg *config.Config) consolidation.ConsolidationConfig
 		SelfSustainingMinEvidence: cfg.Consolidation.SelfSustainingMinEvidence,
 		SelfSustainingMinStrength: float32(cfg.Consolidation.SelfSustainingMinStrength),
 		SelfSustainingDecay:       float32(cfg.Consolidation.SelfSustainingDecay),
+		NeverRecalledArchiveDays:  cfg.Consolidation.NeverRecalledArchiveDays,
 	}
 }
 

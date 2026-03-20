@@ -436,6 +436,11 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 		includeAssociations = ia
 	}
 
+	synthesize := false
+	if s, ok := args["synthesize"].(bool); ok {
+		synthesize = s
+	}
+
 	// If concepts are specified, use concept-based search (no spread activation available)
 	if len(concepts) > 0 {
 		memories, err := srv.store.SearchByConcepts(ctx, concepts, limit)
@@ -457,7 +462,7 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 		Query:               query,
 		MaxResults:          limit,
 		IncludeReasoning:    true,
-		Synthesize:          true,
+		Synthesize:          synthesize,
 		IncludePatterns:     true,
 		IncludeAbstractions: true,
 		Project:             project,
@@ -643,6 +648,34 @@ func (srv *MCPServer) handleStatus(ctx context.Context, args map[string]interfac
 			if float64(irrelevant)/float64(total) > 0.3 {
 				text += "  ⚠ High irrelevant rate — feedback is driving association adjustments\n"
 			}
+		}
+	}
+
+	// Pipeline health: pending encodings
+	pendingRaws, pendingErr := srv.store.ListRawUnprocessed(ctx, 100)
+	if pendingErr == nil {
+		text += "\nEncoding pipeline:\n"
+		text += fmt.Sprintf("  Pending: %d raw memories awaiting encoding\n", len(pendingRaws))
+		if len(pendingRaws) > 0 {
+			oldest := pendingRaws[len(pendingRaws)-1] // last in priority-sorted list = oldest/lowest priority
+			text += fmt.Sprintf("  Oldest pending: %s (%s, source: %s)\n", oldest.ID[:8], oldest.CreatedAt.Format("2006-01-02 15:04"), oldest.Source)
+			// Count by source
+			srcCounts := make(map[string]int)
+			for _, r := range pendingRaws {
+				srcCounts[r.Source]++
+			}
+			for src, count := range srcCounts {
+				text += fmt.Sprintf("    %s: %d\n", src, count)
+			}
+		}
+	}
+
+	// Source distribution
+	srcDist, srcErr := srv.store.GetSourceDistribution(ctx)
+	if srcErr == nil && len(srcDist) > 0 {
+		text += "\nMemory sources:\n"
+		for src, count := range srcDist {
+			text += fmt.Sprintf("  %s: %d\n", src, count)
 		}
 	}
 

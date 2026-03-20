@@ -1306,6 +1306,7 @@ func (ea *EncodingAgent) compressAndExtractConcepts(ctx context.Context, raw sto
 	if len(result.Concepts) == 0 {
 		result.Concepts = extractDefaultConcepts(truncatedContent, raw.Type, raw.Source)
 	}
+	result.Concepts = cleanConcepts(result.Concepts)
 	if result.Salience <= 0.0 || result.Salience > 1.0 {
 		result.Salience = heuristicSalience(raw.Source, raw.Type, truncatedContent)
 	}
@@ -1355,9 +1356,9 @@ Fill in every JSON field based on the actual event content below:
 	}
 
 	if len(conceptVocabulary) > 0 {
-		b.WriteString("CONCEPT VOCABULARY (prefer these exact terms for concepts): ")
+		b.WriteString("CONCEPT VOCABULARY — you MUST use terms from this list whenever possible. Only invent a new term if NO vocabulary term fits:\n")
 		b.WriteString(strings.Join(conceptVocabulary, ", "))
-		b.WriteString("\n\n")
+		b.WriteString("\n\nDo NOT use metadata as concepts (e.g., 'source:mcp', 'type:insight', project names). Concepts should describe the TOPIC, not the origin.\n\n")
 	}
 
 	if episodeCtx != "" {
@@ -1507,6 +1508,34 @@ func heuristicSalience(source, memType, content string) float32 {
 	}
 
 	return score
+}
+
+// cleanConcepts normalizes and filters extracted concepts:
+// - lowercases all terms
+// - strips metadata-like concepts (source:*, type:*, project names)
+// - deduplicates
+func cleanConcepts(concepts []string) []string {
+	seen := make(map[string]bool)
+	var cleaned []string
+	for _, c := range concepts {
+		c = strings.ToLower(strings.TrimSpace(c))
+		if c == "" {
+			continue
+		}
+		// Strip metadata-like concepts
+		if strings.Contains(c, ":") || strings.HasPrefix(c, "source") || strings.HasPrefix(c, "type") {
+			continue
+		}
+		// Skip overly generic terms
+		if c == "mnemonic" || c == "general" || c == "memory" && len(concepts) > 3 {
+			continue
+		}
+		if !seen[c] {
+			seen[c] = true
+			cleaned = append(cleaned, c)
+		}
+	}
+	return cleaned
 }
 
 // extractDefaultConcepts extracts basic concepts when LLM compression fails.
