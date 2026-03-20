@@ -48,15 +48,15 @@ type ConsolidationConfig struct {
 	StrongEvidenceMinCount   int     // evidence count to unlock strong ceiling (default 10)
 
 	// Pattern decay tunables
-	PatternBaselineDecay float32 // per-cycle baseline decay (default 0.998)
-	StaleDecayHealthy    float32 // decay when evidence ratio >= 0.5 (default 0.98)
-	StaleDecayModerate   float32 // decay when evidence ratio >= 0.2 (default 0.95)
-	StaleDecayAggressive float32 // decay when evidence ratio < 0.2 (default 0.90)
+	PatternBaselineDecay float32 // per-cycle baseline decay (default 0.995)
+	StaleDecayHealthy    float32 // decay when evidence ratio >= 0.5 (default 0.97)
+	StaleDecayModerate   float32 // decay when evidence ratio >= 0.2 (default 0.93)
+	StaleDecayAggressive float32 // decay when evidence ratio < 0.2 (default 0.85)
 
 	// Self-sustaining pattern tunables
 	SelfSustainingMinEvidence int     // evidence count to qualify (default 10)
 	SelfSustainingMinStrength float32 // minimum strength to qualify (default 0.9)
-	SelfSustainingDecay       float32 // reduced decay for qualifying patterns (default 0.9999)
+	SelfSustainingDecay       float32 // reduced decay for qualifying patterns (default 0.995)
 
 	// Never-recalled watcher memory archival
 	NeverRecalledArchiveDays int // archive non-MCP memories with 0 access after this many days (default 30, 0=disabled)
@@ -87,13 +87,13 @@ func DefaultConfig() ConsolidationConfig {
 		PatternStrengthCeiling:    0.95,
 		StrongEvidenceCeiling:     1.0,
 		StrongEvidenceMinCount:    10,
-		PatternBaselineDecay:      0.998,
-		StaleDecayHealthy:         0.98,
-		StaleDecayModerate:        0.95,
-		StaleDecayAggressive:      0.90,
+		PatternBaselineDecay:      0.995,
+		StaleDecayHealthy:         0.97,
+		StaleDecayModerate:        0.93,
+		StaleDecayAggressive:      0.85,
 		SelfSustainingMinEvidence: 10,
 		SelfSustainingMinStrength: 0.9,
-		SelfSustainingDecay:       0.9999,
+		SelfSustainingDecay:       0.995,
 		NeverRecalledArchiveDays:  30,
 	}
 }
@@ -1531,12 +1531,12 @@ func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
 			p.Strength *= cfgFloat32(ca.config.PatternBaselineDecay, 0.998)
 		}
 
-		// Additional evidence-based decay for patterns not accessed within 7 days
+		// Additional evidence-based decay for patterns not accessed within 3 days
 		recency := p.LastAccessed
 		if recency.IsZero() {
 			recency = p.CreatedAt
 		}
-		stale := recency.IsZero() || time.Since(recency).Hours() >= 168
+		stale := recency.IsZero() || time.Since(recency).Hours() >= 72
 
 		if stale {
 			totalEvidence := len(p.EvidenceIDs)

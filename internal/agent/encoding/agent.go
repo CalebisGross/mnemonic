@@ -74,7 +74,7 @@ type EncodingConfig struct {
 	EmbedBatchSize          int      // max memories to batch-embed in one call (default 10)
 	DeduplicationThreshold     float32  // cosine sim above which new memory is a duplicate (default: 0.95)
 	MCPDeduplicationThreshold  float32  // higher threshold for MCP-sourced memories (default: 0.98)
-	SalienceFloor              float32  // min salience to encode; non-MCP sources below this are skipped (default: 0.0)
+	SalienceFloor              float32  // min salience to encode; non-MCP sources below this are skipped (default: 0.5)
 	DisablePolling          bool     // if true, skip the polling loop (MCP processes should not poll)
 }
 
@@ -129,6 +129,7 @@ func DefaultConfig() EncodingConfig {
 		BatchSizePoll:              10,
 		DeduplicationThreshold:     0.95,
 		MCPDeduplicationThreshold:  0.98,
+		SalienceFloor:              0.5,
 	}
 }
 

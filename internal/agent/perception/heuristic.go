@@ -269,9 +269,10 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 		"venv/", ".venv/", "site-packages/", ".tox/", ".mypy_cache/", ".ruff_cache/", ".pytest_cache/",
 		".egg-info/", ".eggs/"}
 
-	// Hard-reject lockfiles and checksums — deterministic files with zero semantic value
+	// Hard-reject lockfiles, checksums, and release tooling — deterministic files with zero semantic value
 	lockfileNames := []string{"go.sum", "package-lock.json", "yarn.lock", "Cargo.lock",
-		"poetry.lock", "pnpm-lock.yaml", "Gemfile.lock", "composer.lock"}
+		"poetry.lock", "pnpm-lock.yaml", "Gemfile.lock", "composer.lock",
+		".release-please-manifest.json", "CHANGELOG.md"}
 	baseName := path
 	if idx := strings.LastIndex(baseName, "/"); idx >= 0 {
 		baseName = baseName[idx+1:]
