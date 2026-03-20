@@ -49,27 +49,27 @@ type RawMemory struct {
 
 // Memory is an encoded, compressed memory unit.
 type Memory struct {
-	ID           string    `json:"id"`
-	RawID        string    `json:"raw_id"`
-	Timestamp    time.Time `json:"timestamp"`
-	Type         string    `json:"type,omitempty"` // "decision", "error", "insight", "learning", "general", etc.
-	Content      string    `json:"content"`        // compressed/encoded form
-	Summary      string    `json:"summary"`        // one-liner
-	Concepts     []string  `json:"concepts"`       // extracted concepts
-	Embedding    []float32 `json:"embedding,omitempty"`
-	Salience     float32   `json:"salience"`
-	AccessCount  int       `json:"access_count"`
-	LastAccessed time.Time `json:"last_accessed"`
-	State        string    `json:"state"`                // "active", "fading", "archived", "merged"
-	GistOf       []string  `json:"gist_of,omitempty"`    // if merged: source memory IDs
-	EpisodeID    string    `json:"episode_id,omitempty"` // link to parent episode
-	Source          string    `json:"source,omitempty"`     // origin: "filesystem", "terminal", "clipboard", "mcp", "consolidation"
-	Project         string    `json:"project,omitempty"`
-	SessionID       string    `json:"session_id,omitempty"`
-	FeedbackScore   int       `json:"feedback_score"`    // accumulated: helpful=+1, irrelevant=-1
-	RecallSuppressed bool     `json:"recall_suppressed"` // true when feedback_score <= suppression threshold
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID               string    `json:"id"`
+	RawID            string    `json:"raw_id"`
+	Timestamp        time.Time `json:"timestamp"`
+	Type             string    `json:"type,omitempty"` // "decision", "error", "insight", "learning", "general", etc.
+	Content          string    `json:"content"`        // compressed/encoded form
+	Summary          string    `json:"summary"`        // one-liner
+	Concepts         []string  `json:"concepts"`       // extracted concepts
+	Embedding        []float32 `json:"embedding,omitempty"`
+	Salience         float32   `json:"salience"`
+	AccessCount      int       `json:"access_count"`
+	LastAccessed     time.Time `json:"last_accessed"`
+	State            string    `json:"state"`                // "active", "fading", "archived", "merged"
+	GistOf           []string  `json:"gist_of,omitempty"`    // if merged: source memory IDs
+	EpisodeID        string    `json:"episode_id,omitempty"` // link to parent episode
+	Source           string    `json:"source,omitempty"`     // origin: "filesystem", "terminal", "clipboard", "mcp", "consolidation"
+	Project          string    `json:"project,omitempty"`
+	SessionID        string    `json:"session_id,omitempty"`
+	FeedbackScore    int       `json:"feedback_score"`    // accumulated: helpful=+1, irrelevant=-1
+	RecallSuppressed bool      `json:"recall_suppressed"` // true when feedback_score <= suppression threshold
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // Association is a weighted link between two memories.

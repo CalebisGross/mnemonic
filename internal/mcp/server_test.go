@@ -147,10 +147,10 @@ func TestHandleToolsList(t *testing.T) {
 		"ingest_project":  false,
 		"list_sessions":   false,
 		"recall_session":  false,
-		"amend":            false,
-		"check_memory":     false,
-		"exclude_path":     false,
-		"list_exclusions":  false,
+		"amend":           false,
+		"check_memory":    false,
+		"exclude_path":    false,
+		"list_exclusions": false,
 	}
 
 	for _, toolInterface := range toolsArray {

@@ -266,7 +266,7 @@ func (MockStore) ListProjects(context.Context) ([]string, error) { return nil, n
 
 // --- Runtime exclusions ---
 
-func (MockStore) AddRuntimeExclusion(context.Context, string) error   { return nil }
+func (MockStore) AddRuntimeExclusion(context.Context, string) error    { return nil }
 func (MockStore) RemoveRuntimeExclusion(context.Context, string) error { return nil }
 func (MockStore) ListRuntimeExclusions(context.Context) ([]string, error) {
 	return nil, nil

@@ -80,12 +80,12 @@ type mockStore struct {
 	storetest.MockStore
 
 	// Configurable function fields for methods used by the retrieval agent.
-	searchByFullTextFunc  func(ctx context.Context, query string, limit int) ([]store.Memory, error)
-	searchByEmbeddingFunc func(ctx context.Context, embedding []float32, limit int) ([]store.RetrievalResult, error)
-	getAssociationsFunc   func(ctx context.Context, memoryID string) ([]store.Association, error)
-	getMemoryFunc         func(ctx context.Context, id string) (store.Memory, error)
-	incrementAccessFunc   func(ctx context.Context, id string) error
-	getMemoryAttrsFunc         func(ctx context.Context, memoryID string) (store.MemoryAttributes, error)
+	searchByFullTextFunc        func(ctx context.Context, query string, limit int) ([]store.Memory, error)
+	searchByEmbeddingFunc       func(ctx context.Context, embedding []float32, limit int) ([]store.RetrievalResult, error)
+	getAssociationsFunc         func(ctx context.Context, memoryID string) ([]store.Association, error)
+	getMemoryFunc               func(ctx context.Context, id string) (store.Memory, error)
+	incrementAccessFunc         func(ctx context.Context, id string) error
+	getMemoryAttrsFunc          func(ctx context.Context, memoryID string) (store.MemoryAttributes, error)
 	getMemoryFeedbackScoresFunc func(ctx context.Context, memoryIDs []string) (map[string]float32, error)
 
 	// Call tracking
@@ -1211,7 +1211,7 @@ func TestRankResults_SourceAndFeedbackCombined(t *testing.T) {
 		},
 		getMemoryFeedbackScoresFunc: func(_ context.Context, _ []string) (map[string]float32, error) {
 			return map[string]float32{
-				"fs-helpful":      1.0,  // strong positive feedback
+				"fs-helpful":     1.0,  // strong positive feedback
 				"mcp-irrelevant": -1.0, // strong negative feedback
 			}, nil
 		},
