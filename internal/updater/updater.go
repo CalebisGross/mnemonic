@@ -2,6 +2,7 @@ package updater
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -85,7 +86,7 @@ func CheckForUpdate(ctx context.Context, currentVersion string) (*UpdateInfo, er
 	latestVersion := strings.TrimPrefix(release.TagName, "v")
 
 	// Find the asset for this platform
-	assetName := fmt.Sprintf("mnemonic_%s_%s_%s.tar.gz", latestVersion, runtime.GOOS, runtime.GOARCH)
+	assetName := fmt.Sprintf("mnemonic_%s_%s_%s%s", latestVersion, runtime.GOOS, runtime.GOARCH, archiveExt())
 	var assetURL, checksumsURL string
 	for _, a := range release.Assets {
 		switch a.Name {
@@ -130,7 +131,7 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) (*UpdateResult, error)
 	}
 
 	execDir := filepath.Dir(execPath)
-	archivePath := filepath.Join(execDir, ".mnemonic.update.tar.gz")
+	archivePath := filepath.Join(execDir, ".mnemonic.update"+archiveExt())
 	newBinaryPath := filepath.Join(execDir, ".mnemonic.update.tmp")
 
 	// Clean up temp files on failure
@@ -146,7 +147,7 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) (*UpdateResult, error)
 
 	// Verify checksum if available
 	if info.ChecksumsURL != "" {
-		assetName := fmt.Sprintf("mnemonic_%s_%s_%s.tar.gz", info.LatestVersion, runtime.GOOS, runtime.GOARCH)
+		assetName := fmt.Sprintf("mnemonic_%s_%s_%s%s", info.LatestVersion, runtime.GOOS, runtime.GOARCH, archiveExt())
 		if err := verifyChecksum(ctx, archivePath, info.ChecksumsURL, assetName); err != nil {
 			return nil, fmt.Errorf("checksum verification failed: %w", err)
 		}
@@ -296,8 +297,63 @@ func verifyChecksum(ctx context.Context, archivePath, checksumsURL, expectedName
 	return nil
 }
 
-// extractBinary extracts the "mnemonic" binary from a tar.gz archive.
+// archiveExt returns the archive file extension for the current platform.
+func archiveExt() string {
+	if runtime.GOOS == "windows" {
+		return ".zip"
+	}
+	return ".tar.gz"
+}
+
+// extractBinary extracts the "mnemonic" binary from an archive.
+// Supports tar.gz (macOS/Linux) and zip (Windows).
 func extractBinary(archivePath, destPath string) error {
+	if strings.HasSuffix(archivePath, ".zip") {
+		return extractBinaryFromZip(archivePath, destPath)
+	}
+	return extractBinaryFromTarGz(archivePath, destPath)
+}
+
+// extractBinaryFromZip extracts the binary from a zip archive.
+func extractBinaryFromZip(archivePath, destPath string) error {
+	r, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return fmt.Errorf("opening zip archive: %w", err)
+	}
+	defer func() { _ = r.Close() }()
+
+	binaryName := "mnemonic"
+	if runtime.GOOS == "windows" {
+		binaryName = "mnemonic.exe"
+	}
+
+	for _, f := range r.File {
+		name := filepath.Base(f.Name)
+		if name == binaryName && !f.FileInfo().IsDir() {
+			rc, err := f.Open()
+			if err != nil {
+				return fmt.Errorf("opening zip entry: %w", err)
+			}
+			defer func() { _ = rc.Close() }()
+
+			out, err := os.Create(destPath)
+			if err != nil {
+				return fmt.Errorf("creating output file: %w", err)
+			}
+			// Limit copy to 500MB to prevent zip bomb attacks
+			if _, err := io.Copy(out, io.LimitReader(rc, 500*1024*1024)); err != nil {
+				_ = out.Close()
+				return fmt.Errorf("extracting binary: %w", err)
+			}
+			return out.Close()
+		}
+	}
+
+	return fmt.Errorf("binary %q not found in archive", binaryName)
+}
+
+// extractBinaryFromTarGz extracts the binary from a tar.gz archive.
+func extractBinaryFromTarGz(archivePath, destPath string) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("opening archive: %w", err)

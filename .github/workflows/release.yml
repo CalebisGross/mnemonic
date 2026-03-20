@@ -21,6 +21,10 @@ jobs:
             goos: linux
             goarch: amd64
             name: linux_amd64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            name: windows_amd64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -30,18 +34,27 @@ jobs:
           go-version-file: go.mod
 
       - name: Build
+        shell: bash
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          go build -ldflags "-s -w -X main.Version=${VERSION}" -o mnemonic ./cmd/mnemonic
+          BINARY=mnemonic
+          if [ "${{ matrix.goos }}" = "windows" ]; then BINARY=mnemonic.exe; fi
+          go build -ldflags "-s -w -X main.Version=${VERSION}" -o "${BINARY}" ./cmd/mnemonic
 
       - name: Package
+        shell: bash
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          ARCHIVE="mnemonic_${VERSION}_${{ matrix.name }}.tar.gz"
-          tar czf "${ARCHIVE}" mnemonic README.md LICENSE config.example.yaml docs/
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            ARCHIVE="mnemonic_${VERSION}_${{ matrix.name }}.zip"
+            7z a "${ARCHIVE}" mnemonic.exe README.md LICENSE config.example.yaml docs/
+          else
+            ARCHIVE="mnemonic_${VERSION}_${{ matrix.name }}.tar.gz"
+            tar czf "${ARCHIVE}" mnemonic README.md LICENSE config.example.yaml docs/
+          fi
           echo "ARCHIVE=${ARCHIVE}" >> $GITHUB_ENV
 
       - name: Upload artifact
@@ -64,13 +77,16 @@ jobs:
 
       - name: Generate checksums
         working-directory: dist
-        run: sha256sum *.tar.gz > checksums.txt
+        run: |
+          shopt -s nullglob
+          sha256sum *.tar.gz *.zip > checksums.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*.tar.gz
+            dist/*.zip
             dist/checksums.txt
           generate_release_notes: true
           draft: false

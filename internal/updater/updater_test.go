@@ -2,6 +2,7 @@ package updater
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -244,6 +245,95 @@ func TestExtractBinaryNotFound(t *testing.T) {
 	err = extractBinary(archivePath, filepath.Join(tmpDir, "out"))
 	if err == nil {
 		t.Fatal("expected error when binary not in archive")
+	}
+}
+
+func TestExtractBinaryFromZip(t *testing.T) {
+	tmpDir := t.TempDir()
+	archivePath := filepath.Join(tmpDir, "test.zip")
+	destPath := filepath.Join(tmpDir, "mnemonic_extracted")
+	binaryContent := []byte("#!/bin/sh\necho hello\n")
+
+	binaryName := "mnemonic"
+	if runtime.GOOS == "windows" {
+		binaryName = "mnemonic.exe"
+	}
+
+	// Build the zip archive
+	f, err := os.Create(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(f)
+
+	// Add a non-binary file first
+	w, err := zw.Create("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Add the binary
+	w, err = zw.Create(binaryName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write(binaryContent); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Extract
+	if err := extractBinary(archivePath, destPath); err != nil {
+		t.Fatalf("extractBinary (zip) failed: %v", err)
+	}
+
+	// Verify content
+	got, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(binaryContent) {
+		t.Errorf("extracted content = %q, want %q", got, binaryContent)
+	}
+}
+
+func TestExtractBinaryFromZipNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	archivePath := filepath.Join(tmpDir, "test.zip")
+
+	f, err := os.Create(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(f)
+
+	w, err := zw.Create("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	err = extractBinary(archivePath, filepath.Join(tmpDir, "out"))
+	if err == nil {
+		t.Fatal("expected error when binary not in zip archive")
 	}
 }
 
