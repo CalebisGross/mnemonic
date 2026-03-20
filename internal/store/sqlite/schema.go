@@ -445,6 +445,16 @@ CREATE INDEX IF NOT EXISTS idx_tool_usage_tool ON tool_usage(tool_name);
 	}
 	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_suppressed ON memories(recall_suppressed) WHERE recall_suppressed = 1`)
 
+	// Migration 012b: Runtime watcher exclusions.
+	_, _ = db.Exec(`
+CREATE TABLE IF NOT EXISTS runtime_exclusions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern TEXT NOT NULL UNIQUE,
+    source TEXT NOT NULL DEFAULT 'mcp',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`)
+
 	// Migration 013: Memory amendments audit trail.
 	_, _ = db.Exec(`
 CREATE TABLE IF NOT EXISTS memory_amendments (

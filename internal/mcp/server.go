@@ -249,6 +249,10 @@ func (srv *MCPServer) handleToolCall(ctx context.Context, req *jsonRPCRequest) *
 		result, toolErr = srv.handleListSessions(ctx, params.Arguments)
 	case "recall_session":
 		result, toolErr = srv.handleRecallSession(ctx, params.Arguments)
+	case "exclude_path":
+		result, toolErr = srv.handleExcludePath(ctx, params.Arguments)
+	case "list_exclusions":
+		result, toolErr = srv.handleListExclusions(ctx, params.Arguments)
 	case "amend":
 		result, toolErr = srv.handleAmend(ctx, params.Arguments)
 	case "check_memory":
@@ -1579,6 +1583,40 @@ func (srv *MCPServer) handleRecallSession(ctx context.Context, args map[string]i
 	for i, mem := range memories {
 		fmt.Fprintf(&sb, "%d. [%s] %s\n   Summary: %s\n   Concepts: %v\n   Type: %s\n\n",
 			i+1, mem.CreatedAt.Format("15:04:05"), mem.ID, mem.Summary, mem.Concepts, mem.Type)
+	}
+	return toolResult(sb.String()), nil
+}
+
+// handleExcludePath adds a watcher exclusion pattern to the DB.
+func (srv *MCPServer) handleExcludePath(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	pattern, ok := args["pattern"].(string)
+	if !ok || pattern == "" {
+		return nil, fmt.Errorf("pattern parameter is required")
+	}
+
+	if err := srv.store.AddRuntimeExclusion(ctx, pattern); err != nil {
+		return nil, fmt.Errorf("adding exclusion: %w", err)
+	}
+
+	srv.log.Info("runtime exclusion added", "pattern", pattern)
+	return toolResult(fmt.Sprintf("Added exclusion pattern %q. Takes effect on daemon restart.", pattern)), nil
+}
+
+// handleListExclusions returns all runtime watcher exclusion patterns.
+func (srv *MCPServer) handleListExclusions(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	patterns, err := srv.store.ListRuntimeExclusions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing exclusions: %w", err)
+	}
+
+	if len(patterns) == 0 {
+		return toolResult("No runtime exclusions configured. Use exclude_path to add patterns."), nil
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Runtime exclusions (%d):\n", len(patterns))
+	for _, p := range patterns {
+		fmt.Fprintf(&sb, "  - %s\n", p)
 	}
 	return toolResult(sb.String()), nil
 }

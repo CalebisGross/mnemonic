@@ -264,6 +264,14 @@ func (MockStore) GetProjectSummary(context.Context, string) (map[string]interfac
 }
 func (MockStore) ListProjects(context.Context) ([]string, error) { return nil, nil }
 
+// --- Runtime exclusions ---
+
+func (MockStore) AddRuntimeExclusion(context.Context, string) error   { return nil }
+func (MockStore) RemoveRuntimeExclusion(context.Context, string) error { return nil }
+func (MockStore) ListRuntimeExclusions(context.Context) ([]string, error) {
+	return nil, nil
+}
+
 // --- Session queries ---
 
 func (MockStore) ListSessions(context.Context, time.Time, int) ([]store.SessionSummary, error) {

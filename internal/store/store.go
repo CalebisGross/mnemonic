@@ -489,6 +489,11 @@ type Store interface {
 	GetProjectSummary(ctx context.Context, project string) (map[string]interface{}, error)
 	ListProjects(ctx context.Context) ([]string, error)
 
+	// --- Runtime exclusions ---
+	AddRuntimeExclusion(ctx context.Context, pattern string) error
+	RemoveRuntimeExclusion(ctx context.Context, pattern string) error
+	ListRuntimeExclusions(ctx context.Context) ([]string, error)
+
 	// --- Session queries ---
 	ListSessions(ctx context.Context, since time.Time, limit int) ([]SessionSummary, error)
 	GetSessionMemories(ctx context.Context, sessionID string, limit int) ([]Memory, error)

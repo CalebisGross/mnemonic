@@ -108,6 +108,47 @@ func (s *SQLiteStore) GetSessionMemories(ctx context.Context, sessionID string, 
 	return scanMemoryRows(rows)
 }
 
+// --- Runtime exclusions ---
+
+// AddRuntimeExclusion adds a watcher exclusion pattern to the DB.
+func (s *SQLiteStore) AddRuntimeExclusion(ctx context.Context, pattern string) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT OR IGNORE INTO runtime_exclusions (pattern, source) VALUES (?, 'mcp')`, pattern)
+	if err != nil {
+		return fmt.Errorf("adding runtime exclusion: %w", err)
+	}
+	return nil
+}
+
+// RemoveRuntimeExclusion removes a watcher exclusion pattern from the DB.
+func (s *SQLiteStore) RemoveRuntimeExclusion(ctx context.Context, pattern string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM runtime_exclusions WHERE pattern = ?`, pattern)
+	if err != nil {
+		return fmt.Errorf("removing runtime exclusion: %w", err)
+	}
+	return nil
+}
+
+// ListRuntimeExclusions returns all runtime exclusion patterns.
+func (s *SQLiteStore) ListRuntimeExclusions(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT pattern FROM runtime_exclusions ORDER BY created_at`)
+	if err != nil {
+		return nil, fmt.Errorf("listing runtime exclusions: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var patterns []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			continue
+		}
+		patterns = append(patterns, p)
+	}
+	return patterns, rows.Err()
+}
+
 // GetProjectSummary returns aggregate stats for a specific project.
 func (s *SQLiteStore) GetProjectSummary(ctx context.Context, project string) (map[string]interface{}, error) {
 	summary := make(map[string]interface{})
