@@ -4,6 +4,13 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.26.1](https://github.com/AppSprout-dev/mnemonic/compare/v0.26.0...v0.26.1) (2026-03-20)
+
+
+### Bug Fixes
+
+* pattern decay rates and watcher noise filtering ([8983b13](https://github.com/AppSprout-dev/mnemonic/commit/8983b13afddc5536449b7e59a93f4f399f239854))
+
 ## [0.26.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.25.0...v0.26.0) (2026-03-20)
 
 
