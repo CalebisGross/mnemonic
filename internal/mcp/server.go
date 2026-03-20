@@ -651,6 +651,34 @@ func (srv *MCPServer) handleStatus(ctx context.Context, args map[string]interfac
 		}
 	}
 
+	// Pipeline health: pending encodings
+	pendingRaws, pendingErr := srv.store.ListRawUnprocessed(ctx, 100)
+	if pendingErr == nil {
+		text += "\nEncoding pipeline:\n"
+		text += fmt.Sprintf("  Pending: %d raw memories awaiting encoding\n", len(pendingRaws))
+		if len(pendingRaws) > 0 {
+			oldest := pendingRaws[len(pendingRaws)-1] // last in priority-sorted list = oldest/lowest priority
+			text += fmt.Sprintf("  Oldest pending: %s (%s, source: %s)\n", oldest.ID[:8], oldest.CreatedAt.Format("2006-01-02 15:04"), oldest.Source)
+			// Count by source
+			srcCounts := make(map[string]int)
+			for _, r := range pendingRaws {
+				srcCounts[r.Source]++
+			}
+			for src, count := range srcCounts {
+				text += fmt.Sprintf("    %s: %d\n", src, count)
+			}
+		}
+	}
+
+	// Source distribution
+	srcDist, srcErr := srv.store.GetSourceDistribution(ctx)
+	if srcErr == nil && len(srcDist) > 0 {
+		text += "\nMemory sources:\n"
+		for src, count := range srcDist {
+			text += fmt.Sprintf("  %s: %d\n", src, count)
+		}
+	}
+
 	if len(observations) > 0 {
 		text += fmt.Sprintf("\nRecent observations (%d):\n", len(observations))
 		for _, obs := range observations {
