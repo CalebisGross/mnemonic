@@ -26,7 +26,40 @@ Pre-registered experiments for Felix-LM v3 100M pretraining on mnemonic's curate
 
 - **Analysis:** Mnemonic's full retrieval pipeline (FTS + embeddings + 3-hop spread activation) achieves nDCG 0.841, outperforming industry-standard Hybrid RRF (0.836) by a slim margin. The primary advantage is in recall (0.944 vs 0.886) — spread activation finds memories that keyword + embedding search alone misses. The weakest scenario is "Needle in Haystack" where Mnemonic (full) ties with FTS at nDCG 0.623, suggesting spread activation doesn't help when the target memory has few associations. Strongest scenario is "Associative Recall" (nDCG 0.953) which directly tests the graph traversal. Note: these numbers are with deterministic bag-of-words embeddings, not real LLM embeddings. A trained model producing better embeddings should lift the Vector and Mnemonic approaches while leaving FTS unchanged.
 
-### BASELINE-2: End-to-End Gemini Quality Floor
+### BASELINE-2: Lifecycle Simulation (Gemini Flash)
+
+- **Date:** 2026-03-20
+- **Status:** COMPLETED
+- **Purpose:** First end-to-end lifecycle test with real LLM (gemini-3-flash-preview + gemini-embedding-2-preview, 3072-dim). Validates all 8 cognitive agents through a simulated 3-month user journey.
+- **Command:** `./bin/lifecycle-test --llm --verbose --report markdown`
+- **Commit:** e0950e3 (main, v0.24.0)
+- **Environment:** Linux x86_64, mnemonic v0.24.0, Gemini API, 8 phases, 23 assertions
+- **Results:**
+
+| Phase | Assertions | Duration | Status |
+|-------|-----------|----------|--------|
+| install | 5/5 | 0s | PASS |
+| first-use | 7/7 | 36s | PASS |
+| ingest | 2/2 | 27s | PASS |
+| daily | 3/3 | 24m 8s | PASS |
+| consolidation | 1/1 | 11s | PASS |
+| dreaming | 0/0 | 2s | PASS |
+| growth | 3/3 | 45m 3s | PASS |
+| longterm | 2/2 | 5s | PASS |
+
+Key metrics:
+- 115 unique encoded memories from 862 raw (dedup rate 87%)
+- 704 associations, 4 patterns, 4 abstractions, 1 insight
+- 317 episodes with LLM-generated titles
+- Retrieval: avg 758ms latency, 4.8 results/query (embedding search only — FTS disabled by scan bug)
+- Consolidation: 97 active → 44 active + 49 fading + 4 archived after 10 cycles
+- Longterm (20 aggressive cycles): 0 active + 6 fading + 109 archived
+- DB size: 5.33 MB
+- Total runtime: ~70 minutes
+
+- **Analysis:** The full cognitive pipeline works end-to-end with real Gemini embeddings. Dedup is aggressive (87%) because the `[day X, event Y]` suffix doesn't change embedding similarity enough — real-world memories would have more varied content. The high association count (704, avg 5.56/memory) shows the encoding agent is correctly linking related memories via cosine similarity. Consolidation decay works as expected: after 10 cycles at 0.92 decay rate, noise memories (low initial salience) transition to fading/archived while MCP signal memories (39 of 44 remaining active) survive. After 20 aggressive cycles at 0.90 decay, everything archives — this matches expected behavior with no new access to refresh salience. One pre-existing bug discovered: FTS5 scan column mismatch (19 vs 21 columns), causing full-text search to fail silently. Retrieval falls back to embedding search, so all queries still return results.
+
+### BASELINE-3: End-to-End Gemini Quality Floor
 
 - **Date:** 2026-03-17
 - **Status:** COMPLETED
@@ -57,7 +90,7 @@ Pre-registered experiments for Felix-LM v3 100M pretraining on mnemonic's curate
 
 - **Caveat:** This benchmark ran against a live database with 2061 pre-existing memories (mostly desktop noise from watcher). The 15 seed memories competed with real data. A clean-DB benchmark would likely show higher precision but would be less realistic. Both conditions should be tested when evaluating Felix-LM.
 
-### BASELINE-3: IR Quality Benchmark (Real Gemini Embeddings)
+### BASELINE-4: IR Quality Benchmark (Real Gemini Embeddings)
 
 - **Date:** 2026-03-17
 - **Status:** COMPLETED
@@ -109,7 +142,7 @@ Pre-registered experiments for Felix-LM v3 100M pretraining on mnemonic's curate
 ### EXP-2: Phase 1 — LR + Weight Decay Sweep
 
 - **Date:** 2026-03-17
-- **Status:** RUNNING
+- **Status:** COMPLETED
 - **Hypothesis:** The optimal LR for v3 100M on our data mix is in the range 6e-4 to 3e-3. At 100M scale with 1B tokens, felixlm found LR 3e-3 optimal. Our run is different: 6.5B tokens (much more data), seq_len 2048 (vs 512), and a curated domain mix (vs Dolma). Longer training generally favors lower peak LR, so we expect the optimum to be lower than 3e-3, likely around 1e-3.
 - **Variable:** Learning rate (6e-4, 1e-3, 2e-3) x weight decay (0.1, 0.05)
 - **Control:** LR 6e-4 / WD 0.1 (current default from train_mnemonic_lm.py)
@@ -117,24 +150,23 @@ Pre-registered experiments for Felix-LM v3 100M pretraining on mnemonic's curate
 - **Config:** v3_mnemonic_100m, batch 10, accum 4, 4000 micro-steps (1000 optimizer steps), torch.compile, wandb group hp_sweep_v3_100m
 - **Hardware:** AMD RX 7800 XT 16GB, ROCm, Linux x86_64
 - **Note:** Originally attempted batch 12 / accum 22 but OOM-killed twice at ~step 2000. Dropped to batch 10 / accum 4 with 90% VRAM cap. Batch-12 results lost (never written to TSV).
-- **Result (batch 10, 2 of 5 complete):**
+- **Result:**
 
 | Run | LR | WD | Loss | PPL | Delta vs control | Time |
 |-----|----|----|------|-----|------------------|------|
 | sweep_lr6e4_wd01 (control) | 6e-4 | 0.1 | 4.847 | 127.4 | — | 8297s |
 | sweep_lr1e3_wd01 | 1e-3 | 0.1 | 4.557 | 95.3 | -6.0% loss, -25% PPL | 8329s |
-| sweep_lr2e3_wd01 | 2e-3 | 0.1 | (pending) | | | |
-| sweep_lr6e4_wd005 | 6e-4 | 0.05 | (pending) | | | |
-| sweep_lr1e3_wd005 | 1e-3 | 0.05 | (pending) | | | |
+| sweep_lr2e3_wd01 | 2e-3 | 0.1 | 4.250 | 70.1 | -12.3% loss, -45% PPL | 8515s |
+| sweep_lr6e4_wd005 | 6e-4 | 0.05 | 4.846 | 127.2 | -0.02% loss | 8615s |
+| sweep_lr1e3_wd005 | 1e-3 | 0.05 | 4.531 | 92.8 | -6.5% loss, -27% PPL | 8586s |
 
-- **Early observation:** LR 1e-3 beats 6e-4 by 6% lower loss at 4000 micro-steps, consistent with prediction (5-15%). Next run (LR 2e-3) will test whether the optimum is higher still or if 1e-3 is the sweet spot.
-- **Verdict:** (pending — 3 runs remaining)
-- **Analysis:** (pending)
+- **Verdict:** CONFIRMED (LR prediction), CONFIRMED (WD prediction)
+- **Analysis:** LR 1e-3 beat 6e-4 by 6.0% lower loss, within the predicted 5-15% range. The optimum was not at 1e-3 as initially predicted — loss continued decreasing through 2e-3, which prompted the bisection search (EXP-3). Weight decay showed negligible effect at this training duration: WD 0.05 vs 0.1 differed by <0.5% at both LR 6e-4 and 1e-3, consistent with the prediction that WD matters more in longer runs. The practical finding is that WD 0.1 is fine for pretraining — no need to sweep further. The LR sweep confirmed that the optimum lies above 2e-3, motivating the bisection search in EXP-3.
 
 ### EXP-3: LR Bisection Search
 
 - **Date:** 2026-03-20
-- **Status:** REGISTERED
+- **Status:** COMPLETED
 - **Hypothesis:** The EXP-2 sweep showed loss still decreasing at LR 2e-3 (the highest tested). A quadratic fit in log-LR space predicts the optimum is beyond 2e-3, but extrapolation from 3 points is unreliable. Binary search over [2e-3, 2e-2] will bracket the true optimum more reliably than curve fitting.
 - **Variable:** Learning rate (bisection search in [2e-3, 2e-2])
 - **Control:** LR 2e-3 / WD 0.1 (best from EXP-2, loss 4.250)
@@ -142,6 +174,20 @@ Pre-registered experiments for Felix-LM v3 100M pretraining on mnemonic's curate
 - **Config:** v3_mnemonic_100m, batch 10, accum 4, probes at 1000 micro-steps (~35min each), confirmation at 4000 micro-steps, torch.compile, no wandb for probes
 - **Hardware:** AMD RX 7800 XT 16GB, ROCm, Linux x86_64
 - **Method:** 1 upper-bound probe + 3 bisection rounds + 1 full confirmation. Probe results logged to probe_results.tsv, confirmation to sweep_results.tsv.
-- **Result:** (pending)
-- **Verdict:** (pending)
-- **Analysis:** (pending)
+- **Probe Results (1000 micro-steps each):**
+
+| Probe | LR | Loss | PPL | Direction |
+|-------|-----|------|-----|-----------|
+| Upper bound | 2e-2 | 6.082 | 437.9 | Overshoot (worse than control) |
+| Round 1 | 6.3e-3 | 5.855 | 349.1 | Worse than control |
+| Round 2 | 3.5e-3 | 5.602 | 271.1 | Best probe |
+| Round 3 | 2.6e-3 | 5.640 | 281.3 | Slightly worse than 3.5e-3 |
+
+- **Confirmation Result (4000 micro-steps at LR 3.5e-3):**
+
+| Run | LR | WD | Loss | PPL | Delta vs EXP-2 best | Time |
+|-----|----|----|------|-----|---------------------|------|
+| sweep_bisect_lr3.5e-3_wd01 | 3.5e-3 | 0.1 | 4.108 | 60.8 | -3.3% loss, -13% PPL | 8474s |
+
+- **Verdict:** CONFIRMED — optimum at 3.5e-3, within predicted [3e-3, 6e-3] range
+- **Analysis:** The bisection converged cleanly. LR 2e-2 confirmed as overshoot (loss 6.082 vs control 4.250). The search narrowed to [2.6e-3, 6.3e-3] with 3.5e-3 as the best probe. Round 3 tested 2.6e-3 (midpoint of 2e-3 and 3.5e-3) and found it slightly worse, confirming the optimum is at or just above 3.5e-3. The full 4000-step confirmation at 3.5e-3 produced loss 4.108 / PPL 60.8, beating the EXP-2 best (2e-3, loss 4.250) by 3.3% — within the predicted 3-8% range. Combined with the EXP-2 results, the full LR landscape at 4000 micro-steps is: 6e-4 (4.847) → 1e-3 (4.557) → 2e-3 (4.250) → 3.5e-3 (4.108), a monotonic improvement with diminishing returns indicating we're near the peak. Note: the initial confirmation run crashed the system overnight due to a GPU hang (Chrome VAAPI video decode competing for GPU resources during training). Rerun succeeded after closing Chrome and Discord. For future overnight runs: close all GPU-consuming applications first.

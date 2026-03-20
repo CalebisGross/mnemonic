@@ -104,6 +104,8 @@ All experiments must be pre-registered in `training/docs/experiment_registry.md`
 
 ## Known Issues
 
+- **FTS5 scan column mismatch:** `SearchByFullText` fails with "sql: expected 19 destination arguments in Scan, not 21" — the memories table has 2 new columns not reflected in the FTS scan query. Retrieval falls back to embedding search, so functionality is not blocked. Needs a fix in `internal/store/sqlite/sqlite.go`.
+
 See [GitHub Issues](https://github.com/appsprout-dev/mnemonic/issues) for tracked bugs.
 
 ---
