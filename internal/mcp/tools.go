@@ -631,6 +631,11 @@ func createHandoffToolDef() ToolDefinition {
 	}
 }
 
+// ToolCount returns the number of registered MCP tools.
+func ToolCount() int {
+	return len(allToolDefs())
+}
+
 // allToolDefs returns the complete list of MCP tool definitions.
 func allToolDefs() []ToolDefinition {
 	return []ToolDefinition{

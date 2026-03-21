@@ -1595,7 +1595,7 @@
                 <div class="llm-view">
                     <div class="llm-header">
                         <div class="llm-header-title">MCP Tool Usage</div>
-                        <div class="llm-header-sub">recall &middot; remember &middot; get_context &middot; 21 tools</div>
+                        <div class="llm-header-sub" id="toolHeaderSub">recall &middot; remember &middot; get_context &middot; &hellip; tools</div>
                         <div class="llm-header-meta">
                             <div class="llm-range-tabs" id="toolRangeTabs">
                                 <button class="llm-range-tab" data-range="1h" onclick="setToolRange('1h')">1h</button>
@@ -2890,6 +2890,9 @@
                 vEl.textContent = 'v' + health.version;
                 vEl.href = 'https://github.com/AppSprout-dev/mnemonic/releases/tag/v' + health.version;
             }
+            if (health.tool_count) {
+                document.getElementById('toolHeaderSub').textContent = 'recall \u00b7 remember \u00b7 get_context \u00b7 ' + health.tool_count + ' tools';
+            }
             state.previousStats = stats;
         } catch (e) {
             document.getElementById('navHealth').className = 'nav-health down';
@@ -3584,6 +3587,16 @@
     }
 
     // Session Timeline — swimlane visualization
+    function _fmtTimelineAxis(d) {
+        var now = new Date();
+        if (d.toDateString() === now.toDateString()) {
+            return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        }
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return months[d.getMonth()] + ' ' + d.getDate() + ' ' +
+            String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+
     async function loadSessionTimeline() {
         try {
             var resp = await fetch(CONFIG.API_BASE + '/sessions?days=7&limit=15');
@@ -3596,9 +3609,16 @@
                 return;
             }
 
+            // Filter out sessions with no memories
+            var activeSessions = sessions.filter(function(s) { return s.memory_count > 0; });
+            if (activeSessions.length === 0) {
+                el.innerHTML = '<span class="llm-empty" style="font-size:0.75rem">No sessions with memories</span>';
+                return;
+            }
+
             // Find time range across all sessions
             var minT = Infinity, maxT = -Infinity;
-            sessions.forEach(function(s) {
+            activeSessions.forEach(function(s) {
                 var st = new Date(s.start_time).getTime();
                 var et = new Date(s.end_time).getTime();
                 if (st < minT) minT = st;
@@ -3608,7 +3628,7 @@
 
             var colors = ['var(--accent-cyan)', 'var(--accent-green)', 'var(--accent-violet)', 'var(--accent-blue)', 'var(--accent-pink)', 'var(--accent-yellow)'];
 
-            el.innerHTML = sessions.map(function(s, i) {
+            var html = activeSessions.map(function(s, i) {
                 var st = new Date(s.start_time).getTime();
                 var et = new Date(s.end_time).getTime();
                 var left = ((st - minT) / rangeMs) * 100;
@@ -3616,13 +3636,27 @@
                 var label = s.session_id.replace('mcp-', '').substring(0, 8);
                 var dur = Math.round((et - st) / 60000);
                 var color = colors[i % colors.length];
+                var concepts = (s.top_concepts && s.top_concepts.length > 0) ? ' \u00b7 ' + s.top_concepts.slice(0, 3).join(', ') : '';
                 return '<div class="session-lane">' +
                     '<span class="session-label" title="' + escapeHtml(s.session_id) + '">' + escapeHtml(label) + '</span>' +
                     '<div class="session-bar-track">' +
                     '<div class="session-bar" style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;background:' + color + '">' +
-                    (s.memory_count > 0 ? s.memory_count : '') + '</div></div>' +
-                    '<span class="session-meta">' + dur + 'm / ' + s.memory_count + '</span></div>';
+                    s.memory_count + '</div></div>' +
+                    '<span class="session-meta">' + dur + 'm / ' + s.memory_count + concepts + '</span></div>';
             }).join('');
+
+            // Time axis labels
+            var tickCount = Math.min(5, activeSessions.length);
+            var axisHtml = '<div style="position:relative;height:18px;margin-top:4px;font-size:0.65rem;color:var(--text-dim)">';
+            for (var ti = 0; ti < tickCount; ti++) {
+                var pct = tickCount > 1 ? (ti / (tickCount - 1)) * 100 : 50;
+                var tickMs = minT + (pct / 100) * rangeMs;
+                var tickLabel = _fmtTimelineAxis(new Date(tickMs));
+                axisHtml += '<span style="position:absolute;left:' + pct.toFixed(1) + '%;transform:translateX(-50%);white-space:nowrap">' + tickLabel + '</span>';
+            }
+            axisHtml += '</div>';
+
+            el.innerHTML = html + axisHtml;
         } catch(e) { /* ignore */ }
     }
 
