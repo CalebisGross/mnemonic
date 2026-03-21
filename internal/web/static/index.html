@@ -944,6 +944,28 @@
             text-transform: uppercase; letter-spacing: 0.05em;
             padding: 8px 8px 4px; margin-top: 8px;
         }
+        .concept-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 4px 8px; font-size: 0.78rem;
+        }
+        .concept-name { flex: 0 0 auto; min-width: 80px; color: var(--text-primary); font-weight: 500; }
+        .concept-bar-bg {
+            flex: 1; height: 4px; border-radius: 2px;
+            background: var(--bg-tertiary);
+        }
+        .concept-bar-fill {
+            height: 100%; border-radius: 2px;
+            background: var(--accent-green);
+            transition: width 0.3s ease;
+        }
+        .concept-time { flex: 0 0 auto; font-size: 0.7rem; color: var(--text-muted); min-width: 45px; text-align: right; }
+        .pattern-archive-btn {
+            float: right; background: none; border: 1px solid var(--border-color);
+            color: var(--text-muted); cursor: pointer; font-size: 0.7rem;
+            padding: 2px 8px; border-radius: var(--radius-sm);
+            transition: all 0.15s;
+        }
+        .pattern-archive-btn:hover { background: var(--warning-bg); color: var(--warning-text); border-color: var(--warning-text); }
         .event-item {
             display: flex; align-items: flex-start; gap: 10px;
             padding: 8px; border-radius: var(--radius-sm);
@@ -1679,6 +1701,8 @@
                 <button class="drawer-close" onclick="toggleDrawer()">&times;</button>
             </div>
             <div class="drawer-body">
+                <div class="drawer-section-title">Active Concepts</div>
+                <div id="conceptsContainer" style="margin-bottom:12px"></div>
                 <div class="drawer-section-title">Insights</div>
                 <div id="insightsContainer"></div>
                 <div class="drawer-section-title" style="margin-top:16px">Live Events</div>
@@ -2087,7 +2111,8 @@
             var concepts = (p.concepts || []).slice(0, 5);
             var evidenceCount = (p.evidence_ids || []).length;
             var age = p.created_at ? relativeTime(p.created_at) : '';
-            var html = '<div class="pattern-card"><div class="pattern-title">' + escapeHtml(p.title || 'Untitled');
+            var html = '<div class="pattern-card" data-pattern-id="' + escapeHtml(p.id) + '"><div class="pattern-title">' + escapeHtml(p.title || 'Untitled');
+            html += '<button class="pattern-archive-btn" onclick="archivePattern(\'' + escapeHtml(p.id) + '\', this)">Archive</button>';
             if (p.project) html += ' <span style="color:var(--accent-blue);font-size:0.8rem">[' + escapeHtml(p.project) + ']</span>';
             html += '</div><span class="badge badge-type">' + escapeHtml(p.pattern_type || 'pattern') + '</span>';
             if (p.state && p.state !== 'active') html += ' <span class="badge" style="background:var(--warning-bg);color:var(--warning-text)">' + escapeHtml(p.state) + '</span>';
@@ -2101,6 +2126,20 @@
             html += '</div></div>';
             return html;
         }).join('');
+    }
+
+    async function archivePattern(id, btn) {
+        try {
+            var resp = await fetch(CONFIG.API_BASE + '/patterns/' + id, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({state: 'archived'})
+            });
+            if (!resp.ok) { showToast('Failed to archive pattern', 'error'); return; }
+            var card = btn.closest('.pattern-card');
+            if (card) { card.style.transition = 'opacity 0.3s'; card.style.opacity = '0'; setTimeout(function() { card.remove(); }, 300); }
+            showToast('Pattern archived');
+        } catch(e) { showToast('Failed to archive pattern', 'error'); }
     }
 
     async function loadAbstractions(section) {
@@ -2673,11 +2712,52 @@
     }
 
     // ── Activity Drawer ──
+    var _conceptsInterval = null;
     function toggleDrawer() {
         state.drawerOpen = !state.drawerOpen;
         document.getElementById('activityDrawer').classList.toggle('open', state.drawerOpen);
         document.getElementById('activityBackdrop').classList.toggle('open', state.drawerOpen);
-        if (state.drawerOpen) { state.unreadEvents = 0; updateBadge(); }
+        if (state.drawerOpen) {
+            state.unreadEvents = 0; updateBadge();
+            loadActivityConcepts();
+            _conceptsInterval = setInterval(loadActivityConcepts, 10000);
+        } else if (_conceptsInterval) {
+            clearInterval(_conceptsInterval);
+            _conceptsInterval = null;
+        }
+    }
+
+    async function loadActivityConcepts() {
+        try {
+            var resp = await fetch(CONFIG.API_BASE + '/activity');
+            if (!resp.ok) return;
+            var data = await resp.json();
+            var windowMs = (data.window_minutes || 30) * 60 * 1000;
+            var now = Date.now();
+            var concepts = [];
+            for (var name in (data.concepts || {})) {
+                var ts = new Date(data.concepts[name]).getTime();
+                var elapsed = now - ts;
+                var remaining = windowMs - elapsed;
+                if (remaining > 0) {
+                    concepts.push({ name: name, remaining: remaining, pct: (remaining / windowMs) * 100 });
+                }
+            }
+            concepts.sort(function(a, b) { return b.remaining - a.remaining; });
+            var container = document.getElementById('conceptsContainer');
+            if (concepts.length === 0) {
+                container.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:4px 8px">No active concepts (watcher idle)</div>';
+                return;
+            }
+            container.innerHTML = concepts.slice(0, 15).map(function(c) {
+                var mins = Math.ceil(c.remaining / 60000);
+                var color = c.pct > 50 ? 'var(--accent-green)' : c.pct > 20 ? 'var(--accent-yellow, #f0c040)' : 'var(--accent-pink)';
+                return '<div class="concept-row">' +
+                    '<span class="concept-name">' + escapeHtml(c.name) + '</span>' +
+                    '<div class="concept-bar-bg"><div class="concept-bar-fill" style="width:' + Math.round(c.pct) + '%;background:' + color + '"></div></div>' +
+                    '<span class="concept-time">' + mins + 'm</span></div>';
+            }).join('');
+        } catch(e) { /* ignore */ }
     }
 
     function updateBadge() {

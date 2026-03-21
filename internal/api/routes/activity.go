@@ -11,7 +11,8 @@ import (
 
 // ActivityResponse is the JSON response for the activity endpoint.
 type ActivityResponse struct {
-	Concepts map[string]time.Time `json:"concepts"`
+	Concepts      map[string]time.Time `json:"concepts"`
+	WindowMinutes int                  `json:"window_minutes"`
 }
 
 // HandleActivity returns the retrieval agent's current activity tracker state.
@@ -23,7 +24,11 @@ func HandleActivity(retriever *retrieval.RetrievalAgent, log *slog.Logger) http.
 			snap = make(map[string]time.Time)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(ActivityResponse{Concepts: snap}); err != nil {
+		resp := ActivityResponse{
+			Concepts:      snap,
+			WindowMinutes: retriever.ActivityWindowMinutes(),
+		}
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			log.Warn("failed to encode activity response", "error", err)
 		}
 	}

@@ -236,6 +236,11 @@ func (ra *RetrievalAgent) ActivitySnapshot() map[string]time.Time {
 	return ra.activity.snapshot()
 }
 
+// ActivityWindowMinutes returns the activity tracker's decay window in minutes.
+func (ra *RetrievalAgent) ActivityWindowMinutes() int {
+	return ra.activity.windowMinutes()
+}
+
 // SyncActivity replaces the activity tracker state with the given snapshot.
 // Used by MCP processes to sync activity from the daemon's REST API.
 func (ra *RetrievalAgent) SyncActivity(snap map[string]time.Time) {

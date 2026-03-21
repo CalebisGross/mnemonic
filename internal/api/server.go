@@ -118,6 +118,7 @@ func (s *Server) registerRoutes() {
 
 	// Patterns and abstractions
 	s.mux.HandleFunc("GET /api/v1/patterns", routes.HandleListPatterns(s.deps.Store, s.deps.Log))
+	s.mux.HandleFunc("PATCH /api/v1/patterns/{id}", routes.HandleArchivePattern(s.deps.Store, s.deps.Log))
 	s.mux.HandleFunc("GET /api/v1/abstractions", routes.HandleListAbstractions(s.deps.Store, s.deps.Log))
 	s.mux.HandleFunc("GET /api/v1/projects", routes.HandleListProjects(s.deps.Store, s.deps.Log))
 

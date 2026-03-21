@@ -2,6 +2,8 @@ package routes
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -75,6 +77,58 @@ func HandleListAbstractions(s store.Store, log *slog.Logger) http.HandlerFunc {
 			"abstractions": abstractions,
 			"count":        len(abstractions),
 			"timestamp":    time.Now().Format(time.RFC3339),
+		})
+	}
+}
+
+// HandleArchivePattern archives a single pattern by ID.
+// PATCH /api/v1/patterns/{id}  body: {"state": "archived"}
+func HandleArchivePattern(s store.Store, log *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			writeError(w, http.StatusBadRequest, "pattern ID is required", "INVALID_REQUEST")
+			return
+		}
+
+		var body struct {
+			State string `json:"state"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.State == "" {
+			writeError(w, http.StatusBadRequest, "state field is required (e.g. \"archived\")", "INVALID_REQUEST")
+			return
+		}
+		if body.State != "active" && body.State != "archived" {
+			writeError(w, http.StatusBadRequest, "state must be \"active\" or \"archived\"", "INVALID_REQUEST")
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		p, err := s.GetPattern(ctx, id)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "pattern not found", "NOT_FOUND")
+				return
+			}
+			log.Error("failed to get pattern", "id", id, "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to get pattern", "STORE_ERROR")
+			return
+		}
+
+		p.State = body.State
+		p.UpdatedAt = time.Now()
+		if err := s.UpdatePattern(ctx, p); err != nil {
+			log.Error("failed to update pattern", "id", id, "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to update pattern", "STORE_ERROR")
+			return
+		}
+
+		log.Info("pattern state updated", "id", id, "state", body.State)
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"id":    id,
+			"state": body.State,
 		})
 	}
 }

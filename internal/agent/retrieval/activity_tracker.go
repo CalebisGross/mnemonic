@@ -25,6 +25,14 @@ func newActivityTracker(windowMinutes int, maxBoost float32) *activityTracker {
 	}
 }
 
+// windowMinutes returns the decay window in minutes.
+func (at *activityTracker) windowMinutes() int {
+	if at == nil {
+		return 30
+	}
+	return int(at.window.Minutes())
+}
+
 // observe records that the given concepts were just seen in watcher activity.
 // Upserts timestamps and lazily evicts expired entries when the map grows large.
 func (at *activityTracker) observe(concepts []string) {
