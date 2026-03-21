@@ -27,6 +27,25 @@ func rememberToolDef() ToolDefinition {
 					"type":        "string",
 					"description": "Project name (auto-detected from working directory if omitted)",
 				},
+				"associate_with": map[string]interface{}{
+					"type":        "array",
+					"description": "Create explicit associations with existing memories at write time",
+					"items": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"memory_id": map[string]interface{}{
+								"type":        "string",
+								"description": "ID of the memory to associate with",
+							},
+							"relation": map[string]interface{}{
+								"type":        "string",
+								"description": "Relation type",
+								"enum":        []string{"similar", "caused_by", "part_of", "contradicts", "temporal", "reinforces"},
+							},
+						},
+						"required": []string{"memory_id", "relation"},
+					},
+				},
 			},
 			"required": []string{"text"},
 		},
@@ -550,6 +569,42 @@ func checkMemoryToolDef() ToolDefinition {
 	}
 }
 
+func createHandoffToolDef() ToolDefinition {
+	return ToolDefinition{
+		Name:        "create_handoff",
+		Description: "Create a structured session handoff note for the next session. Stored with high salience and automatically surfaced by recall_project. Use at session end to preserve continuity.",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"completed": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "Tasks completed this session",
+				},
+				"pending": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "Tasks started but not finished",
+				},
+				"to_test": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "Items that need testing",
+				},
+				"known_issues": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "Known bugs or issues discovered",
+				},
+				"next_session_hint": map[string]interface{}{
+					"type":        "string",
+					"description": "Suggested starting point for the next session",
+				},
+			},
+		},
+	}
+}
+
 // allToolDefs returns the complete list of MCP tool definitions.
 func allToolDefs() []ToolDefinition {
 	return []ToolDefinition{
@@ -574,5 +629,6 @@ func allToolDefs() []ToolDefinition {
 		listExclusionsToolDef(),
 		amendToolDef(),
 		checkMemoryToolDef(),
+		createHandoffToolDef(),
 	}
 }

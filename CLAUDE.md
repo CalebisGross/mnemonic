@@ -36,7 +36,7 @@ internal/
     reactor/           Event-driven rule engine
   api/                 REST API server + routes
   web/                 Embedded dashboard (single-page app, D3.js charts)
-  mcp/                 MCP server (21 tools for Claude Code)
+  mcp/                 MCP server (22 tools for Claude Code)
   store/               Store interface + SQLite implementation
   llm/                 LLM provider interface + implementations (LM Studio, Gemini/cloud API)
   ingest/              Project ingestion engine
@@ -136,6 +136,7 @@ You have 21 tools via the `mnemonic` MCP server:
 | `ingest_project` | Bulk-ingest a project directory into memory |
 | `exclude_path` | Add a watcher exclusion pattern at runtime |
 | `list_exclusions` | List all runtime watcher exclusion patterns |
+| `create_handoff` | Store structured session handoff notes (high salience, surfaced by recall_project) |
 
 ### At Session Start
 

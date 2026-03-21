@@ -51,32 +51,32 @@ type EncodingAgent struct {
 
 // EncodingConfig holds configurable parameters for the encoding agent.
 type EncodingConfig struct {
-	PollingInterval         time.Duration
-	SimilarityThreshold     float32
-	MaxSimilarSearchResults int
-	EmbeddingModel          string
-	CompletionModel         string
-	CompletionMaxTokens     int
-	CompletionTemperature   float32
-	MaxConcurrentEncodings  int      // max concurrent LLM encoding calls (default 1 for local models)
-	EnableLLMClassification bool     // if true, use LLM to reclassify "similar" associations in background
-	CoachingFile            string   // path to coaching.yaml; empty = no coaching
-	ExcludePatterns         []string // paths matching these patterns are skipped (defense-in-depth)
-	ConceptVocabulary       []string // controlled vocabulary for concept extraction; empty = free-form
-	MaxRetries              int      // encoding attempts before skipping (default: 3)
-	MaxLLMContentChars      int      // max chars sent to LLM for compression (default: 8000)
-	MaxEmbeddingChars       int      // max chars sent to embedding model (default: 4000)
-	TemporalWindowMin       int      // minutes for temporal relationship detection (default: 5)
-	BackoffThreshold        int      // consecutive failures before backoff (default: 3)
-	BackoffBaseSec          int      // base backoff per failure in seconds (default: 30)
-	BackoffMaxSec           int      // maximum backoff in seconds (default: 300)
-	BatchSizeEvent          int      // batch size for EncodeAllPending (default: 50)
-	BatchSizePoll           int      // batch size for polling loop (default: 10)
-	EmbedBatchSize          int      // max memories to batch-embed in one call (default 10)
-	DeduplicationThreshold     float32  // cosine sim above which new memory is a duplicate (default: 0.95)
-	MCPDeduplicationThreshold  float32  // higher threshold for MCP-sourced memories (default: 0.98)
-	SalienceFloor              float32  // min salience to encode; non-MCP sources below this are skipped (default: 0.5)
-	DisablePolling          bool     // if true, skip the polling loop (MCP processes should not poll)
+	PollingInterval           time.Duration
+	SimilarityThreshold       float32
+	MaxSimilarSearchResults   int
+	EmbeddingModel            string
+	CompletionModel           string
+	CompletionMaxTokens       int
+	CompletionTemperature     float32
+	MaxConcurrentEncodings    int      // max concurrent LLM encoding calls (default 1 for local models)
+	EnableLLMClassification   bool     // if true, use LLM to reclassify "similar" associations in background
+	CoachingFile              string   // path to coaching.yaml; empty = no coaching
+	ExcludePatterns           []string // paths matching these patterns are skipped (defense-in-depth)
+	ConceptVocabulary         []string // controlled vocabulary for concept extraction; empty = free-form
+	MaxRetries                int      // encoding attempts before skipping (default: 3)
+	MaxLLMContentChars        int      // max chars sent to LLM for compression (default: 8000)
+	MaxEmbeddingChars         int      // max chars sent to embedding model (default: 4000)
+	TemporalWindowMin         int      // minutes for temporal relationship detection (default: 5)
+	BackoffThreshold          int      // consecutive failures before backoff (default: 3)
+	BackoffBaseSec            int      // base backoff per failure in seconds (default: 30)
+	BackoffMaxSec             int      // maximum backoff in seconds (default: 300)
+	BatchSizeEvent            int      // batch size for EncodeAllPending (default: 50)
+	BatchSizePoll             int      // batch size for polling loop (default: 10)
+	EmbedBatchSize            int      // max memories to batch-embed in one call (default 10)
+	DeduplicationThreshold    float32  // cosine sim above which new memory is a duplicate (default: 0.95)
+	MCPDeduplicationThreshold float32  // higher threshold for MCP-sourced memories (default: 0.98)
+	SalienceFloor             float32  // min salience to encode; non-MCP sources below this are skipped (default: 0.5)
+	DisablePolling            bool     // if true, skip the polling loop (MCP processes should not poll)
 }
 
 // compressedMemory holds the intermediate state between compression and embedding.
@@ -109,28 +109,28 @@ var DefaultConceptVocabulary = []string{
 // DefaultConfig returns sensible defaults for encoding configuration.
 func DefaultConfig() EncodingConfig {
 	return EncodingConfig{
-		PollingInterval:         5 * time.Second,
-		SimilarityThreshold:     0.3,
-		MaxSimilarSearchResults: 5,
-		EmbeddingModel:          "default",
-		CompletionModel:         "default",
-		CompletionMaxTokens:     1024,
-		CompletionTemperature:   0.3,
-		MaxConcurrentEncodings:  1,
-		EnableLLMClassification: false,
-		ConceptVocabulary:       DefaultConceptVocabulary,
-		MaxRetries:              3,
-		MaxLLMContentChars:      8000,
-		MaxEmbeddingChars:       4000,
-		TemporalWindowMin:       5,
-		BackoffThreshold:        3,
-		BackoffBaseSec:          30,
-		BackoffMaxSec:           300,
-		BatchSizeEvent:             50,
-		BatchSizePoll:              10,
-		DeduplicationThreshold:     0.95,
-		MCPDeduplicationThreshold:  0.98,
-		SalienceFloor:              0.5,
+		PollingInterval:           5 * time.Second,
+		SimilarityThreshold:       0.3,
+		MaxSimilarSearchResults:   5,
+		EmbeddingModel:            "default",
+		CompletionModel:           "default",
+		CompletionMaxTokens:       1024,
+		CompletionTemperature:     0.3,
+		MaxConcurrentEncodings:    1,
+		EnableLLMClassification:   false,
+		ConceptVocabulary:         DefaultConceptVocabulary,
+		MaxRetries:                3,
+		MaxLLMContentChars:        8000,
+		MaxEmbeddingChars:         4000,
+		TemporalWindowMin:         5,
+		BackoffThreshold:          3,
+		BackoffBaseSec:            30,
+		BackoffMaxSec:             300,
+		BatchSizeEvent:            50,
+		BatchSizePoll:             10,
+		DeduplicationThreshold:    0.95,
+		MCPDeduplicationThreshold: 0.98,
+		SalienceFloor:             0.5,
 	}
 }
 
@@ -856,6 +856,36 @@ func (ea *EncodingAgent) finalizeEncodedMemory(ctx context.Context, raw store.Ra
 		}
 	}
 
+	// Create explicit associations from metadata (set via MCP remember associate_with param).
+	if rawAssoc, ok := raw.Metadata["explicit_associations"]; ok {
+		if assocList, ok := rawAssoc.([]interface{}); ok {
+			for _, entry := range assocList {
+				if m, ok := entry.(map[string]interface{}); ok {
+					targetID, _ := m["memory_id"].(string)
+					relation, _ := m["relation"].(string)
+					if targetID == "" || relation == "" {
+						continue
+					}
+					assoc := store.Association{
+						SourceID:        memoryID,
+						TargetID:        targetID,
+						Strength:        0.9,
+						RelationType:    relation,
+						CreatedAt:       time.Now(),
+						LastActivated:   time.Now(),
+						ActivationCount: 1,
+					}
+					if err := ea.store.CreateAssociation(ctx, assoc); err != nil {
+						ea.log.Warn("failed to create explicit association",
+							"source_id", memoryID, "target_id", targetID, "error", err)
+					} else {
+						associationsCreated++
+					}
+				}
+			}
+		}
+	}
+
 	// Raw was already claimed (processed=1) by pollAndProcessRawMemories before
 	// compression started. No additional MarkRawProcessed needed.
 
@@ -1160,6 +1190,36 @@ func (ea *EncodingAgent) encodeMemory(ctx context.Context, rawID string) error {
 						Summary1: compression.Summary,
 						Summary2: targetMem.Summary,
 					})
+				}
+			}
+		}
+	}
+
+	// Create explicit associations from metadata (set via MCP remember associate_with param).
+	if rawAssoc, ok := raw.Metadata["explicit_associations"]; ok {
+		if assocList, ok := rawAssoc.([]interface{}); ok {
+			for _, entry := range assocList {
+				if m, ok := entry.(map[string]interface{}); ok {
+					targetID, _ := m["memory_id"].(string)
+					relation, _ := m["relation"].(string)
+					if targetID == "" || relation == "" {
+						continue
+					}
+					assoc := store.Association{
+						SourceID:        memoryID,
+						TargetID:        targetID,
+						Strength:        0.9,
+						RelationType:    relation,
+						CreatedAt:       time.Now(),
+						LastActivated:   time.Now(),
+						ActivationCount: 1,
+					}
+					if err := ea.store.CreateAssociation(ctx, assoc); err != nil {
+						ea.log.Warn("failed to create explicit association",
+							"source_id", memoryID, "target_id", targetID, "error", err)
+					} else {
+						associationsCreated++
+					}
 				}
 			}
 		}

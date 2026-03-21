@@ -283,6 +283,8 @@ func (srv *MCPServer) handleToolCall(ctx context.Context, req *jsonRPCRequest) *
 		result, toolErr = srv.handleAmend(ctx, params.Arguments)
 	case "check_memory":
 		result, toolErr = srv.handleCheckMemory(ctx, params.Arguments)
+	case "create_handoff":
+		result, toolErr = srv.handleCreateHandoff(ctx, params.Arguments)
 	default:
 		return errorResponse(req.ID, -32602, fmt.Sprintf("Unknown tool: %s", params.Name))
 	}
@@ -403,6 +405,32 @@ func (srv *MCPServer) handleRemember(ctx context.Context, args map[string]interf
 		project = srv.resolveProjectName(p)
 	}
 
+	// Parse optional explicit associations.
+	var explicitAssoc []map[string]string
+	if rawAssoc, ok := args["associate_with"].([]interface{}); ok {
+		for _, entry := range rawAssoc {
+			if m, ok := entry.(map[string]interface{}); ok {
+				memID, _ := m["memory_id"].(string)
+				relation, _ := m["relation"].(string)
+				if memID != "" && relation != "" {
+					explicitAssoc = append(explicitAssoc, map[string]string{
+						"memory_id": memID,
+						"relation":  relation,
+					})
+				}
+			}
+		}
+	}
+
+	metadata := map[string]interface{}{
+		"mcp_session_id": srv.sessionID,
+		"memory_type":    memType,
+		"project":        project,
+	}
+	if len(explicitAssoc) > 0 {
+		metadata["explicit_associations"] = explicitAssoc
+	}
+
 	raw := store.RawMemory{
 		ID:              uuid.New().String(),
 		Source:          source,
@@ -415,11 +443,7 @@ func (srv *MCPServer) handleRemember(ctx context.Context, args map[string]interf
 		Processed:       false,
 		Project:         project,
 		SessionID:       srv.sessionID,
-		Metadata: map[string]interface{}{
-			"mcp_session_id": srv.sessionID,
-			"memory_type":    memType,
-			"project":        project,
-		},
+		Metadata:        metadata,
 	}
 
 	// Boost salience for specific types
@@ -2479,4 +2503,91 @@ func (srv *MCPServer) handleCheckMemory(ctx context.Context, args map[string]int
 	}
 
 	return toolResult(sb.String()), nil
+}
+
+// handleCreateHandoff stores a structured session handoff note as a high-salience memory.
+func (srv *MCPServer) handleCreateHandoff(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	// Parse all fields.
+	var completed, pending, toTest, knownIssues []string
+	for _, pair := range []struct {
+		key  string
+		dest *[]string
+	}{
+		{"completed", &completed},
+		{"pending", &pending},
+		{"to_test", &toTest},
+		{"known_issues", &knownIssues},
+	} {
+		if raw, ok := args[pair.key].([]interface{}); ok {
+			for _, v := range raw {
+				if s, ok := v.(string); ok && s != "" {
+					*pair.dest = append(*pair.dest, s)
+				}
+			}
+		}
+	}
+	nextHint, _ := args["next_session_hint"].(string)
+
+	if len(completed) == 0 && len(pending) == 0 && len(toTest) == 0 && len(knownIssues) == 0 && nextHint == "" {
+		return nil, fmt.Errorf("at least one field must be provided")
+	}
+
+	// Format as readable text.
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "SESSION HANDOFF — %s — %s\n\n", srv.project, time.Now().Format("2006-01-02 15:04"))
+	writeSection := func(title string, items []string) {
+		if len(items) == 0 {
+			return
+		}
+		fmt.Fprintf(&sb, "%s:\n", title)
+		for _, item := range items {
+			fmt.Fprintf(&sb, "- %s\n", item)
+		}
+		sb.WriteString("\n")
+	}
+	writeSection("Completed", completed)
+	writeSection("Pending", pending)
+	writeSection("To Test", toTest)
+	writeSection("Known Issues", knownIssues)
+	if nextHint != "" {
+		fmt.Fprintf(&sb, "Next session: %s\n", nextHint)
+	}
+
+	raw := store.RawMemory{
+		ID:              uuid.New().String(),
+		Source:          "mcp",
+		Type:            "handoff",
+		Content:         sb.String(),
+		Timestamp:       time.Now(),
+		CreatedAt:       time.Now(),
+		HeuristicScore:  0.9,
+		InitialSalience: 0.95,
+		Processed:       false,
+		Project:         srv.project,
+		SessionID:       srv.sessionID,
+		Metadata: map[string]interface{}{
+			"mcp_session_id":    srv.sessionID,
+			"memory_type":       "handoff",
+			"project":           srv.project,
+			"completed":         completed,
+			"pending":           pending,
+			"to_test":           toTest,
+			"known_issues":      knownIssues,
+			"next_session_hint": nextHint,
+		},
+	}
+
+	if err := srv.store.WriteRaw(ctx, raw); err != nil {
+		return nil, fmt.Errorf("failed to store handoff: %w", err)
+	}
+	if srv.bus != nil {
+		_ = srv.bus.Publish(ctx, events.RawMemoryCreated{
+			ID:     raw.ID,
+			Source: raw.Source,
+			Ts:     time.Now(),
+		})
+	}
+
+	srv.log.Info("session handoff created", "id", raw.ID, "project", srv.project)
+	return toolResult(fmt.Sprintf("Handoff stored (id: %s, salience: 0.95)\nWill be surfaced by recall_project in the next session.", raw.ID)), nil
 }
