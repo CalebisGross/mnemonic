@@ -62,12 +62,17 @@ func (e ConsolidationStarted) EventTimestamp() time.Time { return e.Ts }
 
 // ConsolidationCompleted is emitted when a consolidation cycle finishes.
 type ConsolidationCompleted struct {
-	DurationMs         int64     `json:"duration_ms"`
-	MemoriesProcessed  int       `json:"memories_processed"`
-	MemoriesDecayed    int       `json:"memories_decayed"`
-	MergedClusters     int       `json:"merged_clusters"`
-	AssociationsPruned int       `json:"associations_pruned"`
-	Ts                 time.Time `json:"timestamp"`
+	DurationMs            int64     `json:"duration_ms"`
+	MemoriesProcessed     int       `json:"memories_processed"`
+	MemoriesDecayed       int       `json:"memories_decayed"`
+	MergedClusters        int       `json:"merged_clusters"`
+	AssociationsPruned    int       `json:"associations_pruned"`
+	TransitionedFading    int       `json:"transitioned_fading"`
+	TransitionedArchived  int       `json:"transitioned_archived"`
+	PatternsExtracted     int       `json:"patterns_extracted"`
+	PatternsDecayed       int       `json:"patterns_decayed"`
+	NeverRecalledArchived int       `json:"never_recalled_archived"`
+	Ts                    time.Time `json:"timestamp"`
 }
 
 func (e ConsolidationCompleted) EventType() string         { return TypeConsolidationCompleted }

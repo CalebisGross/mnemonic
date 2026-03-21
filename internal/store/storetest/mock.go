@@ -44,7 +44,8 @@ func (MockStore) GetMemoryByRawID(context.Context, string) (store.Memory, error)
 	return store.Memory{}, nil
 }
 func (MockStore) UpdateMemory(context.Context, store.Memory) error      { return nil }
-func (MockStore) UpdateSalience(context.Context, string, float32) error { return nil }
+func (MockStore) UpdateSalience(context.Context, string, float32) error  { return nil }
+func (MockStore) UpdateEmbedding(context.Context, string, []float32) error { return nil }
 func (MockStore) UpdateState(context.Context, string, string) error     { return nil }
 func (MockStore) IncrementAccess(context.Context, string) error         { return nil }
 func (MockStore) ListMemories(context.Context, string, int, int) ([]store.Memory, error) {
