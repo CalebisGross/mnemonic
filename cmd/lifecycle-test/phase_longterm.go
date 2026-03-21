@@ -81,8 +81,8 @@ func (p *PhaseLongterm) Run(ctx context.Context, h *Harness, verbose bool) (*Pha
 	totalResults := 0
 	for _, q := range regressionQueries {
 		qr, err := h.Retriever.Query(ctx, retrieval.QueryRequest{
-			Query:           q,
-			MaxResults:      5,
+			Query:             q,
+			MaxResults:        5,
 			IncludeSuppressed: true,
 		})
 		if err == nil {

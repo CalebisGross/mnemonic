@@ -13,14 +13,14 @@ import (
 
 // AnalyticsResponse is the JSON response for the research analytics endpoint.
 type AnalyticsResponse struct {
-	Pipeline             PipelineMetrics                 `json:"pipeline"`
+	Pipeline             PipelineMetrics                   `json:"pipeline"`
 	SignalNoise          map[string]store.SignalNoiseEntry `json:"signal_noise"`
-	RecallEffectiveness  []store.RecallBucket            `json:"recall_effectiveness"`
-	FeedbackTrend        []store.FeedbackTrendEntry      `json:"feedback_trend"`
-	ConsolidationHistory []store.ConsolidationEntry       `json:"consolidation_history"`
-	MemorySurvival       []store.SurvivalEntry           `json:"memory_survival"`
-	SalienceDistribution map[string]map[string]int        `json:"salience_distribution"`
-	Timestamp            string                           `json:"timestamp"`
+	RecallEffectiveness  []store.RecallBucket              `json:"recall_effectiveness"`
+	FeedbackTrend        []store.FeedbackTrendEntry        `json:"feedback_trend"`
+	ConsolidationHistory []store.ConsolidationEntry        `json:"consolidation_history"`
+	MemorySurvival       []store.SurvivalEntry             `json:"memory_survival"`
+	SalienceDistribution map[string]map[string]int         `json:"salience_distribution"`
+	Timestamp            string                            `json:"timestamp"`
 }
 
 // PipelineMetrics shows encoding efficiency.

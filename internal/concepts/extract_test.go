@@ -49,6 +49,31 @@ func TestFromPath(t *testing.T) {
 			expected: []string{"agent"},
 		},
 		{
+			name:     "binary asset path filters asset dirs",
+			path:     "docs/images/mnemonic.png",
+			expected: []string{"mnemonic"},
+		},
+		{
+			name:     "icon asset path",
+			path:     "resources/icons/app-icon.svg",
+			expected: []string{"app", "icon"},
+		},
+		{
+			name:     "static web assets all filtered",
+			path:     "public/static/images/logo.png",
+			expected: []string{"logo"},
+		},
+		{
+			name:     "bytes segment filtered",
+			path:     "internal/store/bytes/reader.go",
+			expected: []string{"store", "reader"},
+		},
+		{
+			name:     "favicon path",
+			path:     "docs/images/favicon-96x96.png",
+			expected: []string{"favicon"},
+		},
+		{
 			name:     "empty path",
 			path:     "",
 			expected: nil,

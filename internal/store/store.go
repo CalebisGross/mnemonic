@@ -475,6 +475,8 @@ type Store interface {
 	UpdatePattern(ctx context.Context, p Pattern) error
 	ListPatterns(ctx context.Context, project string, limit int) ([]Pattern, error)
 	SearchPatternsByEmbedding(ctx context.Context, embedding []float32, limit int) ([]Pattern, error)
+	SearchPatternsByEmbeddingInProject(ctx context.Context, embedding []float32, project string, limit int) ([]Pattern, error)
+	ArchivePattern(ctx context.Context, id string) error
 	ArchiveAllPatterns(ctx context.Context) (int, error)
 
 	// --- Abstraction operations ---

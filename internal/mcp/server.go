@@ -283,6 +283,8 @@ func (srv *MCPServer) handleToolCall(ctx context.Context, req *jsonRPCRequest) *
 		result, toolErr = srv.handleAmend(ctx, params.Arguments)
 	case "check_memory":
 		result, toolErr = srv.handleCheckMemory(ctx, params.Arguments)
+	case "dismiss_pattern":
+		result, toolErr = srv.handleDismissPattern(ctx, params.Arguments)
 	case "create_handoff":
 		result, toolErr = srv.handleCreateHandoff(ctx, params.Arguments)
 	default:
@@ -559,6 +561,15 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 		}
 	}
 
+	var excludeConcepts []string
+	if c, ok := args["exclude_concepts"].([]interface{}); ok {
+		for _, v := range c {
+			if s, ok := v.(string); ok {
+				excludeConcepts = append(excludeConcepts, s)
+			}
+		}
+	}
+
 	explain := false
 	if e, ok := args["explain"].(bool); ok {
 		explain = e
@@ -587,6 +598,15 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 			return nil, fmt.Errorf("concept recall failed: %w", err)
 		}
 		filtered := filterMemories(memories, source, state, memType, minSalience)
+		if len(excludeConcepts) > 0 {
+			var kept []store.Memory
+			for _, m := range filtered {
+				if !conceptOverlap(m.Concepts, excludeConcepts) {
+					kept = append(kept, m)
+				}
+			}
+			filtered = kept
+		}
 		text := fmt.Sprintf("Found %d memories matching concepts %v:\n\n", len(filtered), concepts)
 		for i, mem := range filtered {
 			text += fmt.Sprintf("%d. %s\n   Summary: %s\n   Concepts: %v\n\n",
@@ -608,6 +628,7 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 		State:               state,
 		Type:                memType,
 		MinSalience:         minSalience,
+		ExcludeConcepts:     excludeConcepts,
 	}
 
 	result, err := srv.retriever.Query(ctx, queryReq)
@@ -1255,19 +1276,51 @@ func formatDuration(d time.Duration) string {
 
 // handleForget archives a memory by ID.
 func (srv *MCPServer) handleForget(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	memoryID, ok := args["memory_id"].(string)
-	if !ok || memoryID == "" {
-		return nil, fmt.Errorf("memory_id parameter is required and must be a string")
+	// Collect IDs from memory_id (string) and/or memory_ids (array).
+	var ids []string
+	if singleID, ok := args["memory_id"].(string); ok && singleID != "" {
+		ids = append(ids, singleID)
+	}
+	if rawIDs, ok := args["memory_ids"].([]interface{}); ok {
+		for _, raw := range rawIDs {
+			if id, ok := raw.(string); ok && id != "" {
+				ids = append(ids, id)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("either memory_id or memory_ids is required")
 	}
 
-	if err := srv.store.UpdateState(ctx, memoryID, "archived"); err != nil {
-		srv.log.Error("failed to archive memory", "id", memoryID, "error", err)
-		return nil, fmt.Errorf("failed to archive memory: %w", err)
+	// Deduplicate.
+	seen := make(map[string]bool, len(ids))
+	var unique []string
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			unique = append(unique, id)
+		}
 	}
 
-	srv.log.Info("memory archived", "id", memoryID)
+	var archived, failed int
+	var failedIDs []string
+	for _, id := range unique {
+		if err := srv.store.UpdateState(ctx, id, "archived"); err != nil {
+			srv.log.Warn("failed to archive memory", "id", id, "error", err)
+			failed++
+			failedIDs = append(failedIDs, id)
+		} else {
+			archived++
+		}
+	}
 
-	return toolResult(fmt.Sprintf("Memory %s archived", memoryID)), nil
+	srv.log.Info("memories archived", "archived", archived, "failed", failed)
+
+	msg := fmt.Sprintf("Archived %d memories", archived)
+	if failed > 0 {
+		msg += fmt.Sprintf(", %d failed: %v", failed, failedIDs)
+	}
+	return toolResult(msg), nil
 }
 
 // handleStatus returns system statistics and health information.
@@ -2216,6 +2269,18 @@ func filterMemories(memories []store.Memory, source, state, memType string, minS
 	return filtered
 }
 
+// conceptOverlap returns true if any memory concept matches any excluded concept (case-insensitive).
+func conceptOverlap(memoryConcepts, excluded []string) bool {
+	for _, mc := range memoryConcepts {
+		for _, ec := range excluded {
+			if strings.EqualFold(mc, ec) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // onSessionEnd is called when stdin closes (Claude Code disconnected) or context is cancelled.
 // It records session metadata so future sessions can see what happened.
 func (srv *MCPServer) onSessionEnd(ctx context.Context) {
@@ -2503,6 +2568,21 @@ func (srv *MCPServer) handleCheckMemory(ctx context.Context, args map[string]int
 	}
 
 	return toolResult(sb.String()), nil
+}
+
+// handleDismissPattern archives a pattern by ID.
+func (srv *MCPServer) handleDismissPattern(_ context.Context, args map[string]interface{}) (interface{}, error) {
+	patternID, _ := args["pattern_id"].(string)
+	if patternID == "" {
+		return nil, fmt.Errorf("pattern_id is required")
+	}
+
+	if err := srv.store.ArchivePattern(context.Background(), patternID); err != nil {
+		return nil, fmt.Errorf("archiving pattern %s: %w", patternID, err)
+	}
+
+	srv.log.Info("pattern dismissed", "pattern_id", patternID, "session_id", srv.sessionID)
+	return toolResult(fmt.Sprintf("Pattern %s archived", patternID)), nil
 }
 
 // handleCreateHandoff stores a structured session handoff note as a high-salience memory.
