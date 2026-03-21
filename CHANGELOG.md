@@ -4,6 +4,14 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.29.1](https://github.com/AppSprout-dev/mnemonic/compare/v0.29.0...v0.29.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* publish WatcherEvent to bus so retrieval agent receives activity ([#296](https://github.com/AppSprout-dev/mnemonic/issues/296)) ([c7fddc2](https://github.com/AppSprout-dev/mnemonic/commit/c7fddc21d78b34cc3b9ca09461d8f24b9927aefd))
+* sync daemon activity to MCP and filter path noise from themes ([#298](https://github.com/AppSprout-dev/mnemonic/issues/298)) ([739d39b](https://github.com/AppSprout-dev/mnemonic/commit/739d39bfdbde12fc96ef6502ab2812db8d232d4d))
+
 ## [0.29.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.28.0...v0.29.0) (2026-03-20)
 
 
