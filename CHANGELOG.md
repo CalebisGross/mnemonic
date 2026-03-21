@@ -4,6 +4,32 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.30.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.29.1...v0.30.0) (2026-03-21)
+
+
+### Features
+
+* add --resume support to training script ([71c72b9](https://github.com/AppSprout-dev/mnemonic/commit/71c72b99c0e7183ebc8e05fe933b86e8675dfff9))
+* add --resume support to training script ([fbdf2f1](https://github.com/AppSprout-dev/mnemonic/commit/fbdf2f1647424e933839dd14f1a8f4fc0526de2a))
+* bulk forget and exclude_concepts for recall ([86c6768](https://github.com/AppSprout-dev/mnemonic/commit/86c6768171db7aca28f2dec91b9cbc8bc27669ee))
+* bulk forget and exclude_concepts for recall ([912306d](https://github.com/AppSprout-dev/mnemonic/commit/912306d9f42a94df759476e152a91320e958b702)), closes [#307](https://github.com/AppSprout-dev/mnemonic/issues/307)
+* dashboard activity tracker and pattern management ([57d17b9](https://github.com/AppSprout-dev/mnemonic/commit/57d17b98fc42d1694b5d6fb74d75763d41b1b5f2))
+* dashboard activity tracker and pattern management ([7b63565](https://github.com/AppSprout-dev/mnemonic/commit/7b635657e8b12e48e2cfc71ae40c8fb1d758ec08))
+* explicit associations on remember and create_handoff tool ([4b8f929](https://github.com/AppSprout-dev/mnemonic/commit/4b8f929d3a90474bed63443328654bc961b195f9))
+* explicit associations on remember and create_handoff tool ([ff7ff79](https://github.com/AppSprout-dev/mnemonic/commit/ff7ff794f6dee1b91ccdfdda76cc6b0dd6d7e3fd)), closes [#308](https://github.com/AppSprout-dev/mnemonic/issues/308)
+
+
+### Bug Fixes
+
+* correct docs images and remove unused 192x192 icon ([3c58802](https://github.com/AppSprout-dev/mnemonic/commit/3c58802806499a9d666604e0c466d0e04de22be6))
+* correct docs images and remove unused 192x192 icon ([5f53534](https://github.com/AppSprout-dev/mnemonic/commit/5f5353464fade15b6b4439aabb18138a66bf0fbf))
+* correct mnemonic.png and remove unused 512x512 icon ([11d3c44](https://github.com/AppSprout-dev/mnemonic/commit/11d3c44d7d56a53b8019e3233601a2abd8de6cc0))
+* filter binary asset paths and numeric segments from concept extraction ([63fa4ef](https://github.com/AppSprout-dev/mnemonic/commit/63fa4ef010ab9387c1acc0d403d92bdcb113517b))
+* filter binary asset paths and numeric segments from concept extraction ([7d82ec4](https://github.com/AppSprout-dev/mnemonic/commit/7d82ec493a62401d27a5bb6ee98636d33a829d8c)), closes [#305](https://github.com/AppSprout-dev/mnemonic/issues/305)
+* pattern project scoping, decay, and dismiss_pattern tool ([f050a36](https://github.com/AppSprout-dev/mnemonic/commit/f050a36087a66c0dc6596ef3636df82ee1e537f2))
+* pattern project scoping, decay, and dismiss_pattern tool ([43a0f96](https://github.com/AppSprout-dev/mnemonic/commit/43a0f966151ffc6be267f5fdec4844c4cbc85190)), closes [#306](https://github.com/AppSprout-dev/mnemonic/issues/306)
+* use correct mnemonic.png and remove unused 512x512 icon ([daaae33](https://github.com/AppSprout-dev/mnemonic/commit/daaae339ac1cdef1b6193f71d1f16a754c653416))
+
 ## [0.29.1](https://github.com/AppSprout-dev/mnemonic/compare/v0.29.0...v0.29.1) (2026-03-21)
 
 
