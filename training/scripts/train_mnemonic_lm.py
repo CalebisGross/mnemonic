@@ -239,7 +239,11 @@ def train(config, args):
             losses = ckpt.get('losses', [])
         else:
             # Legacy checkpoint: raw state_dict only
-            raw_model.load_state_dict(ckpt)
+            # Strip _orig_mod. prefix if present (saved from torch.compile'd model)
+            state_dict = ckpt
+            if any(k.startswith("_orig_mod.") for k in state_dict.keys()):
+                state_dict = {k.replace("_orig_mod.", "", 1): v for k, v in state_dict.items()}
+            raw_model.load_state_dict(state_dict)
             print("  Warning: legacy checkpoint (model weights only, no optimizer state)")
         global_step_start = global_step
         if losses:
