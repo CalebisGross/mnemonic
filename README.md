@@ -13,7 +13,7 @@ A local-first semantic memory daemon that watches your work, learns from it, and
 - **Autonomous** — Watches your filesystem, terminal, and clipboard. Encodes memories without you lifting a finger.
 - **Biological** — Memories consolidate, decay, form patterns, and become principles. It doesn't just store — it *processes*.
 - **Local-first** — Air-gapped, SQLite-backed, never phones home. Your data stays on your machine.
-- **22 MCP tools** — Drop-in memory layer for Claude Code and other AI agents.
+- **23 MCP tools** — Drop-in memory layer for Claude Code and other AI agents.
 - **Self-updating** — Built-in update mechanism checks GitHub Releases and applies updates in-place.
 - **Cross-platform** — macOS, Linux, and Windows. Daemon management via launchd, systemd, or Windows Services.
 
@@ -106,7 +106,7 @@ For the full deep dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## MCP Integration
 
-Mnemonic exposes 22 tools via the [Model Context Protocol](https://modelcontextprotocol.io/) for Claude Code and other AI agents:
+Mnemonic exposes 23 tools via the [Model Context Protocol](https://modelcontextprotocol.io/) for Claude Code and other AI agents:
 
 **Claude Code config** (`~/.claude/settings.local.json`):
 
@@ -222,7 +222,7 @@ internal/
   agent/            8 cognitive agents + orchestrator + reactor
   api/              HTTP + WebSocket server
   web/              Embedded dashboard (single-page app)
-  mcp/              MCP server (22 tools)
+  mcp/              MCP server (23 tools)
   store/            Store interface + SQLite (FTS5 + vector search)
   llm/              LLM provider interface (LM Studio, Gemini, cloud APIs)
   ingest/           Project ingestion engine
