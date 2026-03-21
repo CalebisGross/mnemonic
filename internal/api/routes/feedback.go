@@ -166,6 +166,11 @@ func HandleFeedback(s store.Store, log *slog.Logger) http.HandlerFunc {
 			}
 		}
 
+		// Prune bulky traversal data now that feedback has been applied
+		fb.TraversedAssocs = nil
+		fb.AccessSnapshot = nil
+		_ = s.WriteRetrievalFeedback(ctx, fb)
+
 		log.Info("feedback recorded",
 			"query_id", req.QueryID,
 			"quality", req.Quality,

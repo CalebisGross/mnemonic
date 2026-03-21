@@ -353,6 +353,7 @@ const memoryColumns = `id, raw_id, timestamp, type, content, summary, concepts, 
 // scanMemory scans a memory row from the database.
 func scanMemoryFrom(s scanner) (store.Memory, error) {
 	var mem store.Memory
+	var rawID sql.NullString
 	var memType sql.NullString
 	var conceptsStr sql.NullString
 	var embeddingBlob []byte
@@ -365,7 +366,7 @@ func scanMemoryFrom(s scanner) (store.Memory, error) {
 	var recallSuppressed int
 	err := s.Scan(
 		&mem.ID,
-		&mem.RawID,
+		&rawID,
 		&mem.Timestamp,
 		&memType,
 		&mem.Content,
@@ -390,6 +391,8 @@ func scanMemoryFrom(s scanner) (store.Memory, error) {
 	if err != nil {
 		return mem, err
 	}
+
+	mem.RawID = rawID.String
 
 	// Decode concepts
 	if conceptsStr.Valid && conceptsStr.String != "" {
@@ -2170,6 +2173,20 @@ func (s *SQLiteStore) ListRecentRetrievalFeedback(ctx context.Context, since tim
 		results = append(results, fb)
 	}
 	return results, rows.Err()
+}
+
+// PruneOldFeedback deletes retrieval_feedback records older than the given duration.
+func (s *SQLiteStore) PruneOldFeedback(ctx context.Context, olderThan time.Duration) (int, error) {
+	cutoff := time.Now().Add(-olderThan).Format(time.RFC3339)
+	result, err := s.db.ExecContext(ctx, `DELETE FROM retrieval_feedback WHERE created_at < ?`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("prune old feedback: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("prune old feedback rows affected: %w", err)
+	}
+	return int(rows), nil
 }
 
 // GetMemoryFeedbackScores computes a normalized feedback score for each memory ID

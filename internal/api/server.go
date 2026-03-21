@@ -41,6 +41,7 @@ type ServerDeps struct {
 	ServiceRestarter      routes.ServiceRestarter // can be nil if not installed as service
 	PIDRestart            routes.PIDRestartFunc   // fallback restart when service manager unavailable
 	MCPToolCount          int                     // number of registered MCP tools
+	StartTime             time.Time               // daemon start time for uptime calculation
 	Log                   *slog.Logger
 }
 
@@ -79,7 +80,7 @@ func NewServer(cfg ServerConfig, deps ServerDeps) *Server {
 // registerRoutes registers all API routes with the mux.
 func (s *Server) registerRoutes() {
 	// Health and stats
-	s.mux.HandleFunc("GET /api/v1/health", routes.HandleHealth(s.deps.Store, s.deps.LLM, s.deps.Version, s.deps.MCPToolCount, s.deps.Log))
+	s.mux.HandleFunc("GET /api/v1/health", routes.HandleHealth(s.deps.Store, s.deps.LLM, s.deps.Version, s.deps.MCPToolCount, s.deps.StartTime, s.deps.Log))
 	s.mux.HandleFunc("GET /api/v1/stats", routes.HandleStats(s.deps.Store, s.deps.Log))
 
 	// Self-update

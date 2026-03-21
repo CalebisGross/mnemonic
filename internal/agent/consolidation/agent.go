@@ -266,6 +266,7 @@ type CycleReport struct {
 	PatternsDecayed          int
 	PatternsDeduplicated     int
 	NeverRecalledArchived    int
+	FeedbackPruned           int
 }
 
 // runCycle executes the full consolidation pipeline.
@@ -365,6 +366,13 @@ func (ca *ConsolidationAgent) runCycle(ctx context.Context) (*CycleReport, error
 		ca.log.Warn("pattern dedup failed", "error", err)
 	}
 	report.PatternsDeduplicated = patternsDeduped
+
+	// Step 10: Prune old retrieval feedback records (30-day TTL)
+	feedbackPruned, err := ca.store.PruneOldFeedback(ctx, 30*24*time.Hour)
+	if err != nil {
+		ca.log.Warn("feedback pruning failed", "error", err)
+	}
+	report.FeedbackPruned = feedbackPruned
 
 	// Record the cycle
 	report.Duration = time.Since(startTime)

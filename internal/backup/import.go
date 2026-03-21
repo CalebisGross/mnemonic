@@ -48,6 +48,10 @@ func ImportFromJSON(ctx context.Context, s store.Store, filePath string, mode Im
 
 	// Import memories
 	for _, memory := range exportData.Memories {
+		// Ensure raw_id is never empty — use id as fallback
+		if memory.RawID == "" {
+			memory.RawID = memory.ID
+		}
 		if err := s.WriteMemory(ctx, memory); err != nil {
 			result.SkippedDuplicates++
 		} else {

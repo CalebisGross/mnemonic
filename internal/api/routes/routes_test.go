@@ -590,7 +590,7 @@ func TestHandleHealthCheck(t *testing.T) {
 			},
 		}
 		llmProv := &mockLLMProvider{}
-		handler := HandleHealth(ms, llmProv, "test", 23, testLogger())
+		handler := HandleHealth(ms, llmProv, "test", 23, time.Now(), testLogger())
 
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
 		rr := httptest.NewRecorder()
@@ -629,7 +629,7 @@ func TestHandleHealthCheck(t *testing.T) {
 			},
 		}
 		llmProv := &failingLLMProvider{}
-		handler := HandleHealth(ms, llmProv, "test", 23, testLogger())
+		handler := HandleHealth(ms, llmProv, "test", 23, time.Now(), testLogger())
 
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
 		rr := httptest.NewRecorder()
@@ -662,7 +662,7 @@ func TestHandleHealthCheck(t *testing.T) {
 			},
 		}
 		llmProv := &mockLLMProvider{}
-		handler := HandleHealth(ms, llmProv, "test", 23, testLogger())
+		handler := HandleHealth(ms, llmProv, "test", 23, time.Now(), testLogger())
 
 		req := httptest.NewRequest(http.MethodGet, "/health", nil)
 		rr := httptest.NewRecorder()

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -39,6 +40,9 @@ type HealthReport struct {
 	LastConsolidation string            `json:"last_consolidation"`
 	LastDreamCycle    string            `json:"last_dream_cycle"`
 	AutonomousActions int               `json:"autonomous_actions_total"`
+	HeapAllocMB       float64           `json:"heap_alloc_mb"`
+	Goroutines        int               `json:"goroutines"`
+	DBSizeMB          float64           `json:"db_size_mb"`
 	Warnings          []string          `json:"warnings,omitempty"`
 }
 
@@ -374,6 +378,9 @@ func (o *Orchestrator) writeHealthReport() {
 	}
 
 	o.mu.Lock()
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+
 	report := HealthReport{
 		Timestamp:         time.Now(),
 		Uptime:            time.Since(o.startTime).Round(time.Second).String(),
@@ -384,6 +391,9 @@ func (o *Orchestrator) writeHealthReport() {
 		AbstractionCount:  len(level2) + len(level3),
 		LastConsolidation: lastConsolidation,
 		AutonomousActions: o.autonomousCount,
+		HeapAllocMB:       float64(memStats.HeapAlloc) / (1024 * 1024),
+		Goroutines:        runtime.NumGoroutine(),
+		DBSizeMB:          float64(stats.StorageSizeBytes) / (1024 * 1024),
 		Warnings:          append([]string{}, o.warnings...),
 		AgentStatus: map[string]string{
 			"orchestrator": "running",

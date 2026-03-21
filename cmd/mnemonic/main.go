@@ -1703,6 +1703,7 @@ func serveCommand(configPath string) {
 			ServiceRestarter:      daemon.NewServiceManager(),
 			PIDRestart:            daemon.PIDRestart,
 			MCPToolCount:          mcp.ToolCount(),
+			StartTime:             time.Now(),
 			Log:                   log,
 		}
 		// Only set Consolidator if it's non-nil (avoids Go nil-interface trap)

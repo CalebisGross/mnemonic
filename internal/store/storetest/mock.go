@@ -177,6 +177,7 @@ func (MockStore) GetRetrievalFeedback(context.Context, string) (store.RetrievalF
 func (MockStore) ListRecentRetrievalFeedback(context.Context, time.Time, int) ([]store.RetrievalFeedback, error) {
 	return nil, nil
 }
+func (MockStore) PruneOldFeedback(context.Context, time.Duration) (int, error) { return 0, nil }
 func (MockStore) GetMemoryFeedbackScores(context.Context, []string) (map[string]float32, error) {
 	return nil, nil
 }

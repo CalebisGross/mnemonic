@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/appsprout-dev/mnemonic/internal/llm"
@@ -12,20 +13,26 @@ import (
 
 // HealthResponse is the JSON response for the health check endpoint.
 type HealthResponse struct {
-	Status       string `json:"status"`
-	Version      string `json:"version,omitempty"`
-	LLMAvailable bool   `json:"llm_available"`
-	LLMModel     string `json:"llm_model,omitempty"`
-	StoreHealthy bool   `json:"store_healthy"`
-	MemoryCount  int    `json:"memory_count"`
-	ToolCount    int    `json:"tool_count"`
-	Timestamp    string `json:"timestamp"`
+	Status         string  `json:"status"`
+	Version        string  `json:"version,omitempty"`
+	LLMAvailable   bool    `json:"llm_available"`
+	LLMModel       string  `json:"llm_model,omitempty"`
+	StoreHealthy   bool    `json:"store_healthy"`
+	MemoryCount    int     `json:"memory_count"`
+	ToolCount      int     `json:"tool_count"`
+	HeapAllocMB    float64 `json:"heap_alloc_mb"`
+	HeapSysMB      float64 `json:"heap_sys_mb"`
+	Goroutines     int     `json:"goroutines"`
+	GCPauseTotalMs float64 `json:"gc_pause_total_ms"`
+	UptimeSeconds  int64   `json:"uptime_seconds"`
+	DBSizeMB       float64 `json:"db_size_mb"`
+	Timestamp      string  `json:"timestamp"`
 }
 
 // HandleHealth returns an HTTP handler that performs a health check.
 // Checks LLM availability with 2s timeout and store health.
 // Returns 200 with health status JSON.
-func HandleHealth(s store.Store, llmProv llm.Provider, version string, toolCount int, log *slog.Logger) http.HandlerFunc {
+func HandleHealth(s store.Store, llmProv llm.Provider, version string, toolCount int, startTime time.Time, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Debug("health check requested")
 
@@ -64,15 +71,30 @@ func HandleHealth(s store.Store, llmProv llm.Provider, version string, toolCount
 			status = "degraded"
 		}
 
+		// Runtime metrics
+		var memStats runtime.MemStats
+		runtime.ReadMemStats(&memStats)
+
+		var dbSizeMB float64
+		if stats, err := s.GetStatistics(storeCtx); err == nil {
+			dbSizeMB = float64(stats.StorageSizeBytes) / (1024 * 1024)
+		}
+
 		resp := HealthResponse{
-			Status:       status,
-			Version:      version,
-			LLMAvailable: llmAvailable,
-			LLMModel:     llmModel,
-			StoreHealthy: storeHealthy,
-			MemoryCount:  memoryCount,
-			ToolCount:    toolCount,
-			Timestamp:    time.Now().UTC().Format(time.RFC3339),
+			Status:         status,
+			Version:        version,
+			LLMAvailable:   llmAvailable,
+			LLMModel:       llmModel,
+			StoreHealthy:   storeHealthy,
+			MemoryCount:    memoryCount,
+			ToolCount:      toolCount,
+			HeapAllocMB:    float64(memStats.HeapAlloc) / (1024 * 1024),
+			HeapSysMB:      float64(memStats.HeapSys) / (1024 * 1024),
+			Goroutines:     runtime.NumGoroutine(),
+			GCPauseTotalMs: float64(memStats.PauseTotalNs) / 1e6,
+			UptimeSeconds:  int64(time.Since(startTime).Seconds()),
+			DBSizeMB:       dbSizeMB,
+			Timestamp:      time.Now().UTC().Format(time.RFC3339),
 		}
 
 		log.Info("health check completed", "status", status, "llm_available", llmAvailable, "store_healthy", storeHealthy, "memory_count", memoryCount)

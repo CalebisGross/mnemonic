@@ -443,6 +443,7 @@ type Store interface {
 	WriteRetrievalFeedback(ctx context.Context, fb RetrievalFeedback) error
 	GetRetrievalFeedback(ctx context.Context, queryID string) (RetrievalFeedback, error)
 	ListRecentRetrievalFeedback(ctx context.Context, since time.Time, limit int) ([]RetrievalFeedback, error)
+	PruneOldFeedback(ctx context.Context, olderThan time.Duration) (int, error)
 	// GetMemoryFeedbackScores computes a normalized feedback score for each memory ID
 	// based on retrieval_feedback records. "helpful" = +1, "irrelevant" = -1, "partial" = 0.
 	// Returns sum/count per memory, so scores range from -1.0 to +1.0.
