@@ -927,6 +927,28 @@ func (s *SQLiteStore) UpdateMemory(ctx context.Context, mem store.Memory) error 
 }
 
 // UpdateSalience updates the salience of a memory.
+func (s *SQLiteStore) UpdateEmbedding(ctx context.Context, id string, embedding []float32) error {
+	var embeddingBlob []byte
+	if len(embedding) > 0 {
+		embeddingBlob = encodeEmbedding(embedding)
+	}
+
+	query := `UPDATE memories SET embedding = ?, updated_at = ? WHERE id = ?`
+	result, err := s.db.ExecContext(ctx, query, embeddingBlob, time.Now().Format(time.RFC3339), id)
+	if err != nil {
+		return fmt.Errorf("failed to update embedding: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("memory with id %s: %w", id, store.ErrNotFound)
+	}
+	return nil
+}
+
 func (s *SQLiteStore) UpdateSalience(ctx context.Context, id string, salience float32) error {
 	query := `UPDATE memories SET salience = ?, updated_at = ? WHERE id = ?`
 

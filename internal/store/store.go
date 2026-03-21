@@ -378,6 +378,7 @@ type Store interface {
 	GetMemoryByRawID(ctx context.Context, rawID string) (Memory, error)
 	UpdateMemory(ctx context.Context, mem Memory) error
 	UpdateSalience(ctx context.Context, id string, salience float32) error
+	UpdateEmbedding(ctx context.Context, id string, embedding []float32) error
 	UpdateState(ctx context.Context, id string, state string) error
 	IncrementAccess(ctx context.Context, id string) error
 	ListMemories(ctx context.Context, state string, limit, offset int) ([]Memory, error)

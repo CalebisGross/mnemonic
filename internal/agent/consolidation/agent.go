@@ -375,12 +375,17 @@ func (ca *ConsolidationAgent) runCycle(ctx context.Context) (*CycleReport, error
 	// Publish consolidation completed event
 	if ca.bus != nil {
 		_ = ca.bus.Publish(ctx, events.ConsolidationCompleted{
-			DurationMs:         report.Duration.Milliseconds(),
-			MemoriesProcessed:  report.MemoriesProcessed,
-			MemoriesDecayed:    report.MemoriesDecayed,
-			MergedClusters:     report.MergesPerformed,
-			AssociationsPruned: report.AssociationsPruned,
-			Ts:                 time.Now(),
+			DurationMs:            report.Duration.Milliseconds(),
+			MemoriesProcessed:     report.MemoriesProcessed,
+			MemoriesDecayed:       report.MemoriesDecayed,
+			MergedClusters:        report.MergesPerformed,
+			AssociationsPruned:    report.AssociationsPruned,
+			TransitionedFading:    report.TransitionedFading,
+			TransitionedArchived:  report.TransitionedArchived,
+			PatternsExtracted:     report.PatternsExtracted,
+			PatternsDecayed:       report.PatternsDecayed,
+			NeverRecalledArchived: report.NeverRecalledArchived,
+			Ts:                    time.Now(),
 		})
 	}
 

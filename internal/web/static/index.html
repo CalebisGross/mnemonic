@@ -959,8 +959,18 @@
             transition: width 0.3s ease;
         }
         .concept-time { flex: 0 0 auto; font-size: 0.7rem; color: var(--text-muted); min-width: 45px; text-align: right; }
+        /* ── Research Analytics Brief ── */
+        .ra-brief {
+            font-size: 0.82rem; line-height: 1.6; color: var(--text-muted); margin-bottom: 14px;
+            padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md); border-left: 3px solid var(--accent-cyan);
+        }
+        .ra-brief strong { color: var(--text-primary); font-weight: 600; }
+        .ra-brief .ra-warn { color: var(--accent-orange); }
+        .ra-brief .ra-good { color: var(--accent-green); }
+        .ra-brief .ra-bad { color: var(--accent-red); }
         /* ── Research Analytics KPI cards ── */
-        .ra-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+        .ra-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
         .ra-kpi { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px 16px; }
         .ra-kpi-label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
         .ra-kpi-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
@@ -1019,6 +1029,18 @@
         .event-type { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
         .event-desc { font-size: 0.8rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .event-time { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+        .event-item.event-clickable { cursor: pointer; }
+        .event-item.event-clickable:hover { background: var(--bg-tertiary); }
+        .event-metrics { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; line-height: 1.5; }
+        .event-subtitle { font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; }
+        .event-duration { font-size: 0.65rem; color: var(--text-dim); font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+        /* ── Cognitive Agents Panel ── */
+        .cognitive-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+        .cognitive-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px 14px; text-align: center; }
+        .cognitive-card-label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+        .cognitive-card-value { font-size: 1.3rem; font-weight: 700; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; color: var(--accent-cyan); line-height: 1; }
+        .cognitive-card-sub { font-size: 0.65rem; color: var(--text-dim); margin-top: 4px; }
+        @media (max-width: 640px) { .cognitive-grid { grid-template-columns: repeat(2, 1fr); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
         .drawer-footer {
             padding: 12px 16px; border-top: 1px solid var(--border-color);
@@ -1423,7 +1445,7 @@
             </div>
             <div class="nav-spacer"></div>
             <div class="nav-stats">
-                <span><span class="stat-val" id="navMemoryCount">-</span> memories</span>
+                <span style="cursor:pointer" onclick="switchView('explore');switchExploreTab('memories')"><span class="stat-val" id="navMemoryCount">-</span> memories</span>
                 <span><span class="stat-val" id="navTokenCount">-</span> tokens</span>
                 <div class="nav-health" id="navHealth" title="System healthy"></div>
             </div>
@@ -1853,7 +1875,9 @@
                             </div>
                         </div>
                     </div>
+                    <div class="ra-brief" id="raBrief"></div>
                     <div class="ra-kpis" id="raKpis"></div>
+                    <div class="cognitive-grid" id="cognitiveGrid"></div>
                     <div class="llm-panel" style="margin-bottom:16px">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
                             <div class="llm-panel-title" style="margin-bottom:0" id="lifecycleTitle">Memory Lifecycle (14d)</div>
@@ -1946,6 +1970,7 @@
         agentData: null,
         llmLoaded: false,
         toolsLoaded: false,
+        dreamSessionTotals: { cycles: 0, replayed: 0, strengthened: 0, newLinks: 0, insights: 0, crossProject: 0, demoted: 0 },
         mindLoaded: false,
         mindSimulation: null,
         mindData: null,
@@ -2962,12 +2987,84 @@
         else { badge.classList.remove('visible'); }
     }
 
-    function addEvent(type, description, timestamp) {
-        var dotColors = { raw_memory_created: 'green', memory_encoded: 'blue', memory_accessed: 'violet', query_executed: 'cyan', consolidation_started: 'orange', consolidation_completed: 'orange', dream_cycle_completed: 'violet', meta_cycle_completed: 'violet', watcher_event: 'yellow', system_health: 'cyan', episode_closed: 'green' };
+    var _eventDotColors = { raw_memory_created: 'green', memory_encoded: 'blue', memory_accessed: 'violet', query_executed: 'cyan', consolidation_started: 'orange', consolidation_completed: 'orange', dream_cycle_completed: 'violet', meta_cycle_completed: 'violet', watcher_event: 'yellow', system_health: 'cyan', episode_closed: 'green', pattern_discovered: 'cyan', abstraction_created: 'violet', memory_amended: 'blue', session_ended: 'green' };
+    var _eventNavTargets = { pattern_discovered: ['explore', 'patterns'], abstraction_created: ['explore', 'abstractions'], episode_closed: ['explore', 'episodes'], memory_encoded: ['explore', 'memories'] };
+
+    function _nonZero(items) {
+        return items.filter(function(i) { return i[0] > 0; }).map(function(i) { return i[0] + ' ' + i[1]; }).join(' \u00b7 ');
+    }
+
+    function buildEventDetail(type, payload) {
+        var p = payload || {};
+        switch (type) {
+            case 'consolidation_completed': {
+                var line1 = _nonZero([[p.memories_processed, 'processed'], [p.memories_decayed, 'decayed'], [p.merged_clusters, 'merged']]);
+                var line2 = _nonZero([[p.patterns_extracted, 'patterns found'], [p.never_recalled_archived, 'noise archived'], [p.transitioned_fading, 'fading'], [p.transitioned_archived, 'archived']]);
+                var dur = p.duration_ms ? (p.duration_ms / 1000).toFixed(1) + 's' : '';
+                var html = '';
+                if (line1) html += '<div class="event-metrics">' + line1 + '</div>';
+                if (line2) html += '<div class="event-metrics">' + line2 + '</div>';
+                if (dur) html += '<div class="event-duration">' + dur + '</div>';
+                return html;
+            }
+            case 'dream_cycle_completed': {
+                var l1 = _nonZero([[p.memories_replayed, 'replayed'], [p.associations_strengthened, 'strengthened'], [p.new_associations_created, 'new links']]);
+                var l2 = _nonZero([[p.insights_generated, 'insights'], [p.cross_project_links, 'cross-project'], [p.noisy_memories_demoted, 'demoted']]);
+                var d = p.duration_ms ? (p.duration_ms / 1000).toFixed(1) + 's' : '';
+                var h = '';
+                if (l1) h += '<div class="event-metrics">' + l1 + '</div>';
+                if (l2) h += '<div class="event-metrics">' + l2 + '</div>';
+                if (d) h += '<div class="event-duration">' + d + '</div>';
+                return h;
+            }
+            case 'memory_encoded': {
+                var concepts = (p.concepts || []).length;
+                var assocs = p.associations_created || 0;
+                var parts = _nonZero([[concepts, 'concepts'], [assocs, 'associations']]);
+                return parts ? '<div class="event-metrics">' + parts + '</div>' : '';
+            }
+            case 'pattern_discovered': {
+                var html = '';
+                if (p.title) html += '<div class="event-subtitle">' + escapeHtml(p.title.slice(0, 60)) + '</div>';
+                var meta = _nonZero([[1, p.pattern_type || 'pattern'], [p.evidence_count, 'evidence']]);
+                if (meta) html += '<div class="event-metrics">' + meta + '</div>';
+                return html;
+            }
+            case 'abstraction_created': {
+                var html = '';
+                if (p.title) html += '<div class="event-subtitle">' + escapeHtml(p.title.slice(0, 60)) + '</div>';
+                if (p.source_count) html += '<div class="event-metrics">from ' + p.source_count + ' sources</div>';
+                return html;
+            }
+            case 'episode_closed': {
+                var html = '';
+                if (p.title) html += '<div class="event-subtitle">' + escapeHtml(p.title.slice(0, 60)) + '</div>';
+                var meta = _nonZero([[p.event_count, 'events']]);
+                if (p.duration_sec) meta += (meta ? ' \u00b7 ' : '') + Math.round(p.duration_sec / 60) + 'min';
+                if (meta) html += '<div class="event-metrics">' + meta + '</div>';
+                return html;
+            }
+            case 'query_executed': {
+                return '<div class="event-metrics">' + (p.results_returned || 0) + ' results \u00b7 ' + (p.took_ms || 0) + 'ms</div>';
+            }
+            default: return '';
+        }
+    }
+
+    function addEvent(type, description, timestamp, payload) {
         var container = document.getElementById('eventsContainer');
         var el = document.createElement('div');
-        el.className = 'event-item';
-        el.innerHTML = '<div class="event-dot ' + (dotColors[type] || 'cyan') + '"></div><div class="event-body"><div class="event-type">' + escapeHtml(type.replace(/_/g, ' ')) + '</div><div class="event-desc">' + escapeHtml(description) + '</div><div class="event-time" data-ts="' + new Date(timestamp).toISOString() + '">' + relativeTime(new Date(timestamp)) + '</div></div>';
+        var navTarget = _eventNavTargets[type];
+        el.className = 'event-item' + (navTarget ? ' event-clickable' : '');
+        if (navTarget) {
+            el.onclick = function() {
+                toggleDrawer();
+                switchView(navTarget[0]);
+                if (navTarget[1]) switchExploreTab(navTarget[1]);
+            };
+        }
+        var detail = buildEventDetail(type, payload);
+        el.innerHTML = '<div class="event-dot ' + (_eventDotColors[type] || 'cyan') + '"></div><div class="event-body"><div class="event-type">' + escapeHtml(type.replace(/_/g, ' ')) + '</div><div class="event-desc">' + escapeHtml(description) + '</div>' + detail + '<div class="event-time" data-ts="' + new Date(timestamp).toISOString() + '">' + relativeTime(new Date(timestamp)) + '</div></div>';
         container.prepend(el);
         while (container.children.length > CONFIG.MAX_EVENTS) container.removeChild(container.lastChild);
         if (!state.drawerOpen) { state.unreadEvents++; updateBadge(); }
@@ -3100,13 +3197,13 @@
                     case 'query_executed': desc = 'Query: "' + (payload.query_text || '').slice(0, 40) + '" (' + (payload.results_returned || 0) + ' results)'; break;
                     case 'consolidation_started': desc = 'Consolidation cycle started'; break;
                     case 'consolidation_completed': desc = 'Consolidated: ' + (payload.memories_processed || 0) + ' processed'; state.exploreLoaded.episodes = false; state.exploreLoaded.patterns = false; state.exploreLoaded.abstractions = false; break;
-                    case 'dream_cycle_completed': desc = 'Dream cycle completed'; state.exploreLoaded.abstractions = false; break;
+                    case 'dream_cycle_completed': desc = 'Dream cycle'; state.exploreLoaded.abstractions = false; state.dreamSessionTotals.cycles++; state.dreamSessionTotals.replayed += (payload.memories_replayed || 0); state.dreamSessionTotals.strengthened += (payload.associations_strengthened || 0); state.dreamSessionTotals.newLinks += (payload.new_associations_created || 0); state.dreamSessionTotals.insights += (payload.insights_generated || 0); state.dreamSessionTotals.crossProject += (payload.cross_project_links || 0); state.dreamSessionTotals.demoted += (payload.noisy_memories_demoted || 0); break;
                     case 'pattern_discovered': desc = 'Pattern: ' + (payload.title || '').slice(0, 40); state.exploreLoaded.patterns = false; break;
                     case 'abstraction_created': desc = (payload.level === 3 ? 'Axiom' : 'Principle') + ': ' + (payload.title || '').slice(0, 40); state.exploreLoaded.abstractions = false; break;
                     case 'episode_closed': desc = 'Episode closed: ' + (payload.title || '').slice(0, 40); state.exploreLoaded.episodes = false; break;
                     default: desc = type.replace(/_/g, ' ');
                 }
-                addEvent(type, desc, msg.timestamp || new Date().toISOString());
+                addEvent(type, desc, msg.timestamp || new Date().toISOString(), payload);
                 if (['memory_encoded', 'consolidation_completed', 'dream_cycle_completed'].includes(type) && state.currentView === 'timeline') {
                     clearTimeout(state._timelineLiveReload);
                     state._timelineLiveReload = setTimeout(function() { loadTimelineData(false); }, 5000);
@@ -3669,7 +3766,9 @@
             kpiContainer.innerHTML = '<div class="ra-kpi" id="kpiPipeline"></div>' +
                 '<div class="ra-kpi" id="kpiMcp"></div>' +
                 '<div class="ra-kpi" id="kpiLearning"></div>' +
-                '<div class="ra-kpi" id="kpiQuality"></div>';
+                '<div class="ra-kpi" id="kpiQuality"></div>' +
+                '<div class="ra-kpi" id="kpiDensity"></div>' +
+                '<div class="ra-kpi" id="kpiRetrieval"></div>';
 
             // Pipeline Health card
             var el1 = document.getElementById('kpiPipeline');
@@ -3697,6 +3796,123 @@
                 '<div class="ra-kpi-row"><span class="ra-kpi-value" style="color:' + _thresholdColor(qualityPct, 70, 50) + '">' + (totalFb > 0 ? qualityPct.toFixed(0) + '%' : '-') + '</span><span id="sparkQuality"></span></div>' +
                 '<div class="ra-kpi-footer"><span class="ra-kpi-delta ' + qualityDelta.cls + '">' + qualityDelta.text + '</span><span class="ra-kpi-target">target &gt;70%</span></div>';
             _renderSparkline(document.getElementById('sparkQuality'), qualitySpark, _thresholdColor(qualityPct, 70, 50));
+
+            // Network Density KPI (from /api/v1/stats, already loaded at init)
+            var el5 = document.getElementById('kpiDensity');
+            try {
+                var statsResp = await fetchJSON('/stats');
+                var avgAssoc = (statsResp.store || {}).avg_associations_per_memory || 0;
+                el5.innerHTML = '<div class="ra-kpi-label">Network Density</div>' +
+                    '<div class="ra-kpi-row"><span class="ra-kpi-value" style="color:' + _thresholdColor(avgAssoc, 2.0, 1.0) + '">' + avgAssoc.toFixed(1) + '</span></div>' +
+                    '<div class="ra-kpi-footer"><span class="ra-kpi-delta neutral">' + ((statsResp.store || {}).total_associations || 0) + ' associations</span><span class="ra-kpi-target">target &gt;2.0 avg</span></div>';
+            } catch(e) { el5.innerHTML = '<div class="ra-kpi-label">Network Density</div><div class="ra-kpi-row"><span class="ra-kpi-value">-</span></div>'; }
+
+            // Retrieval Performance KPI (from new endpoint)
+            var el6 = document.getElementById('kpiRetrieval');
+            try {
+                var retStats = await fetchJSON('/retrieval/stats');
+                var avgPerQuery = retStats.avg_memories_per_query || 0;
+                var totalQ = retStats.total_queries || 0;
+                var avgMs = retStats.avg_synthesis_ms || 0;
+                el6.innerHTML = '<div class="ra-kpi-label">Retrieval Perf</div>' +
+                    '<div class="ra-kpi-row"><span class="ra-kpi-value" style="color:' + _thresholdColor(avgPerQuery, 3, 1) + '">' + (totalQ > 0 ? avgPerQuery.toFixed(1) : '-') + '</span></div>' +
+                    '<div class="ra-kpi-footer"><span class="ra-kpi-delta neutral">' + totalQ + ' queries' + (avgMs > 0 ? ' \u00b7 ' + avgMs.toFixed(0) + 'ms avg' : '') + '</span><span class="ra-kpi-target">target &gt;3 per query</span></div>';
+            } catch(e) { el6.innerHTML = '<div class="ra-kpi-label">Retrieval Perf</div><div class="ra-kpi-row"><span class="ra-kpi-value">-</span></div>'; }
+
+            // ── Cognitive Agents Panel ──
+            try {
+                var absResp = await fetchJSON('/abstractions?limit=500');
+                var abstractions = absResp.abstractions || absResp || [];
+                if (!Array.isArray(abstractions)) abstractions = [];
+                var principles = abstractions.filter(function(a) { return a.level === 2; }).length;
+                var axioms = abstractions.filter(function(a) { return a.level === 3; }).length;
+
+                var chTotals = (ch || []).reduce(function(acc, c) {
+                    acc.cycles++; acc.processed += (c.processed || 0); acc.merged += (c.merged || 0); acc.decayed += (c.decayed || 0);
+                    return acc;
+                }, { cycles: 0, processed: 0, merged: 0, decayed: 0 });
+
+                var ds = state.dreamSessionTotals;
+                var cogGrid = document.getElementById('cognitiveGrid');
+                cogGrid.innerHTML =
+                    '<div class="cognitive-card"><div class="cognitive-card-label">Encoding</div><div class="cognitive-card-value">' + (p.total_encoded || 0) + '</div><div class="cognitive-card-sub">' + (encodingRate > 0 ? encodingRate.toFixed(0) + '% rate' : 'no data') + '</div></div>' +
+                    '<div class="cognitive-card"><div class="cognitive-card-label">Consolidation</div><div class="cognitive-card-value">' + chTotals.cycles + '</div><div class="cognitive-card-sub">' + chTotals.merged + ' merged \u00b7 ' + chTotals.decayed + ' decayed</div></div>' +
+                    '<div class="cognitive-card"><div class="cognitive-card-label">Dreaming</div><div class="cognitive-card-value">' + ds.cycles + '</div><div class="cognitive-card-sub">' + ds.insights + ' insights \u00b7 ' + ds.newLinks + ' new links</div></div>' +
+                    '<div class="cognitive-card"><div class="cognitive-card-label">Abstraction</div><div class="cognitive-card-value">' + principles + '</div><div class="cognitive-card-sub">' + axioms + ' axioms \u00b7 ' + (principles + axioms) + ' total</div></div>';
+            } catch(e) { console.error('Cognitive panel load failed:', e); }
+
+            // ── System Analysis ──
+            try {
+                var briefEl = document.getElementById('raBrief');
+                var statsResp2 = await fetchJSON('/stats');
+                var st = statsResp2.store || {};
+                var sessResp = await fetchJSON('/sessions?days=' + days + '&limit=100');
+                var sessCount = sessResp.count || 0;
+                var avgAssoc = st.avg_associations_per_memory || 0;
+
+                var lines = [];
+
+                // Overall health sentence
+                var healthIssues = 0;
+                if (encodingRate < 50) healthIssues++;
+                if (mcpSurv < 60) healthIssues++;
+                if (qualityPct < 50 && totalFb > 5) healthIssues++;
+                if (learningRatio < 1.0 && learningRatio > 0) healthIssues++;
+
+                if (healthIssues === 0) {
+                    lines.push('Mnemonic is performing well. <strong>' + (st.total_memories || 0) + ' memories</strong> across <strong>' + sessCount + ' sessions</strong>, with a well-connected network (' + avgAssoc.toFixed(1) + ' associations per memory).');
+                } else if (healthIssues <= 2) {
+                    lines.push('Mnemonic is running but has <span class="ra-warn">areas that need attention</span>. <strong>' + (st.total_memories || 0) + ' memories</strong> across <strong>' + sessCount + ' sessions</strong>.');
+                } else {
+                    lines.push('Mnemonic has <span class="ra-bad">several metrics below target</span>. <strong>' + (st.total_memories || 0) + ' memories</strong> across <strong>' + sessCount + ' sessions</strong>. This is expected early on \u2014 the system improves with use.');
+                }
+
+                // Encoding pipeline insight
+                if (encodingRate >= 80) {
+                    lines.push('The encoding pipeline is converting ' + encodingRate.toFixed(0) + '% of observations into memories \u2014 minimal signal loss.');
+                } else if (encodingRate >= 50) {
+                    lines.push('The encoding pipeline is at ' + encodingRate.toFixed(0) + '%. Some observations are being filtered or failing to encode.');
+                } else if (encodingRate > 0) {
+                    lines.push('<span class="ra-bad">Encoding is struggling at ' + encodingRate.toFixed(0) + '%.</span> Check LLM availability \u2014 most observations are failing to encode.');
+                }
+
+                // MCP survival insight
+                if (mcpSurv > 0 && mcpSurv < 60) {
+                    var mcpActive = (sn.mcp || {}).active || 0;
+                    var mcpTotal = (sn.mcp || {}).total || 0;
+                    lines.push('Only <span class="ra-warn">' + mcpSurv.toFixed(0) + '% of MCP memories survive</span> (' + mcpActive + '/' + mcpTotal + ' active). Older memories naturally decay over time \u2014 this ratio improves as you build fresh, high-quality memories through active use.');
+                } else if (mcpSurv >= 60 && mcpSurv < 80) {
+                    lines.push('MCP survival is ' + mcpSurv.toFixed(0) + '% \u2014 some older memories have been pruned, which is healthy.');
+                }
+
+                // Recall quality insight
+                if (totalFb > 5) {
+                    if (qualityPct >= 70) {
+                        lines.push('Recall quality is <span class="ra-good">strong at ' + qualityPct.toFixed(0) + '%</span> \u2014 the system is returning useful memories most of the time.');
+                    } else if (qualityDelta.cls === 'positive') {
+                        lines.push('Recall quality is at ' + qualityPct.toFixed(0) + '% but <span class="ra-good">trending up (' + qualityDelta.text + ')</span>. The feedback loop is working \u2014 keep rating recalls.');
+                    } else {
+                        lines.push('Recall quality is <span class="ra-warn">below target at ' + qualityPct.toFixed(0) + '%</span>. More feedback will help the system learn which memories matter.');
+                    }
+                } else {
+                    lines.push('Not enough recall feedback yet to assess quality. Rate your recalls (helpful/partial/irrelevant) to train the system.');
+                }
+
+                // Learning signal
+                if (learningRatio > 1.5) {
+                    lines.push('Frequently recalled memories have <span class="ra-good">' + learningRatio.toFixed(1) + 'x higher salience</span> than unused ones \u2014 the system is learning what matters.');
+                } else if (learningRatio > 0 && learningRatio < 1.0) {
+                    lines.push('Frequently recalled memories don\u2019t yet have higher salience than unused ones. This is normal early on \u2014 the recall learning signal strengthens over time with more feedback.');
+                }
+
+                // Abstraction formation
+                if (principles > 0) {
+                    var axiomText = axioms > 0 ? ' and <strong>' + axioms + ' axiom' + (axioms !== 1 ? 's' : '') + '</strong>' : '';
+                    lines.push('The abstraction agent has synthesized <strong>' + principles + ' principle' + (principles !== 1 ? 's' : '') + '</strong>' + axiomText + ' from your memory network \u2014 higher-order patterns that inform future recall.');
+                }
+
+                briefEl.innerHTML = lines.join(' ');
+            } catch(e) { /* analysis is optional, fail silently */ }
 
             // ── Memory Lifecycle Chart (D3 stacked area) ──
             renderLifecycleChart(svData, fbData, chData);

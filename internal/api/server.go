@@ -105,6 +105,12 @@ func (s *Server) registerRoutes() {
 	// Activity (watcher-derived concept tracker for MCP sync)
 	s.mux.HandleFunc("GET /api/v1/activity", routes.HandleActivity(s.deps.Retriever, s.deps.Log))
 
+	// Retrieval stats
+	s.mux.HandleFunc("GET /api/v1/retrieval/stats", routes.HandleRetrievalStats(s.deps.Retriever, s.deps.Log))
+
+	// Embedding backfill
+	s.mux.HandleFunc("POST /api/v1/embeddings/backfill", routes.HandleBackfillEmbeddings(s.deps.Store, s.deps.LLM, s.deps.Log))
+
 	// Feedback
 	s.mux.HandleFunc("POST /api/v1/feedback", routes.HandleFeedback(s.deps.Store, s.deps.Log))
 

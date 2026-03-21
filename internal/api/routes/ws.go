@@ -100,6 +100,10 @@ func HandleWebSocket(bus events.Bus, log *slog.Logger) http.HandlerFunc {
 			events.TypeSystemHealth,
 			events.TypeWatcherEvent,
 			events.TypeEpisodeClosed,
+			events.TypePatternDiscovered,
+			events.TypeAbstractionCreated,
+			events.TypeMemoryAmended,
+			events.TypeSessionEnded,
 		}
 
 		for _, eventType := range eventTypes {
@@ -207,6 +211,16 @@ func wsConnEventToMessage(evt events.Event) WebSocketMessage {
 	case events.SystemHealth:
 		payload = e
 	case events.WatcherEvent:
+		payload = e
+	case events.EpisodeClosed:
+		payload = e
+	case events.PatternDiscovered:
+		payload = e
+	case events.AbstractionCreated:
+		payload = e
+	case events.MemoryAmended:
+		payload = e
+	case events.SessionEnded:
 		payload = e
 	default:
 		// Fallback for unknown event types
