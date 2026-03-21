@@ -18,13 +18,14 @@ type HealthResponse struct {
 	LLMModel     string `json:"llm_model,omitempty"`
 	StoreHealthy bool   `json:"store_healthy"`
 	MemoryCount  int    `json:"memory_count"`
+	ToolCount    int    `json:"tool_count"`
 	Timestamp    string `json:"timestamp"`
 }
 
 // HandleHealth returns an HTTP handler that performs a health check.
 // Checks LLM availability with 2s timeout and store health.
 // Returns 200 with health status JSON.
-func HandleHealth(s store.Store, llmProv llm.Provider, version string, log *slog.Logger) http.HandlerFunc {
+func HandleHealth(s store.Store, llmProv llm.Provider, version string, toolCount int, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Debug("health check requested")
 
@@ -70,6 +71,7 @@ func HandleHealth(s store.Store, llmProv llm.Provider, version string, log *slog
 			LLMModel:     llmModel,
 			StoreHealthy: storeHealthy,
 			MemoryCount:  memoryCount,
+			ToolCount:    toolCount,
 			Timestamp:    time.Now().UTC().Format(time.RFC3339),
 		}
 

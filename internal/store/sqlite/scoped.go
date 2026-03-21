@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	store "github.com/appsprout-dev/mnemonic/internal/store"
@@ -71,7 +72,21 @@ func (s *SQLiteStore) ListMemoriesBySession(ctx context.Context, sessionID strin
 // ListSessions returns recent sessions with metadata.
 func (s *SQLiteStore) ListSessions(ctx context.Context, since time.Time, limit int) ([]store.SessionSummary, error) {
 	query := `
-	SELECT session_id, MIN(created_at), MAX(created_at), COUNT(*)
+	SELECT session_id, MIN(created_at), MAX(created_at), COUNT(*),
+		COALESCE((
+			SELECT GROUP_CONCAT(topic, ',')
+			FROM (
+				SELECT json_extract(je.value, '$.label') AS topic, COUNT(*) AS cnt
+				FROM memories m2
+				JOIN concept_sets cs ON cs.memory_id = m2.id
+				, json_each(cs.topics) je
+				WHERE m2.session_id = memories.session_id
+				  AND json_extract(je.value, '$.label') IS NOT NULL
+				GROUP BY topic
+				ORDER BY cnt DESC
+				LIMIT 5
+			)
+		), '') AS top_concepts
 	FROM memories
 	WHERE session_id IS NOT NULL AND session_id != '' AND created_at >= ?
 	GROUP BY session_id
@@ -87,12 +102,15 @@ func (s *SQLiteStore) ListSessions(ctx context.Context, since time.Time, limit i
 	var sessions []store.SessionSummary
 	for rows.Next() {
 		var ss store.SessionSummary
-		var startStr, endStr string
-		if err := rows.Scan(&ss.SessionID, &startStr, &endStr, &ss.MemoryCount); err != nil {
+		var startStr, endStr, conceptsStr string
+		if err := rows.Scan(&ss.SessionID, &startStr, &endStr, &ss.MemoryCount, &conceptsStr); err != nil {
 			continue
 		}
 		ss.StartTime, _ = time.Parse(time.RFC3339, startStr)
 		ss.EndTime, _ = time.Parse(time.RFC3339, endStr)
+		if conceptsStr != "" {
+			ss.TopConcepts = strings.Split(conceptsStr, ",")
+		}
 		sessions = append(sessions, ss)
 	}
 	return sessions, rows.Err()

@@ -409,12 +409,18 @@ func (srv *MCPServer) handleRemember(ctx context.Context, args map[string]interf
 
 	// Parse optional explicit associations.
 	var explicitAssoc []map[string]string
+	var invalidAssocIDs []string
 	if rawAssoc, ok := args["associate_with"].([]interface{}); ok {
 		for _, entry := range rawAssoc {
 			if m, ok := entry.(map[string]interface{}); ok {
 				memID, _ := m["memory_id"].(string)
 				relation, _ := m["relation"].(string)
 				if memID != "" && relation != "" {
+					// Validate that the target memory exists.
+					if _, err := srv.store.GetMemory(ctx, memID); err != nil {
+						invalidAssocIDs = append(invalidAssocIDs, memID)
+						continue
+					}
 					explicitAssoc = append(explicitAssoc, map[string]string{
 						"memory_id": memID,
 						"relation":  relation,
@@ -476,8 +482,13 @@ func (srv *MCPServer) handleRemember(ctx context.Context, args map[string]interf
 
 	srv.log.Info("memory stored", "id", raw.ID, "source", source, "type", memType, "project", project)
 
-	return toolResult(fmt.Sprintf("Stored memory %s (type: %s, project: %s)\n  Raw ID: %s\n  Initial salience: %.2f\n  Encoding: queued (async)\n\nTip: Use check_memory with raw_id %q to verify encoding status. Dedup protections: same-type, same-project, source-aware thresholds.",
-		raw.ID, memType, project, raw.ID, raw.InitialSalience, raw.ID)), nil
+	msg := fmt.Sprintf("Stored memory %s (type: %s, project: %s)\n  Raw ID: %s\n  Initial salience: %.2f\n  Encoding: queued (async)\n\nTip: Use check_memory with raw_id %q to verify encoding status. Dedup protections: same-type, same-project, source-aware thresholds.",
+		raw.ID, memType, project, raw.ID, raw.InitialSalience, raw.ID)
+	if len(invalidAssocIDs) > 0 {
+		msg += fmt.Sprintf("\n\nWarning: %d association target(s) not found and skipped: %s",
+			len(invalidAssocIDs), strings.Join(invalidAssocIDs, ", "))
+	}
+	return toolResult(msg), nil
 }
 
 // syncActivityFromDaemon fetches the daemon's watcher activity tracker state
