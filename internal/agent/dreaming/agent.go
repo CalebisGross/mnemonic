@@ -22,6 +22,10 @@ type DreamingConfig struct {
 	SalienceThreshold      float32
 	AssociationBoostFactor float32
 	NoisePruneThreshold    float32
+	StartupDelay           time.Duration
+	DeadMemoryWindow       time.Duration
+	InsightsBudget         int
+	DefaultConfidence      float32
 }
 
 type DreamingAgent struct {
@@ -96,8 +100,11 @@ func (da *DreamingAgent) RunOnce(ctx context.Context) (*DreamReport, error) {
 func (da *DreamingAgent) loop() {
 	defer da.wg.Done()
 
-	// 90-second startup grace period
-	startupTimer := time.NewTimer(90 * time.Second)
+	startupDelay := da.config.StartupDelay
+	if startupDelay <= 0 {
+		startupDelay = 90 * time.Second
+	}
+	startupTimer := time.NewTimer(startupDelay)
 	defer startupTimer.Stop()
 
 	ticker := time.NewTicker(da.config.Interval)
@@ -313,7 +320,11 @@ func (da *DreamingAgent) crossPollinate(ctx context.Context, replayed []store.Me
 
 // noisePrune performs Phase 4: reduce salience of low-quality dead memories.
 func (da *DreamingAgent) noisePrune(ctx context.Context, report *DreamReport) error {
-	deadMemories, err := da.store.GetDeadMemories(ctx, time.Now().Add(-30*24*time.Hour))
+	deadWindow := da.config.DeadMemoryWindow
+	if deadWindow <= 0 {
+		deadWindow = 30 * 24 * time.Hour
+	}
+	deadMemories, err := da.store.GetDeadMemories(ctx, time.Now().Add(-deadWindow))
 	if err != nil {
 		return fmt.Errorf("failed to get dead memories: %w", err)
 	}
@@ -496,7 +507,10 @@ func (da *DreamingAgent) generateInsights(ctx context.Context, replayed []store.
 		return nil
 	}
 
-	insightsBudget := 2
+	insightsBudget := da.config.InsightsBudget
+	if insightsBudget <= 0 {
+		insightsBudget = 2
+	}
 	for _, cluster := range clusters {
 		if insightsBudget <= 0 {
 			break
@@ -641,9 +655,13 @@ Only share an insight if it's genuinely illuminating — something that makes yo
 		concepts = agentutil.DeduplicateConcepts(allConcepts)
 	}
 
+	defaultConf := da.config.DefaultConfidence
+	if defaultConf <= 0 {
+		defaultConf = 0.6
+	}
 	confidence := float32(result.Confidence)
 	if confidence <= 0 || confidence > 1.0 {
-		confidence = 0.6
+		confidence = defaultConf
 	}
 
 	abstraction := &store.Abstraction{

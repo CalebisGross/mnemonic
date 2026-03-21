@@ -16,9 +16,16 @@ import (
 )
 
 type AbstractionConfig struct {
-	Interval    time.Duration
-	MinStrength float32
-	MaxLLMCalls int
+	Interval                   time.Duration
+	MinStrength                float32
+	MaxLLMCalls                int
+	StartupDelay               time.Duration
+	DefaultConfidence          float32
+	PatternAxiomConfidence     float32
+	ConfidenceModerateDecay    float32
+	ConfidenceSignificantDecay float32
+	ConfidenceSevereDecay      float32
+	GroundingFloor             float32
 }
 
 type AbstractionAgent struct {
@@ -94,8 +101,11 @@ func (aa *AbstractionAgent) RunOnce(ctx context.Context) (*CycleReport, error) {
 func (aa *AbstractionAgent) loop() {
 	defer aa.wg.Done()
 
-	// 5-minute startup grace period (runs less frequently than other agents)
-	startupTimer := time.NewTimer(5 * time.Minute)
+	startupDelay := aa.config.StartupDelay
+	if startupDelay <= 0 {
+		startupDelay = 5 * time.Minute
+	}
+	startupTimer := time.NewTimer(startupDelay)
 	defer startupTimer.Stop()
 
 	ticker := time.NewTicker(aa.config.Interval)
@@ -392,6 +402,24 @@ func (aa *AbstractionAgent) verifyGrounding(ctx context.Context, report *CycleRe
 				continue
 			}
 
+			// Load grounding multipliers from config with safe defaults
+			moderateDecay := aa.config.ConfidenceModerateDecay
+			if moderateDecay <= 0 {
+				moderateDecay = 0.9
+			}
+			significantDecay := aa.config.ConfidenceSignificantDecay
+			if significantDecay <= 0 {
+				significantDecay = 0.7
+			}
+			severeDecay := aa.config.ConfidenceSevereDecay
+			if severeDecay <= 0 {
+				severeDecay = 0.5
+			}
+			groundingFloor := aa.config.GroundingFloor
+			if groundingFloor <= 0 {
+				groundingFloor = 0.5
+			}
+
 			// Graduated grounding response
 			switch {
 			case groundingRatio >= 0.5:
@@ -399,14 +427,14 @@ func (aa *AbstractionAgent) verifyGrounding(ctx context.Context, report *CycleRe
 				continue
 			case groundingRatio >= 0.3:
 				// Moderate decay: reduce confidence slightly
-				abs.Confidence *= 0.9
+				abs.Confidence *= moderateDecay
 			case groundingRatio >= 0.1:
 				// Significant decay: reduce confidence more
-				abs.Confidence *= 0.7
+				abs.Confidence *= significantDecay
 				report.AbstractionsDemoted++
 			default:
-				// Nearly all evidence gone: softened demotion (was 0.3, now 0.5)
-				abs.Confidence *= 0.5
+				// Nearly all evidence gone
+				abs.Confidence *= severeDecay
 				if abs.Confidence < 0.1 {
 					abs.State = "fading"
 				}
@@ -414,8 +442,8 @@ func (aa *AbstractionAgent) verifyGrounding(ctx context.Context, report *CycleRe
 			}
 
 			// Enforce grace period floor for young abstractions
-			if isYoung && abs.Confidence < 0.5 {
-				abs.Confidence = 0.5
+			if isYoung && abs.Confidence < groundingFloor {
+				abs.Confidence = groundingFloor
 			}
 
 			abs.UpdatedAt = time.Now()
@@ -518,9 +546,13 @@ Set has_principle to false if:
 		concepts = agentutil.DeduplicateConcepts(allConcepts)
 	}
 
+	defaultConf := aa.config.DefaultConfidence
+	if defaultConf <= 0 {
+		defaultConf = 0.6
+	}
 	confidence := float32(result.Confidence)
 	if confidence <= 0 || confidence > 1.0 {
-		confidence = 0.6
+		confidence = defaultConf
 	}
 
 	return &store.Abstraction{
@@ -625,9 +657,13 @@ Set has_axiom to false if:
 		concepts = agentutil.DeduplicateConcepts(allConcepts)
 	}
 
+	axiomConf := aa.config.PatternAxiomConfidence
+	if axiomConf <= 0 {
+		axiomConf = 0.5
+	}
 	confidence := float32(result.Confidence)
 	if confidence <= 0 || confidence > 1.0 {
-		confidence = 0.5
+		confidence = axiomConf
 	}
 
 	return &store.Abstraction{

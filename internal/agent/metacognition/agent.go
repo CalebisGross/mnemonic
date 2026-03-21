@@ -14,7 +14,10 @@ import (
 )
 
 type MetacognitionConfig struct {
-	Interval time.Duration
+	Interval           time.Duration
+	StartupDelay       time.Duration
+	ReflectionLookback time.Duration
+	DeadMemoryWindow   time.Duration
 }
 
 type MetacognitionAgent struct {
@@ -84,7 +87,11 @@ func (ma *MetacognitionAgent) RunOnce(ctx context.Context) (*CycleReport, error)
 func (ma *MetacognitionAgent) loop() {
 	defer ma.wg.Done()
 
-	startupTimer := time.NewTimer(60 * time.Second)
+	startupDelay := ma.config.StartupDelay
+	if startupDelay <= 0 {
+		startupDelay = 60 * time.Second
+	}
+	startupTimer := time.NewTimer(startupDelay)
 	defer startupTimer.Stop()
 
 	ticker := time.NewTicker(ma.config.Interval)
@@ -116,8 +123,12 @@ func (ma *MetacognitionAgent) loop() {
 func (ma *MetacognitionAgent) runCycle(ctx context.Context) (*CycleReport, error) {
 	startTime := time.Now()
 
-	// Cleanup: remove meta observations older than 7 days to prevent stale triggers
-	cutoff := time.Now().Add(-7 * 24 * time.Hour)
+	// Cleanup: remove meta observations older than reflection lookback to prevent stale triggers
+	lookback := ma.config.ReflectionLookback
+	if lookback <= 0 {
+		lookback = 7 * 24 * time.Hour
+	}
+	cutoff := time.Now().Add(-lookback)
 	if deleted, err := ma.store.DeleteOldMetaObservations(ctx, cutoff); err != nil {
 		ma.log.Warn("failed to cleanup old meta observations", "error", err)
 	} else if deleted > 0 {
@@ -277,7 +288,11 @@ func (ma *MetacognitionAgent) analyzeSourceDistribution(ctx context.Context) *st
 }
 
 func (ma *MetacognitionAgent) analyzeRecallEffectiveness(ctx context.Context) *store.MetaObservation {
-	deadMemories, err := ma.store.GetDeadMemories(ctx, time.Now().Add(-30*24*time.Hour))
+	deadWindow := ma.config.DeadMemoryWindow
+	if deadWindow <= 0 {
+		deadWindow = 30 * 24 * time.Hour
+	}
+	deadMemories, err := ma.store.GetDeadMemories(ctx, time.Now().Add(-deadWindow))
 	if err != nil {
 		ma.log.Error("failed to get dead memories", "error", err)
 		return nil
@@ -365,7 +380,11 @@ func (ma *MetacognitionAgent) checkConsolidationHealth(ctx context.Context) *sto
 
 // analyzeRetrievalFeedback reads actual retrieval feedback records and computes quality metrics.
 func (ma *MetacognitionAgent) analyzeRetrievalFeedback(ctx context.Context) *store.MetaObservation {
-	since := time.Now().Add(-7 * 24 * time.Hour)
+	feedbackLookback := ma.config.ReflectionLookback
+	if feedbackLookback <= 0 {
+		feedbackLookback = 7 * 24 * time.Hour
+	}
+	since := time.Now().Add(-feedbackLookback)
 	feedbacks, err := ma.store.ListRecentRetrievalFeedback(ctx, since, 50)
 	if err != nil {
 		ma.log.Warn("failed to list recent retrieval feedback", "error", err)

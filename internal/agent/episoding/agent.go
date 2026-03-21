@@ -21,6 +21,8 @@ type EpisodingConfig struct {
 	EpisodeWindowSizeMin int           // fixed window size in minutes (default 10)
 	MinEventsPerEpisode  int           // minimum events to form an episode (default 2)
 	PollingInterval      time.Duration // how often to check for new events (default 10s)
+	StartupLookback      time.Duration // how far back to look on startup (default 1h)
+	DefaultSalience      float32       // fallback salience for synthesized episodes (default 0.5)
 }
 
 // DefaultEpisodingConfig returns sensible defaults.
@@ -53,18 +55,30 @@ type EpisodingAgent struct {
 
 // NewEpisodingAgent creates a new episoding agent.
 func NewEpisodingAgent(s store.Store, llmProvider llm.Provider, log *slog.Logger, cfg EpisodingConfig) *EpisodingAgent {
+	lookback := cfg.StartupLookback
+	if lookback <= 0 {
+		lookback = 1 * time.Hour
+	}
 	return &EpisodingAgent{
 		store:             s,
 		llmProvider:       llmProvider,
 		config:            cfg,
 		log:               log,
-		lastProcessedTime: time.Now().Add(-1 * time.Hour), // look back 1 hour on start
+		lastProcessedTime: time.Now().Add(-lookback),
 		assignedRawIDs:    make(map[string]bool),
 	}
 }
 
 func (ea *EpisodingAgent) Name() string {
 	return "episoding"
+}
+
+// defaultSalience returns the configured default salience, falling back to 0.5.
+func (ea *EpisodingAgent) defaultSalience() float32 {
+	if ea.config.DefaultSalience > 0 {
+		return ea.config.DefaultSalience
+	}
+	return 0.5
 }
 
 func (ea *EpisodingAgent) Start(ctx context.Context, bus events.Bus) error {
@@ -412,7 +426,7 @@ Respond with ONLY a JSON object (no prose, no fences):
 		ea.log.Warn("LLM episode synthesis failed, using fallback", "error", err)
 		ep.Title = fmt.Sprintf("Session with %d events", len(ep.RawMemoryIDs))
 		ep.Summary = ep.Title
-		ep.Salience = 0.5
+		ep.Salience = ea.defaultSalience()
 		ep.Concepts = []string{}
 	} else {
 		// Parse LLM response

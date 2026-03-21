@@ -1381,10 +1381,16 @@ func serveCommand(configPath string) {
 	// --- Start episoding agent (groups raw events into episodes) ---
 	var episodingAgent *episoding.EpisodingAgent
 	if cfg.Episoding.Enabled {
+		pollingInterval := time.Duration(cfg.Episoding.PollingIntervalSec) * time.Second
+		if pollingInterval <= 0 {
+			pollingInterval = 10 * time.Second
+		}
 		episodingCfg := episoding.EpisodingConfig{
 			EpisodeWindowSizeMin: cfg.Episoding.EpisodeWindowSizeMin,
 			MinEventsPerEpisode:  cfg.Episoding.MinEventsPerEpisode,
-			PollingInterval:      10 * time.Second,
+			PollingInterval:      pollingInterval,
+			StartupLookback:      cfg.Episoding.StartupLookback,
+			DefaultSalience:      cfg.Episoding.DefaultSalience,
 		}
 		episodingAgent = episoding.NewEpisodingAgent(memStore, wrap("episoding"), log, episodingCfg)
 		if err := episodingAgent.Start(rootCtx, bus); err != nil {
@@ -1539,7 +1545,10 @@ func serveCommand(configPath string) {
 	var metaAgent *metacognition.MetacognitionAgent
 	if cfg.Metacognition.Enabled {
 		metaAgent = metacognition.NewMetacognitionAgent(memStore, wrap("metacognition"), metacognition.MetacognitionConfig{
-			Interval: cfg.Metacognition.Interval,
+			Interval:           cfg.Metacognition.Interval,
+			StartupDelay:       time.Duration(cfg.Metacognition.StartupDelaySec) * time.Second,
+			ReflectionLookback: cfg.Metacognition.ReflectionLookback,
+			DeadMemoryWindow:   cfg.Metacognition.DeadMemoryWindow,
 		}, log)
 
 		if err := metaAgent.Start(rootCtx, bus); err != nil {
@@ -1558,6 +1567,10 @@ func serveCommand(configPath string) {
 			SalienceThreshold:      cfg.Dreaming.SalienceThreshold,
 			AssociationBoostFactor: cfg.Dreaming.AssociationBoostFactor,
 			NoisePruneThreshold:    cfg.Dreaming.NoisePruneThreshold,
+			StartupDelay:           time.Duration(cfg.Dreaming.StartupDelaySec) * time.Second,
+			DeadMemoryWindow:       cfg.Dreaming.DeadMemoryWindow,
+			InsightsBudget:         cfg.Dreaming.InsightsBudget,
+			DefaultConfidence:      cfg.Dreaming.DefaultConfidence,
 		}, log)
 
 		if err := dreamer.Start(rootCtx, bus); err != nil {
@@ -1571,9 +1584,16 @@ func serveCommand(configPath string) {
 	var abstractionAgent *abstraction.AbstractionAgent
 	if cfg.Abstraction.Enabled {
 		abstractionAgent = abstraction.NewAbstractionAgent(memStore, wrap("abstraction"), abstraction.AbstractionConfig{
-			Interval:    cfg.Abstraction.Interval,
-			MinStrength: cfg.Abstraction.MinStrength,
-			MaxLLMCalls: cfg.Abstraction.MaxLLMCalls,
+			Interval:                   cfg.Abstraction.Interval,
+			MinStrength:                cfg.Abstraction.MinStrength,
+			MaxLLMCalls:                cfg.Abstraction.MaxLLMCalls,
+			StartupDelay:               time.Duration(cfg.Abstraction.StartupDelaySec) * time.Second,
+			DefaultConfidence:          cfg.Abstraction.DefaultConfidence,
+			PatternAxiomConfidence:     cfg.Abstraction.PatternAxiomConfidence,
+			ConfidenceModerateDecay:    cfg.Abstraction.ConfidenceModerateDecay,
+			ConfidenceSignificantDecay: cfg.Abstraction.ConfidenceSignificantDecay,
+			ConfidenceSevereDecay:      cfg.Abstraction.ConfidenceSevereDecay,
+			GroundingFloor:             cfg.Abstraction.GroundingFloor,
 		}, log)
 
 		if err := abstractionAgent.Start(rootCtx, bus); err != nil {
@@ -2502,7 +2522,7 @@ func formatDetailValue(val interface{}) string {
 
 // metaCycleCommand runs a single metacognition cycle and displays results.
 func metaCycleCommand(configPath string) {
-	_, db, llmProvider, log := initRuntime(configPath)
+	cfg, db, llmProvider, log := initRuntime(configPath)
 	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
@@ -2510,7 +2530,9 @@ func metaCycleCommand(configPath string) {
 	defer func() { _ = bus.Close() }()
 
 	agent := metacognition.NewMetacognitionAgent(db, llmProvider, metacognition.MetacognitionConfig{
-		Interval: 24 * time.Hour, // doesn't matter for RunOnce
+		Interval:           24 * time.Hour, // doesn't matter for RunOnce
+		ReflectionLookback: cfg.Metacognition.ReflectionLookback,
+		DeadMemoryWindow:   cfg.Metacognition.DeadMemoryWindow,
 	}, log)
 
 	fmt.Println("Running metacognition cycle...")
@@ -2567,6 +2589,9 @@ func dreamCycleCommand(configPath string) {
 		SalienceThreshold:      cfg.Dreaming.SalienceThreshold,
 		AssociationBoostFactor: cfg.Dreaming.AssociationBoostFactor,
 		NoisePruneThreshold:    cfg.Dreaming.NoisePruneThreshold,
+		DeadMemoryWindow:       cfg.Dreaming.DeadMemoryWindow,
+		InsightsBudget:         cfg.Dreaming.InsightsBudget,
+		DefaultConfidence:      cfg.Dreaming.DefaultConfidence,
 	}, log)
 
 	fmt.Println("Running dream cycle (memory replay)...")

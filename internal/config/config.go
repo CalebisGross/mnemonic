@@ -270,9 +270,14 @@ type RetrievalConfig struct {
 
 // MetacognitionConfig holds metacognition settings.
 type MetacognitionConfig struct {
-	Enabled     bool          `yaml:"enabled"`
-	IntervalRaw string        `yaml:"interval"`
-	Interval    time.Duration `yaml:"-"`
+	Enabled              bool          `yaml:"enabled"`
+	IntervalRaw          string        `yaml:"interval"`
+	Interval             time.Duration `yaml:"-"`
+	StartupDelaySec      int           `yaml:"startup_delay_sec"`       // seconds before first cycle (default: 60)
+	ReflectionLookbackRaw string       `yaml:"reflection_lookback"`     // how far back to analyze (default: "7d")
+	ReflectionLookback   time.Duration `yaml:"-"`
+	DeadMemoryWindowRaw  string        `yaml:"dead_memory_window"`      // age threshold for dead memory analysis (default: "30d")
+	DeadMemoryWindow     time.Duration `yaml:"-"`
 }
 
 // DreamingConfig holds dreaming (memory replay) agent settings.
@@ -284,13 +289,22 @@ type DreamingConfig struct {
 	SalienceThreshold      float32       `yaml:"salience_threshold"`
 	AssociationBoostFactor float32       `yaml:"association_boost_factor"`
 	NoisePruneThreshold    float32       `yaml:"noise_prune_threshold"`
+	StartupDelaySec        int           `yaml:"startup_delay_sec"`       // seconds before first cycle (default: 90)
+	DeadMemoryWindowRaw    string        `yaml:"dead_memory_window"`      // age threshold for noise pruning (default: "30d")
+	DeadMemoryWindow       time.Duration `yaml:"-"`
+	InsightsBudget         int           `yaml:"insights_budget"`         // max insights per dream cycle (default: 2)
+	DefaultConfidence      float32       `yaml:"default_confidence"`      // fallback confidence for generated insights (default: 0.6)
 }
 
 // EpisodingConfig configures the episoding agent.
 type EpisodingConfig struct {
-	Enabled              bool `yaml:"enabled"`
-	EpisodeWindowSizeMin int  `yaml:"episode_window_size_min"`
-	MinEventsPerEpisode  int  `yaml:"min_events_per_episode"`
+	Enabled              bool    `yaml:"enabled"`
+	EpisodeWindowSizeMin int     `yaml:"episode_window_size_min"`
+	MinEventsPerEpisode  int     `yaml:"min_events_per_episode"`
+	StartupLookbackRaw   string  `yaml:"startup_lookback"`       // how far back to look on startup (default: "1h")
+	StartupLookback      time.Duration `yaml:"-"`
+	DefaultSalience      float32 `yaml:"default_salience"`       // fallback salience for synthesized episodes (default: 0.5)
+	PollingIntervalSec   int     `yaml:"polling_interval_sec"`   // seconds between episode checks (default: 10)
 }
 
 // AbstractionConfig configures the abstraction agent (hierarchical knowledge).
@@ -300,6 +314,13 @@ type AbstractionConfig struct {
 	Interval    time.Duration `yaml:"-"`
 	MinStrength float32       `yaml:"min_strength"`  // minimum pattern strength to consider
 	MaxLLMCalls int           `yaml:"max_llm_calls"` // budget per cycle
+	StartupDelaySec          int     `yaml:"startup_delay_sec"`           // seconds before first cycle (default: 300)
+	DefaultConfidence        float32 `yaml:"default_confidence"`          // fallback confidence for principles (default: 0.6)
+	PatternAxiomConfidence   float32 `yaml:"pattern_axiom_confidence"`    // fallback confidence for axioms (default: 0.5)
+	ConfidenceModerateDecay  float32 `yaml:"confidence_moderate_decay"`   // grounding multiplier for moderate decay (default: 0.9)
+	ConfidenceSignificantDecay float32 `yaml:"confidence_significant_decay"` // grounding multiplier for significant decay (default: 0.7)
+	ConfidenceSevereDecay    float32 `yaml:"confidence_severe_decay"`     // grounding multiplier for severe decay (default: 0.5)
+	GroundingFloor           float32 `yaml:"grounding_floor"`             // confidence floor for young abstractions (default: 0.5)
 }
 
 // OrchestratorConfig configures the autonomous orchestrator.
@@ -612,9 +633,14 @@ func Default() *Config {
 			},
 		},
 		Metacognition: MetacognitionConfig{
-			Enabled:     true,
-			IntervalRaw: "24h",
-			Interval:    24 * time.Hour,
+			Enabled:               true,
+			IntervalRaw:           "24h",
+			Interval:              24 * time.Hour,
+			StartupDelaySec:       60,
+			ReflectionLookbackRaw: "7d",
+			ReflectionLookback:    7 * 24 * time.Hour,
+			DeadMemoryWindowRaw:   "30d",
+			DeadMemoryWindow:      30 * 24 * time.Hour,
 		},
 		Dreaming: DreamingConfig{
 			Enabled:                true,
@@ -624,18 +650,34 @@ func Default() *Config {
 			SalienceThreshold:      0.3,
 			AssociationBoostFactor: 1.15,
 			NoisePruneThreshold:    0.15,
+			StartupDelaySec:        90,
+			DeadMemoryWindowRaw:    "30d",
+			DeadMemoryWindow:       30 * 24 * time.Hour,
+			InsightsBudget:         2,
+			DefaultConfidence:      0.6,
 		},
 		Episoding: EpisodingConfig{
 			Enabled:              true,
 			EpisodeWindowSizeMin: 10,
 			MinEventsPerEpisode:  2,
+			StartupLookbackRaw:   "1h",
+			StartupLookback:      1 * time.Hour,
+			DefaultSalience:      0.5,
+			PollingIntervalSec:   10,
 		},
 		Abstraction: AbstractionConfig{
-			Enabled:     true,
-			IntervalRaw: "6h",
-			Interval:    6 * time.Hour,
-			MinStrength: 0.4,
-			MaxLLMCalls: 5,
+			Enabled:                    true,
+			IntervalRaw:                "6h",
+			Interval:                   6 * time.Hour,
+			MinStrength:                0.4,
+			MaxLLMCalls:                5,
+			StartupDelaySec:            300,
+			DefaultConfidence:          0.6,
+			PatternAxiomConfidence:     0.5,
+			ConfidenceModerateDecay:    0.9,
+			ConfidenceSignificantDecay: 0.7,
+			ConfidenceSevereDecay:      0.5,
+			GroundingFloor:             0.5,
 		},
 		Orchestrator: OrchestratorConfig{
 			Enabled:             true,
@@ -744,6 +786,10 @@ func (c *Config) process(configDir string) error {
 		{c.Abstraction.IntervalRaw, &c.Abstraction.Interval, "abstraction.interval"},
 		{c.Orchestrator.SelfTestIntervalRaw, &c.Orchestrator.SelfTestInterval, "orchestrator.self_test_interval"},
 		{c.Orchestrator.MonitorIntervalRaw, &c.Orchestrator.MonitorInterval, "orchestrator.monitor_interval"},
+		{c.Metacognition.ReflectionLookbackRaw, &c.Metacognition.ReflectionLookback, "metacognition.reflection_lookback"},
+		{c.Metacognition.DeadMemoryWindowRaw, &c.Metacognition.DeadMemoryWindow, "metacognition.dead_memory_window"},
+		{c.Dreaming.DeadMemoryWindowRaw, &c.Dreaming.DeadMemoryWindow, "dreaming.dead_memory_window"},
+		{c.Episoding.StartupLookbackRaw, &c.Episoding.StartupLookback, "episoding.startup_lookback"},
 	}
 	for _, d := range durations {
 		if d.raw != "" {
