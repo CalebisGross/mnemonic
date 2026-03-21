@@ -9,17 +9,52 @@ import (
 	"time"
 )
 
+// ScoringConfig holds configurable scoring weights for heuristic evaluation.
+type ScoringConfig struct {
+	BaseFilesystem   float32 // base score for filesystem events (default: 0.3)
+	BaseTerminal     float32 // base score for terminal events (default: 0.3)
+	BaseClipboard    float32 // base score for clipboard events (default: 0.3)
+	BaseMCP          float32 // base score for MCP events (default: 0.6)
+	BoostErrorLog    float32 // boost for error/log files (default: 0.2)
+	BoostConfig      float32 // boost for config files (default: 0.15)
+	BoostSourceCode  float32 // boost for source code files (default: 0.1)
+	BoostCommand     float32 // boost for high-signal commands (default: 0.25)
+	BoostCodeSnippet float32 // boost for clipboard code snippets (default: 0.2)
+	KeywordHigh      float32 // per-keyword boost for high-signal words (default: 0.15)
+	KeywordMedium    float32 // per-keyword boost for medium-signal words (default: 0.10)
+	KeywordLow       float32 // per-keyword boost for low-signal words (default: 0.05)
+}
+
 // HeuristicConfig defines the configuration for the heuristic pre-filter.
 type HeuristicConfig struct {
-	MinContentLength   int     // minimum content length to pass
-	MaxContentLength   int     // maximum content length to pass
-	FrequencyThreshold int     // skip if seen >N times in window
-	FrequencyWindowMin int     // window size in minutes
-	PassScore          float32 // minimum score to pass filter (default: 0.2)
-	BatchEditWindowSec int     // seconds window for batch edit detection (default: 5)
-	BatchEditThreshold int     // edits in window to count as batch (default: 3)
-	RecallBoostMax     float32 // max recall salience boost (default: 0.2)
-	RecallBoostMinutes int     // minutes recall boost decays over (default: 30)
+	MinContentLength   int           // minimum content length to pass
+	MaxContentLength   int           // maximum content length to pass
+	FrequencyThreshold int           // skip if seen >N times in window
+	FrequencyWindowMin int           // window size in minutes
+	PassScore          float32       // minimum score to pass filter (default: 0.2)
+	BatchEditWindowSec int           // seconds window for batch edit detection (default: 5)
+	BatchEditThreshold int           // edits in window to count as batch (default: 3)
+	RecallBoostMax     float32       // max recall salience boost (default: 0.2)
+	RecallBoostMinutes int           // minutes recall boost decays over (default: 30)
+	Scoring            ScoringConfig // scoring weights
+}
+
+// scoringOrDefault returns the scoring config with defaults for any zero values.
+func (s ScoringConfig) withDefaults() ScoringConfig {
+	d := s
+	if d.BaseFilesystem <= 0 { d.BaseFilesystem = 0.3 }
+	if d.BaseTerminal <= 0 { d.BaseTerminal = 0.3 }
+	if d.BaseClipboard <= 0 { d.BaseClipboard = 0.3 }
+	if d.BaseMCP <= 0 { d.BaseMCP = 0.6 }
+	if d.BoostErrorLog <= 0 { d.BoostErrorLog = 0.2 }
+	if d.BoostConfig <= 0 { d.BoostConfig = 0.15 }
+	if d.BoostSourceCode <= 0 { d.BoostSourceCode = 0.1 }
+	if d.BoostCommand <= 0 { d.BoostCommand = 0.25 }
+	if d.BoostCodeSnippet <= 0 { d.BoostCodeSnippet = 0.2 }
+	if d.KeywordHigh <= 0 { d.KeywordHigh = 0.15 }
+	if d.KeywordMedium <= 0 { d.KeywordMedium = 0.10 }
+	if d.KeywordLow <= 0 { d.KeywordLow = 0.05 }
+	return d
 }
 
 // HeuristicResult represents the outcome of a heuristic evaluation.
@@ -37,8 +72,9 @@ type frequencyEntry struct {
 
 // HeuristicFilter implements the pre-filter logic for watcher events.
 type HeuristicFilter struct {
-	cfg       HeuristicConfig
-	log       *slog.Logger
+	cfg     HeuristicConfig
+	scoring ScoringConfig // resolved scoring with defaults applied
+	log     *slog.Logger
 	mu        sync.RWMutex
 	frequency map[string][]frequencyEntry // hash -> list of timestamps
 
@@ -61,6 +97,7 @@ type recentEdit struct {
 func NewHeuristicFilter(cfg HeuristicConfig, log *slog.Logger) *HeuristicFilter {
 	hf := &HeuristicFilter{
 		cfg:           cfg,
+		scoring:       cfg.Scoring.withDefaults(),
 		log:           log,
 		frequency:     make(map[string][]frequencyEntry),
 		recalledFiles: make(map[string]time.Time),
@@ -324,18 +361,18 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 		}
 	}
 
-	score := float32(0.3)
+	score := h.scoring.BaseFilesystem
 	rationale := "filesystem event"
 
 	// Score boost for error logs and config files
 	lowerPath := strings.ToLower(path)
 	if strings.Contains(lowerPath, "error") || strings.Contains(lowerPath, ".log") {
-		score += 0.2
+		score += h.scoring.BoostErrorLog
 		rationale += "; error/log file"
 	} else if strings.HasSuffix(lowerPath, ".cfg") || strings.HasSuffix(lowerPath, ".conf") ||
 		strings.HasSuffix(lowerPath, ".yaml") || strings.HasSuffix(lowerPath, ".json") ||
 		strings.HasSuffix(lowerPath, ".toml") {
-		score += 0.15
+		score += h.scoring.BoostConfig
 		rationale += "; config file"
 	}
 
@@ -343,7 +380,7 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 	sourceExtensions := []string{".go", ".py", ".js", ".ts", ".java", ".rs", ".cpp", ".c", ".h"}
 	for _, ext := range sourceExtensions {
 		if strings.HasSuffix(lowerPath, ext) {
-			score += 0.1
+			score += h.scoring.BoostSourceCode
 			rationale += "; source code"
 			break
 		}
@@ -354,7 +391,7 @@ func (h *HeuristicFilter) evaluateFilesystem(path, content string) (float32, str
 
 // evaluateTerminal scores terminal events.
 func (h *HeuristicFilter) evaluateTerminal(content string) (float32, string, bool) {
-	score := float32(0.3)
+	score := h.scoring.BaseTerminal
 	rationale := "terminal event"
 
 	command := strings.Fields(content)
@@ -383,7 +420,7 @@ func (h *HeuristicFilter) evaluateTerminal(content string) (float32, string, boo
 
 	for signalCmd := range highSignalCommands {
 		if strings.HasPrefix(cmd, signalCmd) {
-			score += 0.25
+			score += h.scoring.BoostCommand
 			rationale += fmt.Sprintf("; high-signal command '%s'", cmd)
 			break
 		}
@@ -394,7 +431,7 @@ func (h *HeuristicFilter) evaluateTerminal(content string) (float32, string, boo
 
 // evaluateClipboard scores clipboard events.
 func (h *HeuristicFilter) evaluateClipboard(content string) (float32, string, bool) {
-	score := float32(0.3)
+	score := h.scoring.BaseClipboard
 	rationale := "clipboard event"
 
 	trimmed := strings.TrimSpace(content)
@@ -415,7 +452,7 @@ func (h *HeuristicFilter) evaluateClipboard(content string) (float32, string, bo
 	}
 
 	if foundCodeIndicators > 0 {
-		score += 0.2
+		score += h.scoring.BoostCodeSnippet
 		rationale += fmt.Sprintf("; code snippet detected (%d indicators)", foundCodeIndicators)
 	}
 
@@ -428,37 +465,37 @@ func (h *HeuristicFilter) scoreKeywords(content string) (float32, int) {
 	score := float32(0.0)
 	matchCount := 0
 
-	// High signal keywords (0.15 each)
+	// High signal keywords
 	highSignalKeywords := []string{
 		"error", "bug", "fix", "todo", "hack",
 		"important", "decision", "deadline", "meeting",
 	}
 	for _, keyword := range highSignalKeywords {
 		if strings.Contains(contentLower, keyword) {
-			score += 0.15
+			score += h.scoring.KeywordHigh
 			matchCount++
 		}
 	}
 
-	// Medium signal keywords (0.10 each)
+	// Medium signal keywords
 	mediumSignalKeywords := []string{
 		"config", "deploy", "release", "review",
 		"merge", "refactor", "test", "fail",
 	}
 	for _, keyword := range mediumSignalKeywords {
 		if strings.Contains(contentLower, keyword) {
-			score += 0.10
+			score += h.scoring.KeywordMedium
 			matchCount++
 		}
 	}
 
-	// Low signal keywords (0.05 each)
+	// Low signal keywords
 	lowSignalKeywords := []string{
 		"update", "change", "add", "remove", "create", "install",
 	}
 	for _, keyword := range lowSignalKeywords {
 		if strings.Contains(contentLower, keyword) {
-			score += 0.05
+			score += h.scoring.KeywordLow
 			matchCount++
 		}
 	}
@@ -469,7 +506,7 @@ func (h *HeuristicFilter) scoreKeywords(content string) (float32, int) {
 // evaluateMCP scores MCP-source events (from Claude Code tool calls).
 // MCP events are high-signal — they represent explicit user/AI interaction.
 func (h *HeuristicFilter) evaluateMCP(eventType, content string) (float32, string, bool) {
-	score := float32(0.6) // High base score — MCP events are always intentional
+	score := h.scoring.BaseMCP // High base score — MCP events are always intentional
 	rationale := "mcp event (high-signal)"
 
 	switch eventType {

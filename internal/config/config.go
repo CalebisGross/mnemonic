@@ -77,6 +77,22 @@ type MemoryConfig struct {
 	MaxWorkingMemory int `yaml:"max_working_memory"`
 }
 
+// PerceptionScoringConfig holds configurable scoring weights for heuristic evaluation.
+type PerceptionScoringConfig struct {
+	BaseFilesystem   float32 `yaml:"base_filesystem"`    // default: 0.3
+	BaseTerminal     float32 `yaml:"base_terminal"`      // default: 0.3
+	BaseClipboard    float32 `yaml:"base_clipboard"`     // default: 0.3
+	BaseMCP          float32 `yaml:"base_mcp"`           // default: 0.6
+	BoostErrorLog    float32 `yaml:"boost_error_log"`    // default: 0.2
+	BoostConfig      float32 `yaml:"boost_config"`       // default: 0.15
+	BoostSourceCode  float32 `yaml:"boost_source_code"`  // default: 0.1
+	BoostCommand     float32 `yaml:"boost_command"`      // default: 0.25
+	BoostCodeSnippet float32 `yaml:"boost_code_snippet"` // default: 0.2
+	KeywordHigh      float32 `yaml:"keyword_high"`       // default: 0.15
+	KeywordMedium    float32 `yaml:"keyword_medium"`     // default: 0.10
+	KeywordLow       float32 `yaml:"keyword_low"`        // default: 0.05
+}
+
 // PerceptionConfig holds perception settings.
 type PerceptionConfig struct {
 	Enabled               bool                       `yaml:"enabled"`
@@ -87,6 +103,7 @@ type PerceptionConfig struct {
 	Terminal              TerminalPerceptionConfig   `yaml:"terminal"`
 	Clipboard             ClipboardPerceptionConfig  `yaml:"clipboard"`
 	Heuristics            HeuristicsConfig           `yaml:"heuristics"`
+	Scoring               PerceptionScoringConfig    `yaml:"scoring"`
 	ContentDedupTTLSec    int                        `yaml:"content_dedup_ttl_sec"`   // how long to remember content hashes for dedup (default: 5)
 	GitOpCooldownSec      int                        `yaml:"git_op_cooldown_sec"`     // suppress fs events after git ops for this many seconds (default: 10)
 	MaxRawContentLen      int                        `yaml:"max_raw_content_len"`     // max chars stored per raw memory (default: 10000)
@@ -447,6 +464,20 @@ func Default() *Config {
 			Enabled:               true,
 			LLMGatingEnabled:      false,
 			LearnedExclusionsPath: "~/.mnemonic/learned-exclusions.txt",
+			Scoring: PerceptionScoringConfig{
+				BaseFilesystem:   0.3,
+				BaseTerminal:     0.3,
+				BaseClipboard:    0.3,
+				BaseMCP:          0.6,
+				BoostErrorLog:    0.2,
+				BoostConfig:      0.15,
+				BoostSourceCode:  0.1,
+				BoostCommand:     0.25,
+				BoostCodeSnippet: 0.2,
+				KeywordHigh:      0.15,
+				KeywordMedium:    0.10,
+				KeywordLow:       0.05,
+			},
 			ContentDedupTTLSec:    5,
 			GitOpCooldownSec:      10,
 			MaxRawContentLen:      10000,
