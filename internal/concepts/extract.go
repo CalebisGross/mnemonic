@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 )
 
 // homeDir is cached at init to avoid repeated syscalls.
@@ -49,13 +50,24 @@ func FromPath(path string) []string {
 		// Version control / build
 		"git": true, "node_modules": true, "vendor": true,
 		"dist": true, "build": true, "target": true,
+		// Asset / binary directories
+		"images": true, "icons": true, "fonts": true, "assets": true,
+		"static": true, "public": true, "resources": true, "res": true,
+		"img": true, "figures": true, "screenshots": true,
+		// Documentation directories
+		"docs": true, "doc": true,
+		// Generic noise segments
+		"bytes": true, "data": true, "cache": true, "temp": true,
+		"logs": true, "output": true, "out": true,
+		"generated": true, "gen": true, "third_party": true,
+		"thirdparty": true, "deps": true, "extern": true, "external": true,
 	}
 
 	seen := make(map[string]bool)
 	var concepts []string
 	for _, seg := range parts {
 		seg = strings.ToLower(seg)
-		if len(seg) <= 2 || skip[seg] || seen[seg] {
+		if len(seg) <= 2 || skip[seg] || seen[seg] || isNumeric(seg) {
 			continue
 		}
 		seen[seg] = true
@@ -64,15 +76,23 @@ func FromPath(path string) []string {
 	return concepts
 }
 
+// isNumeric returns true if the segment is purely digits or a dimension pattern
+// like "96x96", "512x512", etc. These are noise in concept extraction.
+func isNumeric(s string) bool {
+	for _, r := range s {
+		if !unicode.IsDigit(r) && r != 'x' {
+			return false
+		}
+	}
+	return true
+}
+
 // FromEventType extracts a meaningful action verb from a watcher event type.
 // e.g. "file_created" → "created", "file_modified" → "modified".
 // Returns empty string for generic types like "dir_activity".
 func FromEventType(eventType string) string {
-	if strings.HasPrefix(eventType, "file_") {
-		action := strings.TrimPrefix(eventType, "file_")
-		if action != "" {
-			return action
-		}
+	if action, ok := strings.CutPrefix(eventType, "file_"); ok && action != "" {
+		return action
 	}
 	return ""
 }
