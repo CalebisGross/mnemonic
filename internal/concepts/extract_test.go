@@ -19,9 +19,14 @@ func TestFromPath(t *testing.T) {
 			expected: []string{"mcp", "server"},
 		},
 		{
-			name:     "absolute path with project",
+			name:     "absolute path filters OS segments",
 			path:     "/home/user/Projects/mnemonic/internal/store/sqlite/sqlite.go",
-			expected: []string{"home", "user", "projects", "mnemonic", "store", "sqlite"},
+			expected: []string{"mnemonic", "store", "sqlite"},
+		},
+		{
+			name:     "absolute path with home dir stripped",
+			path:     homeDir + "/Projects/mnemonic/internal/agent/encoding/agent.go",
+			expected: []string{"mnemonic", "agent", "encoding"},
 		},
 		{
 			name:     "test file with underscores",

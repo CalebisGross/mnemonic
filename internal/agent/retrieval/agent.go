@@ -230,6 +230,25 @@ func NewRetrievalAgent(s store.Store, llmProv llm.Provider, cfg RetrievalConfig,
 	return ra
 }
 
+// ActivitySnapshot returns the current activity tracker state as a map of
+// concept → last-seen time. Returns nil if activity tracking is disabled.
+func (ra *RetrievalAgent) ActivitySnapshot() map[string]time.Time {
+	return ra.activity.snapshot()
+}
+
+// SyncActivity replaces the activity tracker state with the given snapshot.
+// Used by MCP processes to sync activity from the daemon's REST API.
+func (ra *RetrievalAgent) SyncActivity(snap map[string]time.Time) {
+	if ra.activity == nil {
+		// Create a tracker on-the-fly for MCP processes that don't have a bus.
+		ra.activity = newActivityTracker(
+			intOr(ra.config.ContextBoostWindowMin, 30),
+			f32Or(ra.config.ContextBoostMax, 0.2),
+		)
+	}
+	ra.activity.loadSnapshot(snap)
+}
+
 // Query executes a retrieval query and returns ranked results with optional synthesis.
 func (ra *RetrievalAgent) Query(ctx context.Context, req QueryRequest) (QueryResponse, error) {
 	startTime := time.Now()

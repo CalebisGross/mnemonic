@@ -46,6 +46,35 @@ func (at *activityTracker) observe(concepts []string) {
 	}
 }
 
+// snapshot returns a copy of the current concept map, filtered to non-expired entries.
+func (at *activityTracker) snapshot() map[string]time.Time {
+	if at == nil {
+		return nil
+	}
+	at.mu.RLock()
+	defer at.mu.RUnlock()
+
+	now := time.Now()
+	out := make(map[string]time.Time, len(at.concepts))
+	for k, ts := range at.concepts {
+		if now.Sub(ts) < at.window {
+			out[k] = ts
+		}
+	}
+	return out
+}
+
+// loadSnapshot replaces the concept map with the provided snapshot.
+// Used by MCP processes to sync activity state from the daemon.
+func (at *activityTracker) loadSnapshot(snap map[string]time.Time) {
+	if at == nil {
+		return
+	}
+	at.mu.Lock()
+	defer at.mu.Unlock()
+	at.concepts = snap
+}
+
 // boostForMemory computes an additive score boost for a memory based on
 // how many of its concepts overlap with recent watcher activity. The boost
 // scales with overlap fraction and decays linearly over the window.

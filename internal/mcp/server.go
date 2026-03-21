@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"io"
+	"net/http"
+
 	"github.com/appsprout-dev/mnemonic/internal/agent/retrieval"
 	"github.com/appsprout-dev/mnemonic/internal/concepts"
 	"github.com/appsprout-dev/mnemonic/internal/events"
@@ -68,10 +71,13 @@ type MCPServer struct {
 	contextAccepted     int                  // count of suggested IDs later recalled/rated
 	contextTotalOffered int                  // total IDs offered across all get_context calls
 	lastSuggestedIDsCSV string               // comma-separated IDs from last get_context (for tool_usage recording)
+
+	// Daemon activity sync (for context_boost in MCP processes)
+	daemonURL string // base URL of daemon API (e.g. "http://127.0.0.1:9999")
 }
 
 // NewMCPServer creates a new MCP server with the given dependencies.
-func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, log *slog.Logger, version string, coachingFile string, excludePatterns []string, maxContentBytes int, resolver ProjectResolver) *MCPServer {
+func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, log *slog.Logger, version string, coachingFile string, excludePatterns []string, maxContentBytes int, resolver ProjectResolver, daemonURL string) *MCPServer {
 	// Auto-detect project from working directory
 	wd, _ := os.Getwd()
 	var project string
@@ -99,6 +105,7 @@ func NewMCPServer(s store.Store, r *retrieval.RetrievalAgent, bus events.Bus, lo
 		coachingFile:        coachingFile,
 		excludePatterns:     excludePatterns,
 		maxContentBytes:     maxContentBytes,
+		daemonURL:           daemonURL,
 		lastContextTime:     time.Now(),
 		sessionRecalledIDs:  make(map[string]bool),
 		contextSuggestedIDs: make(map[string]time.Time),
@@ -447,10 +454,42 @@ func (srv *MCPServer) handleRemember(ctx context.Context, args map[string]interf
 		raw.ID, memType, project, raw.ID, raw.InitialSalience, raw.ID)), nil
 }
 
+// syncActivityFromDaemon fetches the daemon's watcher activity tracker state
+// and loads it into the local retrieval agent. This bridges the gap between
+// the daemon process (which runs watchers) and the MCP process (which doesn't).
+// Errors are logged but never block recall.
+func (srv *MCPServer) syncActivityFromDaemon() {
+	if srv.daemonURL == "" {
+		return
+	}
+	resp, err := http.Get(srv.daemonURL + "/api/v1/activity")
+	if err != nil {
+		srv.log.Debug("activity sync failed", "error", err)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return
+	}
+	var body struct {
+		Concepts map[string]time.Time `json:"concepts"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		srv.log.Debug("activity sync decode failed", "error", err)
+		return
+	}
+	if len(body.Concepts) > 0 {
+		srv.retriever.SyncActivity(body.Concepts)
+	}
+}
+
 // handleRecall retrieves memories using semantic search and spread activation.
 // All recall paths (project-scoped, concept-filtered, default) go through the
 // retrieval agent for spread activation and synthesis.
 func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	srv.syncActivityFromDaemon()
+
 	query, ok := args["query"].(string)
 	if !ok || query == "" {
 		return nil, fmt.Errorf("query parameter is required and must be a string")
@@ -752,6 +791,8 @@ func formatPatternsJSON(patterns []store.Pattern) []map[string]interface{} {
 
 // handleBatchRecall runs multiple recall queries in parallel and returns combined JSON results.
 func (srv *MCPServer) handleBatchRecall(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	srv.syncActivityFromDaemon()
+
 	queriesRaw, ok := args["queries"].([]interface{})
 	if !ok || len(queriesRaw) == 0 {
 		return nil, fmt.Errorf("queries parameter is required and must be a non-empty array")
@@ -1314,6 +1355,8 @@ func (srv *MCPServer) handleStatus(ctx context.Context, args map[string]interfac
 // handleRecallProject retrieves project-scoped memories with an activity summary.
 // Routes through the retrieval agent for spread activation and synthesis.
 func (srv *MCPServer) handleRecallProject(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	srv.syncActivityFromDaemon()
+
 	project := srv.project
 	if p, ok := args["project"].(string); ok && p != "" {
 		project = srv.resolveProjectName(p)

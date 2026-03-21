@@ -6,14 +6,26 @@
 package concepts
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 )
+
+// homeDir is cached at init to avoid repeated syscalls.
+var homeDir string
+
+func init() {
+	homeDir, _ = os.UserHomeDir()
+}
 
 // FromPath extracts meaningful concept tokens from a file path.
 // Splits on separators, filters short/noisy segments, and deduplicates.
 // e.g. "internal/agent/retrieval/agent.go" → ["agent", "retrieval"].
 func FromPath(path string) []string {
+	// Strip home directory prefix to avoid leaking username and OS path segments.
+	if homeDir != "" {
+		path = strings.TrimPrefix(path, homeDir)
+	}
 	// Strip extension and split into directory/file segments.
 	path = strings.TrimSuffix(path, filepath.Ext(path))
 	// Normalize separators and split.
@@ -21,12 +33,22 @@ func FromPath(path string) []string {
 		return r == '/' || r == '\\' || r == '_' || r == '-' || r == '.'
 	})
 
-	// Filter short/noisy segments.
+	// Filter short/noisy segments: OS paths, common dirs, stop words.
 	skip := map[string]bool{
+		// OS / home directory segments
+		"home": true, "users": true, "user": true, "var": true,
+		"usr": true, "opt": true, "etc": true, "root": true,
+		"volumes": true, "mnt": true, "media": true, "run": true,
+		"projects": true, "documents": true, "desktop": true,
+		"downloads": true, "workspace": true, "workspaces": true,
+		// Go project structure
 		"internal": true, "cmd": true, "pkg": true, "src": true,
 		"lib": true, "bin": true, "tmp": true, "test": true,
 		"main": true, "index": true, "mod": true, "sum": true,
 		"go": true, "the": true, "and": true, "for": true,
+		// Version control / build
+		"git": true, "node_modules": true, "vendor": true,
+		"dist": true, "build": true, "target": true,
 	}
 
 	seen := make(map[string]bool)

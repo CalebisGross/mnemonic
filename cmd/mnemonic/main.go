@@ -2610,7 +2610,8 @@ func mcpCommand(configPath string) {
 	retriever := retrieval.NewRetrievalAgent(db, llmProvider, buildRetrievalConfig(cfg), log, bus)
 
 	mcpResolver := config.NewProjectResolver(cfg.Projects)
-	server := mcp.NewMCPServer(db, retriever, bus, log, Version, cfg.Coaching.CoachingFile, cfg.Perception.Filesystem.ExcludePatterns, cfg.Perception.Filesystem.MaxContentBytes, mcpResolver)
+	daemonURL := fmt.Sprintf("http://%s:%d", cfg.API.Host, cfg.API.Port)
+	server := mcp.NewMCPServer(db, retriever, bus, log, Version, cfg.Coaching.CoachingFile, cfg.Perception.Filesystem.ExcludePatterns, cfg.Perception.Filesystem.MaxContentBytes, mcpResolver, daemonURL)
 
 	// Handle signal for graceful shutdown
 	sigChan := make(chan os.Signal, 1)

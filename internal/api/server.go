@@ -101,6 +101,9 @@ func (s *Server) registerRoutes() {
 	// Query and retrieval
 	s.mux.HandleFunc("POST /api/v1/query", routes.HandleQuery(s.deps.Retriever, s.deps.Bus, s.deps.Store, s.deps.Log))
 
+	// Activity (watcher-derived concept tracker for MCP sync)
+	s.mux.HandleFunc("GET /api/v1/activity", routes.HandleActivity(s.deps.Retriever, s.deps.Log))
+
 	// Feedback
 	s.mux.HandleFunc("POST /api/v1/feedback", routes.HandleFeedback(s.deps.Store, s.deps.Log))
 
