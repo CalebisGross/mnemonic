@@ -48,3 +48,5 @@ training/sweep_results.tsv
 comparison-results.md
 benchmark-results.md
 sweep-results.md
+lifecycle-results.md
+training/probe_results.tsv
