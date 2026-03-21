@@ -1518,53 +1518,55 @@ func (ca *ConsolidationAgent) decayPatterns(ctx context.Context) (int, error) {
 	decayed := 0
 	for i := range patterns {
 		p := &patterns[i]
-		if p.State != "active" {
+		if p.State != "active" && p.State != "fading" {
 			continue
 		}
 
-		// Apply baseline decay — self-sustaining patterns get reduced decay
+		// Compute evidence health ratio for all patterns with evidence.
+		totalEvidence := len(p.EvidenceIDs)
+		var evidenceRatio float32 = 1.0
+		if totalEvidence > 0 {
+			activeEvidence := 0
+			for _, memID := range p.EvidenceIDs {
+				mem, err := ca.store.GetMemory(ctx, memID)
+				if err == nil && (mem.State == store.MemoryStateActive || mem.State == store.MemoryStateFading) {
+					activeEvidence++
+				}
+			}
+			evidenceRatio = float32(activeEvidence) / float32(totalEvidence)
+		} else {
+			evidenceRatio = 0
+		}
+
+		// Apply baseline decay — self-sustaining requires healthy evidence
 		minEvidence := cfgInt(ca.config.SelfSustainingMinEvidence, 10)
 		minStrength := cfgFloat32(ca.config.SelfSustainingMinStrength, 0.9)
-		if len(p.EvidenceIDs) >= minEvidence && p.Strength >= minStrength {
+		if len(p.EvidenceIDs) >= minEvidence && p.Strength >= minStrength && evidenceRatio >= 0.5 {
 			p.Strength *= cfgFloat32(ca.config.SelfSustainingDecay, 0.9999)
 		} else {
 			p.Strength *= cfgFloat32(ca.config.PatternBaselineDecay, 0.998)
 		}
 
-		// Additional evidence-based decay for patterns not accessed within 3 days
-		recency := p.LastAccessed
-		if recency.IsZero() {
-			recency = p.CreatedAt
-		}
-		stale := recency.IsZero() || time.Since(recency).Hours() >= 72
-
-		if stale {
-			totalEvidence := len(p.EvidenceIDs)
-			if totalEvidence == 0 {
+		// Evidence-based decay applies to all patterns (not just stale ones).
+		// Patterns with dead evidence should decay regardless of access recency.
+		if totalEvidence == 0 {
+			p.Strength *= cfgFloat32(ca.config.StaleDecayAggressive, 0.90)
+		} else {
+			switch {
+			case evidenceRatio >= 0.5:
+				// Healthy evidence — no additional decay beyond baseline
+			case evidenceRatio >= 0.2:
+				p.Strength *= cfgFloat32(ca.config.StaleDecayModerate, 0.95)
+			default:
 				p.Strength *= cfgFloat32(ca.config.StaleDecayAggressive, 0.90)
-			} else {
-				activeEvidence := 0
-				for _, memID := range p.EvidenceIDs {
-					mem, err := ca.store.GetMemory(ctx, memID)
-					if err == nil && (mem.State == store.MemoryStateActive || mem.State == store.MemoryStateFading) {
-						activeEvidence++
-					}
-				}
-				evidenceRatio := float32(activeEvidence) / float32(totalEvidence)
-				switch {
-				case evidenceRatio >= 0.5:
-					p.Strength *= cfgFloat32(ca.config.StaleDecayHealthy, 0.98)
-				case evidenceRatio >= 0.2:
-					p.Strength *= cfgFloat32(ca.config.StaleDecayModerate, 0.95)
-				default:
-					p.Strength *= cfgFloat32(ca.config.StaleDecayAggressive, 0.90)
-				}
 			}
 		}
 
-		// Below 0.1 → transition to fading
-		if p.Strength < 0.1 {
+		// State transitions: active → fading at 0.1, fading → archived at 0.05
+		if p.State == "active" && p.Strength < 0.1 {
 			p.State = "fading"
+		} else if p.State == "fading" && p.Strength < 0.05 {
+			p.State = "archived"
 		}
 
 		p.UpdatedAt = time.Now()

@@ -283,6 +283,8 @@ func (srv *MCPServer) handleToolCall(ctx context.Context, req *jsonRPCRequest) *
 		result, toolErr = srv.handleAmend(ctx, params.Arguments)
 	case "check_memory":
 		result, toolErr = srv.handleCheckMemory(ctx, params.Arguments)
+	case "dismiss_pattern":
+		result, toolErr = srv.handleDismissPattern(ctx, params.Arguments)
 	default:
 		return errorResponse(req.ID, -32602, fmt.Sprintf("Unknown tool: %s", params.Name))
 	}
@@ -2479,4 +2481,19 @@ func (srv *MCPServer) handleCheckMemory(ctx context.Context, args map[string]int
 	}
 
 	return toolResult(sb.String()), nil
+}
+
+// handleDismissPattern archives a pattern by ID.
+func (srv *MCPServer) handleDismissPattern(_ context.Context, args map[string]interface{}) (interface{}, error) {
+	patternID, _ := args["pattern_id"].(string)
+	if patternID == "" {
+		return nil, fmt.Errorf("pattern_id is required")
+	}
+
+	if err := srv.store.ArchivePattern(context.Background(), patternID); err != nil {
+		return nil, fmt.Errorf("archiving pattern %s: %w", patternID, err)
+	}
+
+	srv.log.Info("pattern dismissed", "pattern_id", patternID, "session_id", srv.sessionID)
+	return toolResult(fmt.Sprintf("Pattern %s archived", patternID)), nil
 }

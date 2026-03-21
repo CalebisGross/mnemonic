@@ -94,16 +94,17 @@ func (s *SQLiteStore) UpdatePattern(ctx context.Context, p store.Pattern) error 
 }
 
 // ListPatterns lists patterns, optionally filtered by project.
+// Returns active and fading patterns (fading are needed by decay logic).
 func (s *SQLiteStore) ListPatterns(ctx context.Context, project string, limit int) ([]store.Pattern, error) {
 	var query string
-	var args []interface{}
+	var args []any
 
 	if project == "" {
-		query = `SELECT ` + patternColumns + ` FROM patterns WHERE state = 'active' ORDER BY strength DESC LIMIT ?`
-		args = []interface{}{limit}
+		query = `SELECT ` + patternColumns + ` FROM patterns WHERE state IN ('active', 'fading') ORDER BY strength DESC LIMIT ?`
+		args = []any{limit}
 	} else {
-		query = `SELECT ` + patternColumns + ` FROM patterns WHERE state = 'active' AND project = ? ORDER BY strength DESC LIMIT ?`
-		args = []interface{}{project, limit}
+		query = `SELECT ` + patternColumns + ` FROM patterns WHERE state IN ('active', 'fading') AND project = ? ORDER BY strength DESC LIMIT ?`
+		args = []any{project, limit}
 	}
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -246,6 +247,76 @@ func scanPatternRows(rows *sql.Rows) ([]store.Pattern, error) {
 	}
 
 	return patterns, nil
+}
+
+// SearchPatternsByEmbeddingInProject searches patterns scoped to a project.
+// When project is non-empty, only patterns belonging to that project are returned.
+func (s *SQLiteStore) SearchPatternsByEmbeddingInProject(ctx context.Context, embedding []float32, project string, limit int) ([]store.Pattern, error) {
+	if len(embedding) == 0 {
+		return nil, fmt.Errorf("embedding cannot be empty")
+	}
+	if project == "" {
+		return s.SearchPatternsByEmbedding(ctx, embedding, limit)
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, embedding FROM patterns WHERE state = 'active' AND project = ? AND embedding IS NOT NULL AND length(embedding) > 0`, project)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query pattern embeddings: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	type candidate struct {
+		id    string
+		score float32
+	}
+	var candidates []candidate
+
+	for rows.Next() {
+		var id string
+		var blob []byte
+		if err := rows.Scan(&id, &blob); err != nil {
+			continue
+		}
+		emb := decodeEmbedding(blob)
+		if len(emb) == 0 {
+			continue
+		}
+		score := cosineSimilarity(embedding, emb)
+		candidates = append(candidates, candidate{id: id, score: score})
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].score > candidates[j].score
+	})
+	if len(candidates) > limit {
+		candidates = candidates[:limit]
+	}
+
+	var patterns []store.Pattern
+	for _, c := range candidates {
+		p, err := s.GetPattern(ctx, c.id)
+		if err != nil {
+			continue
+		}
+		patterns = append(patterns, p)
+	}
+
+	return patterns, nil
+}
+
+// ArchivePattern archives a single pattern by ID.
+func (s *SQLiteStore) ArchivePattern(ctx context.Context, id string) error {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE patterns SET state = 'archived', updated_at = datetime('now') WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("archiving pattern %s: %w", id, err)
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("pattern %s: %w", id, store.ErrNotFound)
+	}
+	return nil
 }
 
 // ArchiveAllPatterns transitions all active patterns to archived state.

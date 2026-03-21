@@ -356,16 +356,17 @@ func (ra *RetrievalAgent) Query(ctx context.Context, req QueryRequest) (QueryRes
 
 	if embedding != nil {
 		if req.IncludePatterns {
-			patterns, err := ra.store.SearchPatternsByEmbedding(ctx, embedding, intOr(ra.config.PatternSearchLimit, 5))
-			if err != nil {
-				ra.log.Warn("pattern search failed", "query_id", queryID, "error", err)
+			var patterns []store.Pattern
+			var pErr error
+			if req.Project != "" {
+				patterns, pErr = ra.store.SearchPatternsByEmbeddingInProject(ctx, embedding, req.Project, intOr(ra.config.PatternSearchLimit, 5))
 			} else {
-				// Filter by project if specified
-				for _, p := range patterns {
-					if req.Project == "" || p.Project == "" || p.Project == req.Project {
-						matchedPatterns = append(matchedPatterns, p)
-					}
-				}
+				patterns, pErr = ra.store.SearchPatternsByEmbedding(ctx, embedding, intOr(ra.config.PatternSearchLimit, 5))
+			}
+			if pErr != nil {
+				ra.log.Warn("pattern search failed", "query_id", queryID, "error", pErr)
+			} else {
+				matchedPatterns = patterns
 			}
 		}
 

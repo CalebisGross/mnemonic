@@ -188,6 +188,23 @@ func forgetToolDef() ToolDefinition {
 	}
 }
 
+func dismissPatternToolDef() ToolDefinition {
+	return ToolDefinition{
+		Name:        "dismiss_pattern",
+		Description: "Archive a pattern by ID. Use this to dismiss stale or irrelevant patterns that keep surfacing in recall results.",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"pattern_id": map[string]interface{}{
+					"type":        "string",
+					"description": "The ID of the pattern to archive",
+				},
+			},
+			"required": []string{"pattern_id"},
+		},
+	}
+}
+
 func statusToolDef() ToolDefinition {
 	return ToolDefinition{
 		Name:        "status",
@@ -574,5 +591,6 @@ func allToolDefs() []ToolDefinition {
 		listExclusionsToolDef(),
 		amendToolDef(),
 		checkMemoryToolDef(),
+		dismissPatternToolDef(),
 	}
 }
