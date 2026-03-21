@@ -239,8 +239,13 @@ def train(config, args):
             losses = ckpt.get('losses', [])
         else:
             # Legacy checkpoint: raw state_dict only
-            raw_model.load_state_dict(ckpt)
+            state_dict = ckpt
+            if any(k.startswith("_orig_mod.") for k in state_dict.keys()):
+                state_dict = {k.replace("_orig_mod.", "", 1): v for k, v in state_dict.items()}
+            raw_model.load_state_dict(state_dict)
             print("  Warning: legacy checkpoint (model weights only, no optimizer state)")
+        if args.resume_step is not None:
+            global_step = args.resume_step
         global_step_start = global_step
         if losses:
             print(f"  Resumed at step {global_step}, loss={losses[-1]:.3f}")
@@ -386,6 +391,7 @@ def main():
     parser.add_argument("--spoke-lr-mult", type=float, default=2.0, help="Spoke LR multiplier")
     parser.add_argument("--tokenized-dir", type=str, default=None)
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt file to resume from")
+    parser.add_argument("--resume-step", type=int, default=None, help="Override start step for legacy checkpoints without step info")
     parser.add_argument("--smoke-test", action="store_true", help="Run 1000 steps to verify pipeline")
     args = parser.parse_args()
 
