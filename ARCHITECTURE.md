@@ -111,10 +111,11 @@ type EventBus interface {
 
 ### Layer 1 — Perception (Full Ingestion)
 
-**Three watchers active from v1:**
+**Four watchers active from v1:**
 - **Filesystem**: Watch configured dirs, track create/modify/delete
 - **Terminal**: Poll shell history, detect new entries
 - **Clipboard**: Poll for text changes
+- **Git**: Watch repositories for commits, branches, and diffs
 
 **Heuristic pre-filter pipeline** (before any LLM call):
 ```
@@ -532,7 +533,8 @@ mnemonic/
 │   │   ├── watcher.go                     # Watcher interface
 │   │   ├── filesystem/                    # FSEvents (macOS) + fsnotify (Linux)
 │   │   ├── terminal/watcher.go            # Shell history polling
-│   │   └── clipboard/watcher.go           # Cross-platform clipboard
+│   │   ├── clipboard/watcher.go           # Cross-platform clipboard
+│   │   └── git/                           # Git repository watcher
 │   ├── agent/
 │   │   ├── agent.go                       # Agent interface
 │   │   ├── perception/                    # Layer 1: Watch + heuristic filter
@@ -552,7 +554,7 @@ mnemonic/
 │   │   ├── server.go                      # Static file serving (go:embed)
 │   │   └── static/index.html              # Dashboard (D3.js graph, live feed, query tester)
 │   ├── ingest/                            # Project ingestion engine
-│   ├── mcp/server.go                      # MCP server (19 tools for Claude Code)
+│   ├── mcp/server.go                      # MCP server (23 tools for Claude Code)
 │   ├── backup/                            # Export/import logic
 │   ├── daemon/                            # Service management (macOS LaunchAgent + Linux systemd)
 │   ├── config/config.go                   # Configuration loading
