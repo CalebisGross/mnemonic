@@ -4,6 +4,19 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.31.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.30.0...v0.31.0) (2026-03-21)
+
+
+### Features
+
+* dashboard session timeline, encoding pipeline, salience histogram ([1cee5d2](https://github.com/AppSprout-dev/mnemonic/commit/1cee5d2f6cfc4afa36c691c108e76740c8cb2c01))
+* dashboard session timeline, encoding pipeline, salience histogram ([6e7e5ef](https://github.com/AppSprout-dev/mnemonic/commit/6e7e5ef12aa0820eb98a00205e9c4d23180df444)), closes [#309](https://github.com/AppSprout-dev/mnemonic/issues/309)
+
+
+### Bug Fixes
+
+* add --resume-step and restore _orig_mod prefix stripping ([cb1be55](https://github.com/AppSprout-dev/mnemonic/commit/cb1be555958824b8bb23005ae72b2429f0ee2692))
+
 ## [0.30.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.29.1...v0.30.0) (2026-03-21)
 
 
