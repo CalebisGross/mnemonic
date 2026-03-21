@@ -4,6 +4,28 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.32.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.31.0...v0.32.0) (2026-03-21)
+
+
+### Features
+
+* dynamic tool count, associate_with validation, session timeline polish ([c318dd2](https://github.com/AppSprout-dev/mnemonic/commit/c318dd211760cee1aad614fb9b3828d63ee4acff))
+* dynamic tool count, associate_with validation, session timeline polish ([95e59f7](https://github.com/AppSprout-dev/mnemonic/commit/95e59f77223733524d02a2220d4725c9ca8ec274))
+* make agent constants configurable via config.yaml ([5d709ff](https://github.com/AppSprout-dev/mnemonic/commit/5d709ff8d816437226a3a22aae25e0935bbeb45d))
+* make agent constants configurable via config.yaml ([87e87e1](https://github.com/AppSprout-dev/mnemonic/commit/87e87e1d6e5462219b5a81ea14fabf9f02dbd294))
+* make MCP/API salience and feedback weights configurable ([d51c88a](https://github.com/AppSprout-dev/mnemonic/commit/d51c88a32e252ae987fff40786dde063c42427b4))
+* make MCP/API salience and feedback weights configurable ([d66b349](https://github.com/AppSprout-dev/mnemonic/commit/d66b349e30c881b0510910a89a0c5b1d57ab1ab9))
+* make perception scoring weights configurable ([2b7e4d8](https://github.com/AppSprout-dev/mnemonic/commit/2b7e4d8b8a23b007ca8b714b28ad3ec789ead4a8))
+* make perception scoring weights configurable via config.yaml ([8d1fc7e](https://github.com/AppSprout-dev/mnemonic/commit/8d1fc7ef9bedbcdb91685f8369e4b720bbc38845))
+* make reactor cooldowns and startup delays configurable ([de7f166](https://github.com/AppSprout-dev/mnemonic/commit/de7f1668e27de733c1424ece63d11c3ed0a6a9de))
+* make reactor cooldowns and startup delays configurable ([0504c06](https://github.com/AppSprout-dev/mnemonic/commit/0504c06f7df318807127f80cfe59835ab4a30a17))
+
+
+### Bug Fixes
+
+* prevent consolidation from reactivating dismissed patterns, filter exclude_concepts on patterns/principles ([7a583a7](https://github.com/AppSprout-dev/mnemonic/commit/7a583a77d1dadb0fa601a8521098f7f5c98895d9))
+* prevent dismissed pattern reactivation + filter exclude_concepts on patterns ([7d1255b](https://github.com/AppSprout-dev/mnemonic/commit/7d1255b9c32e662872147bc3bd31082df3b2fe20))
+
 ## [0.31.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.30.0...v0.31.0) (2026-03-21)
 
 
