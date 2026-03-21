@@ -67,7 +67,7 @@ func (s *SQLiteStore) UpdatePattern(ctx context.Context, p store.Pattern) error 
 		SET pattern_type = ?, title = ?, description = ?, evidence_ids = ?, strength = ?,
 		    project = ?, concepts = ?, embedding = ?, access_count = ?, last_accessed = ?,
 		    state = ?, updated_at = ?
-		WHERE id = ?`,
+		WHERE id = ? AND state != 'archived'`,
 		p.PatternType,
 		p.Title,
 		p.Description,
@@ -88,6 +88,16 @@ func (s *SQLiteStore) UpdatePattern(ctx context.Context, p store.Pattern) error 
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
+		// Check if the pattern exists but is archived (dismissed by user).
+		// In that case, the WHERE state != 'archived' guard prevented the update — this is expected.
+		var state string
+		row := s.db.QueryRowContext(ctx, `SELECT state FROM patterns WHERE id = ?`, p.ID)
+		if err := row.Scan(&state); err != nil {
+			return fmt.Errorf("pattern with id %s: %w", p.ID, store.ErrNotFound)
+		}
+		if state == "archived" {
+			return nil // silently skip — pattern was dismissed
+		}
 		return fmt.Errorf("pattern with id %s: %w", p.ID, store.ErrNotFound)
 	}
 	return nil

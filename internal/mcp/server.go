@@ -637,6 +637,25 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 		return nil, fmt.Errorf("retrieval failed: %w", err)
 	}
 
+	// Filter patterns and abstractions by exclude_concepts
+	if len(excludeConcepts) > 0 {
+		var filteredPatterns []store.Pattern
+		for _, p := range result.Patterns {
+			if !conceptOverlap(p.Concepts, excludeConcepts) {
+				filteredPatterns = append(filteredPatterns, p)
+			}
+		}
+		result.Patterns = filteredPatterns
+
+		var filteredAbstractions []store.Abstraction
+		for _, a := range result.Abstractions {
+			if !conceptOverlap(a.Concepts, excludeConcepts) {
+				filteredAbstractions = append(filteredAbstractions, a)
+			}
+		}
+		result.Abstractions = filteredAbstractions
+	}
+
 	// Save traversal data and access snapshot for feedback loop
 	var retrievedIDs []string
 	var snapshot []store.AccessSnapshotEntry
