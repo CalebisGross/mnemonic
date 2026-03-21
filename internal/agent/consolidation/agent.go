@@ -60,6 +60,9 @@ type ConsolidationConfig struct {
 
 	// Never-recalled watcher memory archival
 	NeverRecalledArchiveDays int // archive non-MCP memories with 0 access after this many days (default 30, 0=disabled)
+
+	// Startup delay
+	StartupDelay time.Duration // grace period before first cycle (default 30s)
 }
 
 // DefaultConfig returns sensible defaults for consolidation.
@@ -204,8 +207,11 @@ func (ca *ConsolidationAgent) consolidationLoop() {
 	ticker := time.NewTicker(ca.config.Interval)
 	defer ticker.Stop()
 
-	// Run one cycle shortly after startup (30s grace period)
-	startupTimer := time.NewTimer(30 * time.Second)
+	startupDelay := ca.config.StartupDelay
+	if startupDelay <= 0 {
+		startupDelay = 30 * time.Second
+	}
+	startupTimer := time.NewTimer(startupDelay)
 	defer startupTimer.Stop()
 
 	runAndLog := func(trigger string) {

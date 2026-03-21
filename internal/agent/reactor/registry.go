@@ -18,7 +18,18 @@ type ChainDeps struct {
 	DreamingTrigger      chan<- struct{}
 	IncrementAutonomous  func()
 	MaxDBSizeMB          int
+	CooldownOverrides    map[string]time.Duration // chain ID -> cooldown override
 	Logger               *slog.Logger
+}
+
+// cooldown returns the override duration for a chain if set, otherwise the default.
+func (d ChainDeps) cooldown(chainID string, defaultDuration time.Duration) time.Duration {
+	if d.CooldownOverrides != nil {
+		if override, ok := d.CooldownOverrides[chainID]; ok && override > 0 {
+			return override
+		}
+	}
+	return defaultDuration
 }
 
 // NewChainRegistry creates a registry with all built-in reactive chains.
@@ -40,7 +51,7 @@ func NewChainRegistry(deps ChainDeps) []*Chain {
 			},
 			&CooldownCondition{
 				ChainID:  "meta_consolidation_on_dead_ratio",
-				Duration: 30 * time.Minute,
+				Duration: deps.cooldown("meta_consolidation_on_dead_ratio", 30*time.Minute),
 			},
 		},
 		Actions: []Action{
@@ -56,7 +67,7 @@ func NewChainRegistry(deps ChainDeps) []*Chain {
 				Log:         log,
 			},
 		},
-		Cooldown: 30 * time.Minute,
+		Cooldown: deps.cooldown("meta_consolidation_on_dead_ratio", 30*time.Minute),
 		Priority: 10,
 		Enabled:  true,
 	})
@@ -72,7 +83,7 @@ func NewChainRegistry(deps ChainDeps) []*Chain {
 			&DBSizeCondition{MaxSizeMB: deps.MaxDBSizeMB},
 			&CooldownCondition{
 				ChainID:  "orch_consolidation_on_db_size",
-				Duration: 1 * time.Hour,
+				Duration: deps.cooldown("orch_consolidation_on_db_size", 1*time.Hour),
 			},
 		},
 		Actions: []Action{
@@ -87,7 +98,7 @@ func NewChainRegistry(deps ChainDeps) []*Chain {
 				Increment:   deps.IncrementAutonomous,
 			},
 		},
-		Cooldown: 1 * time.Hour,
+		Cooldown: deps.cooldown("orch_consolidation_on_db_size", 1*time.Hour),
 		Priority: 5,
 		Enabled:  true,
 	})
@@ -103,7 +114,7 @@ func NewChainRegistry(deps ChainDeps) []*Chain {
 			Conditions: []Condition{
 				&CooldownCondition{
 					ChainID:  "consolidation_on_request",
-					Duration: 5 * time.Minute,
+					Duration: deps.cooldown("consolidation_on_request", 5*time.Minute),
 				},
 			},
 			Actions: []Action{
@@ -113,7 +124,7 @@ func NewChainRegistry(deps ChainDeps) []*Chain {
 					Log:         log,
 				},
 			},
-			Cooldown: 5 * time.Minute,
+			Cooldown: deps.cooldown("consolidation_on_request", 5*time.Minute),
 			Priority: 100,
 			Enabled:  true,
 		})
@@ -152,7 +163,7 @@ func NewChainRegistry(deps ChainDeps) []*Chain {
 			Conditions: []Condition{
 				&CooldownCondition{
 					ChainID:  "meta_on_consolidation_completed",
-					Duration: 30 * time.Minute,
+					Duration: deps.cooldown("meta_on_consolidation_completed", 30*time.Minute),
 				},
 			},
 			Actions: []Action{
@@ -162,7 +173,7 @@ func NewChainRegistry(deps ChainDeps) []*Chain {
 					Log:         log,
 				},
 			},
-			Cooldown: 30 * time.Minute,
+			Cooldown: deps.cooldown("meta_on_consolidation_completed", 30*time.Minute),
 			Priority: 40,
 			Enabled:  true,
 		})
@@ -179,7 +190,7 @@ func NewChainRegistry(deps ChainDeps) []*Chain {
 			Conditions: []Condition{
 				&CooldownCondition{
 					ChainID:  "dreaming_on_episode_closed",
-					Duration: 10 * time.Minute,
+					Duration: deps.cooldown("dreaming_on_episode_closed", 10*time.Minute),
 				},
 			},
 			Actions: []Action{
@@ -189,7 +200,7 @@ func NewChainRegistry(deps ChainDeps) []*Chain {
 					Log:         log,
 				},
 			},
-			Cooldown: 10 * time.Minute,
+			Cooldown: deps.cooldown("dreaming_on_episode_closed", 10*time.Minute),
 			Priority: 30,
 			Enabled:  true,
 		})

@@ -1621,12 +1621,13 @@ func serveCommand(configPath string) {
 	var orch *orchestrator.Orchestrator
 	if cfg.Orchestrator.Enabled {
 		orch = orchestrator.NewOrchestrator(memStore, wrap("orchestrator"), orchestrator.OrchestratorConfig{
-			AdaptiveIntervals: cfg.Orchestrator.AdaptiveIntervals,
-			MaxDBSizeMB:       cfg.Orchestrator.MaxDBSizeMB,
-			SelfTestInterval:  cfg.Orchestrator.SelfTestInterval,
-			AutoRecovery:      cfg.Orchestrator.AutoRecovery,
-			HealthReportPath:  filepath.Join(filepath.Dir(cfg.Store.DBPath), "health.json"),
-			MonitorInterval:   cfg.Orchestrator.MonitorInterval,
+			AdaptiveIntervals:    cfg.Orchestrator.AdaptiveIntervals,
+			MaxDBSizeMB:          cfg.Orchestrator.MaxDBSizeMB,
+			SelfTestInterval:     cfg.Orchestrator.SelfTestInterval,
+			AutoRecovery:         cfg.Orchestrator.AutoRecovery,
+			HealthReportPath:     filepath.Join(filepath.Dir(cfg.Store.DBPath), "health.json"),
+			MonitorInterval:      cfg.Orchestrator.MonitorInterval,
+			HealthReportInterval: cfg.Orchestrator.HealthReportInterval,
 		}, log)
 
 		if err := orch.Start(rootCtx, bus); err != nil {
@@ -1643,9 +1644,24 @@ func serveCommand(configPath string) {
 		reactorLog := log.With("component", "reactor")
 		reactorEngine := reactor.NewEngine(memStore, bus, reactorLog)
 
+		// Parse reactor cooldown overrides from config
+		var cooldownOverrides map[string]time.Duration
+		if len(cfg.Reactor.Cooldowns) > 0 {
+			cooldownOverrides = make(map[string]time.Duration, len(cfg.Reactor.Cooldowns))
+			for chainID, durStr := range cfg.Reactor.Cooldowns {
+				d, err := time.ParseDuration(durStr)
+				if err != nil {
+					log.Warn("invalid reactor cooldown duration, ignoring", "chain_id", chainID, "value", durStr, "error", err)
+					continue
+				}
+				cooldownOverrides[chainID] = d
+			}
+		}
+
 		deps := reactor.ChainDeps{
-			MaxDBSizeMB: cfg.Orchestrator.MaxDBSizeMB,
-			Logger:      reactorLog,
+			MaxDBSizeMB:       cfg.Orchestrator.MaxDBSizeMB,
+			CooldownOverrides: cooldownOverrides,
+			Logger:            reactorLog,
 		}
 		if consolidator != nil {
 			deps.ConsolidationTrigger = consolidator.GetTriggerChannel()
@@ -1913,6 +1929,7 @@ func toConsolidationConfig(cfg *config.Config) consolidation.ConsolidationConfig
 		SelfSustainingMinStrength: float32(cfg.Consolidation.SelfSustainingMinStrength),
 		SelfSustainingDecay:       float32(cfg.Consolidation.SelfSustainingDecay),
 		NeverRecalledArchiveDays:  cfg.Consolidation.NeverRecalledArchiveDays,
+		StartupDelay:              time.Duration(cfg.Consolidation.StartupDelaySec) * time.Second,
 	}
 }
 

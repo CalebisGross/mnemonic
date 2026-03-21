@@ -17,12 +17,13 @@ import (
 
 // OrchestratorConfig configures the autonomous orchestrator.
 type OrchestratorConfig struct {
-	AdaptiveIntervals bool
-	MaxDBSizeMB       int
-	SelfTestInterval  time.Duration
-	AutoRecovery      bool
-	HealthReportPath  string // e.g. "~/.mnemonic/health.json"
-	MonitorInterval   time.Duration
+	AdaptiveIntervals    bool
+	MaxDBSizeMB          int
+	SelfTestInterval     time.Duration
+	AutoRecovery         bool
+	HealthReportPath     string // e.g. "~/.mnemonic/health.json"
+	MonitorInterval      time.Duration
+	HealthReportInterval time.Duration // how often to write health reports (default 5m)
 }
 
 // HealthReport is the machine-readable health status written periodically.
@@ -337,7 +338,11 @@ func (o *Orchestrator) runSelfTest(ctx context.Context) {
 func (o *Orchestrator) healthReportLoop() {
 	defer o.wg.Done()
 
-	ticker := time.NewTicker(5 * time.Minute)
+	reportInterval := o.config.HealthReportInterval
+	if reportInterval <= 0 {
+		reportInterval = 5 * time.Minute
+	}
+	ticker := time.NewTicker(reportInterval)
 	defer ticker.Stop()
 
 	// Write initial report

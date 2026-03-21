@@ -28,6 +28,7 @@ type Config struct {
 	Episoding     EpisodingConfig     `yaml:"episoding"`
 	Abstraction   AbstractionConfig   `yaml:"abstraction"`
 	Orchestrator  OrchestratorConfig  `yaml:"orchestrator"`
+	Reactor       ReactorConfig       `yaml:"reactor"`
 	MCP           MCPConfig           `yaml:"mcp"`
 	AgentSDK      AgentSDKConfig      `yaml:"agent_sdk"`
 	Training      TrainingConfig      `yaml:"training"`
@@ -236,6 +237,9 @@ type ConsolidationConfig struct {
 
 	// Never-recalled watcher memory archival
 	NeverRecalledArchiveDays int `yaml:"never_recalled_archive_days"`
+
+	// Startup delay
+	StartupDelaySec int `yaml:"startup_delay_sec"` // seconds before first consolidation cycle (default: 30)
 }
 
 // RetrievalConfig holds retrieval settings.
@@ -342,14 +346,21 @@ type AbstractionConfig struct {
 
 // OrchestratorConfig configures the autonomous orchestrator.
 type OrchestratorConfig struct {
-	Enabled             bool          `yaml:"enabled"`
-	AdaptiveIntervals   bool          `yaml:"adaptive_intervals"`
-	MaxDBSizeMB         int           `yaml:"max_db_size_mb"`
-	SelfTestIntervalRaw string        `yaml:"self_test_interval"`
-	SelfTestInterval    time.Duration `yaml:"-"`
-	AutoRecovery        bool          `yaml:"auto_recovery"`
-	MonitorIntervalRaw  string        `yaml:"monitor_interval"`
-	MonitorInterval     time.Duration `yaml:"-"`
+	Enabled                bool          `yaml:"enabled"`
+	AdaptiveIntervals      bool          `yaml:"adaptive_intervals"`
+	MaxDBSizeMB            int           `yaml:"max_db_size_mb"`
+	SelfTestIntervalRaw    string        `yaml:"self_test_interval"`
+	SelfTestInterval       time.Duration `yaml:"-"`
+	AutoRecovery           bool          `yaml:"auto_recovery"`
+	MonitorIntervalRaw     string        `yaml:"monitor_interval"`
+	MonitorInterval        time.Duration `yaml:"-"`
+	HealthReportIntervalRaw string       `yaml:"health_report_interval"` // how often to write health reports (default: "5m")
+	HealthReportInterval   time.Duration `yaml:"-"`
+}
+
+// ReactorConfig configures the event-driven reactor engine.
+type ReactorConfig struct {
+	Cooldowns map[string]string `yaml:"cooldowns"` // chain ID -> duration string (e.g., "30m", "1h")
 }
 
 // MCPConfig holds MCP server settings.
@@ -621,6 +632,7 @@ func Default() *Config {
 			SelfSustainingMinEvidence: 10,
 			SelfSustainingMinStrength: 0.9,
 			SelfSustainingDecay:       0.9999,
+			StartupDelaySec:           30,
 		},
 		Retrieval: RetrievalConfig{
 			MaxHops:             3,
@@ -717,9 +729,12 @@ func Default() *Config {
 			SelfTestIntervalRaw: "12h",
 			SelfTestInterval:    12 * time.Hour,
 			AutoRecovery:        true,
-			MonitorIntervalRaw:  "5m",
-			MonitorInterval:     5 * time.Minute,
+			MonitorIntervalRaw:      "5m",
+			MonitorInterval:         5 * time.Minute,
+			HealthReportIntervalRaw: "5m",
+			HealthReportInterval:    5 * time.Minute,
 		},
+		Reactor: ReactorConfig{},
 		MCP: MCPConfig{
 			Enabled: true,
 		},
@@ -817,6 +832,7 @@ func (c *Config) process(configDir string) error {
 		{c.Abstraction.IntervalRaw, &c.Abstraction.Interval, "abstraction.interval"},
 		{c.Orchestrator.SelfTestIntervalRaw, &c.Orchestrator.SelfTestInterval, "orchestrator.self_test_interval"},
 		{c.Orchestrator.MonitorIntervalRaw, &c.Orchestrator.MonitorInterval, "orchestrator.monitor_interval"},
+		{c.Orchestrator.HealthReportIntervalRaw, &c.Orchestrator.HealthReportInterval, "orchestrator.health_report_interval"},
 		{c.Metacognition.ReflectionLookbackRaw, &c.Metacognition.ReflectionLookback, "metacognition.reflection_lookback"},
 		{c.Metacognition.DeadMemoryWindowRaw, &c.Metacognition.DeadMemoryWindow, "metacognition.dead_memory_window"},
 		{c.Dreaming.DeadMemoryWindowRaw, &c.Dreaming.DeadMemoryWindow, "dreaming.dead_memory_window"},
