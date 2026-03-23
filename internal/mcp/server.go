@@ -798,7 +798,17 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 	srv.log.Info("recall completed", "query", query, "query_id", result.QueryID, "results", len(result.Memories), "patterns", len(result.Patterns), "abstractions", len(result.Abstractions), "took_ms", result.TookMs)
 
 	if outputFormat == "json" {
-		jsonResp := formatRecallJSON(result)
+		var assocMap map[string][]store.Association
+		if includeAssociations {
+			assocMap = make(map[string][]store.Association, len(result.Memories))
+			for _, m := range result.Memories {
+				assocs, aErr := srv.store.GetAssociations(ctx, m.Memory.ID)
+				if aErr == nil {
+					assocMap[m.Memory.ID] = assocs
+				}
+			}
+		}
+		jsonResp := formatRecallJSON(result, assocMap)
 		jsonBytes, err := json.Marshal(jsonResp)
 		if err != nil {
 			return toolResult(text), nil // fallback to text
@@ -810,7 +820,8 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 }
 
 // formatRecallJSON builds a structured map from retrieval results.
-func formatRecallJSON(result retrieval.QueryResponse) map[string]interface{} {
+// assocMap is optional — when non-nil, associations are included per memory.
+func formatRecallJSON(result retrieval.QueryResponse, assocMap map[string][]store.Association) map[string]interface{} {
 	memories := make([]map[string]interface{}, len(result.Memories))
 	for i, m := range result.Memories {
 		memories[i] = map[string]interface{}{
@@ -829,6 +840,24 @@ func formatRecallJSON(result retrieval.QueryResponse) map[string]interface{} {
 			"session_id":   m.Memory.SessionID,
 			"created_at":   m.Memory.CreatedAt,
 			"explanation":  m.Explanation,
+		}
+		if assocMap != nil {
+			if assocs, ok := assocMap[m.Memory.ID]; ok && len(assocs) > 0 {
+				limit := 3
+				if len(assocs) < limit {
+					limit = len(assocs)
+				}
+				jsonAssocs := make([]map[string]interface{}, limit)
+				for j := 0; j < limit; j++ {
+					a := assocs[j]
+					jsonAssocs[j] = map[string]interface{}{
+						"target_id":     a.TargetID,
+						"strength":      a.Strength,
+						"relation_type": a.RelationType,
+					}
+				}
+				memories[i]["associations"] = jsonAssocs
+			}
 		}
 	}
 
@@ -977,7 +1006,7 @@ func (srv *MCPServer) handleBatchRecall(ctx context.Context, args map[string]int
 			results <- batchResult{
 				Index: idx,
 				Query: q,
-				Data:  formatRecallJSON(qr),
+				Data:  formatRecallJSON(qr, nil),
 			}
 		}(i, query, qMap)
 	}
