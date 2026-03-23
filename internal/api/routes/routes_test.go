@@ -26,11 +26,12 @@ import (
 // mockStore implements store.Store with configurable behavior per-test.
 type mockStore struct {
 	storetest.MockStore
-	writeRawFn      func(ctx context.Context, raw store.RawMemory) error
-	getMemoryFn     func(ctx context.Context, id string) (store.Memory, error)
-	listMemoriesFn  func(ctx context.Context, state string, limit, offset int) ([]store.Memory, error)
-	countMemoriesFn func(ctx context.Context) (int, error)
-	getStatisticsFn func(ctx context.Context) (store.StoreStatistics, error)
+	writeRawFn        func(ctx context.Context, raw store.RawMemory) error
+	getMemoryFn       func(ctx context.Context, id string) (store.Memory, error)
+	listMemoriesFn    func(ctx context.Context, state string, limit, offset int) ([]store.Memory, error)
+	countMemoriesFn   func(ctx context.Context) (int, error)
+	getStatisticsFn   func(ctx context.Context) (store.StoreStatistics, error)
+	getAssociationsFn func(ctx context.Context, memoryID string) ([]store.Association, error)
 }
 
 func (m *mockStore) WriteRaw(ctx context.Context, raw store.RawMemory) error {
@@ -62,6 +63,12 @@ func (m *mockStore) GetStatistics(ctx context.Context) (store.StoreStatistics, e
 		return m.getStatisticsFn(ctx)
 	}
 	return store.StoreStatistics{}, nil
+}
+func (m *mockStore) GetAssociations(ctx context.Context, memoryID string) ([]store.Association, error) {
+	if m.getAssociationsFn != nil {
+		return m.getAssociationsFn(ctx, memoryID)
+	}
+	return nil, nil
 }
 func (m *mockStore) GetOpenEpisode(ctx context.Context) (store.Episode, error) {
 	return store.Episode{}, fmt.Errorf("no open episode")

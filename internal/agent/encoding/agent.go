@@ -99,11 +99,10 @@ var DefaultConceptVocabulary = []string{
 	// Code domains
 	"api", "database", "filesystem", "networking", "security", "authentication",
 	"performance", "logging", "ui", "cli",
-	// Memory system
-	"memory", "encoding", "retrieval", "embedding", "agent", "llm", "daemon", "mcp", "watcher",
+	// AI & systems (only when content is actually about these topics)
+	"memory", "llm",
 	// Project context
-	"decision", "error", "fix", "insight", "learning", "planning", "research",
-	"dependency", "schema", "config",
+	"fix", "research", "dependency", "schema", "config",
 }
 
 // DefaultConfig returns sensible defaults for encoding configuration.
@@ -1436,9 +1435,10 @@ Fill in every JSON field based on the actual event content below:
 	}
 
 	if len(conceptVocabulary) > 0 {
-		b.WriteString("CONCEPT VOCABULARY — you MUST use terms from this list whenever possible. Only invent a new term if NO vocabulary term fits:\n")
+		b.WriteString("IMPORTANT: Extract concepts from the CONTENT of the memory, not from what kind of memory it is. A decision about database indexing should have concepts like 'database', 'performance' — NOT 'decision'. Do NOT use metadata as concepts (e.g., 'source:mcp', 'type:insight', project names).\n\n")
+		b.WriteString("CONCEPT VOCABULARY — prefer terms from this list when they match the content topic. Invent a new term if no vocabulary term fits the actual subject matter:\n")
 		b.WriteString(strings.Join(conceptVocabulary, ", "))
-		b.WriteString("\n\nDo NOT use metadata as concepts (e.g., 'source:mcp', 'type:insight', project names). Concepts should describe the TOPIC, not the origin.\n\n")
+		b.WriteString("\n\n")
 	}
 
 	if episodeCtx != "" {
@@ -1563,6 +1563,8 @@ func heuristicSalience(source, memType, content string) float32 {
 		score = 0.4
 	case "clipboard":
 		score = 0.45
+	case "ingest":
+		score = 0.6 // explicit user action (ingest_project), deserves embedding
 	}
 
 	// Content-based adjustments

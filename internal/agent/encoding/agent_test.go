@@ -522,6 +522,13 @@ func TestHeuristicSalience(t *testing.T) {
 		}
 	})
 
+	t.Run("ingest source gets 0.6 base", func(t *testing.T) {
+		score := heuristicSalience("ingest", "file", "normal content")
+		if score < 0.6 {
+			t.Errorf("expected ingest source score >= 0.6, got %v", score)
+		}
+	})
+
 	t.Run("score capped at 1.0", func(t *testing.T) {
 		// User source + error + todo + important + long content
 		extreme := heuristicSalience("user", "explicit",
