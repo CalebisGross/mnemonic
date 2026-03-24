@@ -2044,7 +2044,7 @@
             var isNew = ep.state === 'open';
             var tone = ep.emotional_tone || ep.outcome || '';
             var tags = concepts.map(function(c) { return '<span class="forum-tag">' + escapeHtml(c) + '</span>'; }).join('');
-            var sub = ep.summary ? escapeHtml(ep.summary).substring(0, 100) : '';
+            var sub = ep.summary ? escapeHtml(ep.summary) : '';
             var expandId = 'exp-ep-' + idx;
             var bgClass = idx % 2 === 0 ? 'bg1' : 'bg2';
 
@@ -2141,7 +2141,7 @@
             row += '<a class="row-item-link"><span class="status-icon icon-ep" style="background:rgba(208,152,46,0.12);color:var(--decision);border-color:rgba(208,152,46,0.2)">PT</span></a>';
             row += '<div class="list-inner">';
             row += '<a class="forumtitle">' + escapeHtml(p.title || 'Untitled') + '</a>';
-            row += '<span class="forum-desc">' + escapeHtml((p.description || '').substring(0, 100)) + ' ' + tags + '</span>';
+            row += '<span class="forum-desc">' + escapeHtml(p.description || '') + ' ' + tags + '</span>';
             row += '</div></dt>';
             row += '<dd>' + strengthPct + '%</dd>';
             row += '<dd>' + evidenceCount + '</dd>';
@@ -2188,7 +2188,7 @@
             row += '<a class="row-item-link"><span class="status-icon" style="background:rgba(154,114,184,0.12);color:var(--insight);border:1px solid rgba(154,114,184,0.2)">' + iconLabel + '</span></a>';
             row += '<div class="list-inner">';
             row += '<a class="forumtitle">' + escapeHtml(a.title || 'Untitled') + ' <span style="font-size:0.72rem;color:var(--insight);font-weight:normal">[' + levelLabel + ']</span></a>';
-            row += '<span class="forum-desc">' + escapeHtml((a.description || '').substring(0, 120)) + ' ' + tags + '</span>';
+            row += '<span class="forum-desc">' + escapeHtml(a.description || '') + ' ' + tags + '</span>';
             row += '</div></dt>';
             row += '<dd>' + confPct + '%</dd>';
             row += '<dd>' + sourceCount + '</dd>';
