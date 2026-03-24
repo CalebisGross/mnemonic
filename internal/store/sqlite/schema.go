@@ -483,6 +483,12 @@ CREATE INDEX IF NOT EXISTS idx_amendments_memory ON memory_amendments(memory_id)
 		return fmt.Errorf("failed to add tool_usage.suggested_ids column: %w", err)
 	}
 
+	// Migration 016: Composite indexes for dashboard query performance
+	// ListMemories: WHERE state=? ORDER BY created_at DESC — was doing full table sort on 33K+ rows
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_state_created ON memories(state, created_at DESC)`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_project_state ON memories(project, state, timestamp DESC)`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_episode ON memories(episode_id) WHERE episode_id IS NOT NULL`)
+
 	return nil
 }
 
