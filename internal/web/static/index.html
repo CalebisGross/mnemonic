@@ -1975,10 +1975,9 @@
         try {
             var epResp = await fetchJSON('/episodes/' + episodeId);
             var ep = epResp.episode || epResp; // endpoint wraps in {episode: {...}}
-            // Fetch memories and filter by episode_id client-side
-            // (API doesn't filter by episode_id param reliably)
-            var memData = await fetchJSON('/memories?limit=200&state=active');
-            var memories = (memData.memories || []).filter(function(m) { return m.episode_id === episodeId; });
+            // Fetch memories for this episode
+            var memData = await fetchJSON('/memories?episode_id=' + episodeId + '&limit=100');
+            var memories = memData.memories || [];
 
             // Build thread header
             var html = '<div class="thread-wrap">';

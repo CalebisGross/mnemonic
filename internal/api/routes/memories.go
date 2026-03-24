@@ -199,6 +199,17 @@ func HandleListMemories(s store.Store, log *slog.Logger) http.HandlerFunc {
 		}
 		memories = filtered
 
+		// Optional episode_id filter
+		if epID := r.URL.Query().Get("episode_id"); epID != "" {
+			epFiltered := make([]store.Memory, 0)
+			for _, m := range memories {
+				if m.EpisodeID == epID {
+					epFiltered = append(epFiltered, m)
+				}
+			}
+			memories = epFiltered
+		}
+
 		resp := ListMemoriesResponse{
 			Memories: memories,
 			Count:    len(memories),
