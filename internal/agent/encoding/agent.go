@@ -1953,14 +1953,28 @@ func (ea *EncodingAgent) getRelatedContext(ctx context.Context, raw store.RawMem
 }
 
 // getEpisodeIDForRaw finds which episode a raw memory belongs to.
+// Checks both open and recently closed episodes since encoding is async
+// and the episode may close before encoding completes.
 func getEpisodeIDForRaw(ea *EncodingAgent, ctx context.Context, raw store.RawMemory) string {
+	// Check open episode first (fast path)
 	ep, err := ea.store.GetOpenEpisode(ctx)
+	if err == nil {
+		for _, id := range ep.RawMemoryIDs {
+			if id == raw.ID {
+				return ep.ID
+			}
+		}
+	}
+	// Check recent closed episodes (encoding runs async, episode may have closed)
+	episodes, err := ea.store.ListEpisodes(ctx, "closed", 10, 0)
 	if err != nil {
 		return ""
 	}
-	for _, id := range ep.RawMemoryIDs {
-		if id == raw.ID {
-			return ep.ID
+	for _, e := range episodes {
+		for _, id := range e.RawMemoryIDs {
+			if id == raw.ID {
+				return e.ID
+			}
 		}
 	}
 	return ""
