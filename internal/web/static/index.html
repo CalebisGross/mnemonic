@@ -1889,6 +1889,37 @@
             }
             html += '</div></div>';
 
+            if (memories.length === 0) {
+                // No encoded memories linked to this episode yet
+                // Show a "Daemon" post with the episode summary as content
+                var rawCount = (ep.raw_memory_ids || []).length;
+                html += '<div class="post bg1"><div class="inner">';
+                html += '<dl class="postprofile">';
+                html += '<dt><div class="avatar-container" style="width:48px;height:48px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:bold;font-family:var(--mono);background:rgba(154,114,184,0.15);color:var(--accent-violet);border:1px solid rgba(154,114,184,0.25)">EP</div>';
+                html += '<strong style="color:var(--accent-violet)">Episoding Agent</strong></dt>';
+                html += '<dd class="profile-rank"><span class="rank-general">episode</span></dd>';
+                html += '<dd><strong>Events:</strong> ' + rawCount + '</dd>';
+                if (ep.emotional_tone) html += '<dd><strong>Mood:</strong> ' + escapeHtml(ep.emotional_tone) + '</dd>';
+                if (ep.project) html += '<dd><strong>Project:</strong> ' + escapeHtml(ep.project) + '</dd>';
+                html += '</dl>';
+                html += '<div class="postbody">';
+                html += '<h3>' + escapeHtml(ep.title || 'Episode') + '</h3>';
+                html += '<p class="post-meta"><span>Posted by <strong style="color:var(--accent-violet)">Episoding Agent</strong> &middot; Episode Clustering</span><span>' + rawCount + ' raw observations</span></p>';
+                if (ep.summary) html += '<div class="content">' + escapeHtml(ep.summary) + '</div>';
+                if (ep.narrative) html += '<div class="content" style="margin-top:8px;color:var(--text-dim);font-style:italic">' + escapeHtml(ep.narrative) + '</div>';
+                if (ep.files_modified && ep.files_modified.length > 0) {
+                    html += '<div class="post-tags" style="margin-top:8px">';
+                    ep.files_modified.forEach(function(f) { html += '<span class="forum-tag">' + escapeHtml(f.split('/').pop()) + '</span>'; });
+                    html += '</div>';
+                }
+                if (ep.concepts && ep.concepts.length > 0) {
+                    html += '<div class="post-tags">';
+                    ep.concepts.forEach(function(c) { html += '<span class="forum-tag">' + escapeHtml(c) + '</span>'; });
+                    html += '</div>';
+                }
+                html += '<div style="margin-top:12px;padding:8px;font-size:0.78rem;color:var(--text-dim);background:rgba(255,255,255,0.02);border-radius:4px">Encoded memories will appear here after consolidation links them to this episode. ' + rawCount + ' raw observations are pending encoding.</div>';
+                html += '</div></div></div>';
+            }
             if (memories.length > 0) {
                 memories.forEach(function(m, idx) {
                     var type = memoryType(m);
