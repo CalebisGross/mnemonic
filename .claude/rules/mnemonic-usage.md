@@ -34,6 +34,13 @@ Don't only recall at session start. When entering new territory (new subsystem, 
 - If recall returned 0 results, no feedback needed — but consider whether your query was too broad or too specific
 - This trains the retrieval system — skipping it degrades future recall quality
 
+## Between Phases / Major Tasks (MUST)
+
+When working through multi-phase plans (epics, milestones, sequential issues):
+- `remember` key decisions, strategy changes, or gotchas from the completed phase before starting the next
+- `recall` relevant context before entering a new phase — prior phase decisions may affect the current one
+- This ensures continuity across long sessions and prevents rediscovering the same issues
+
 ## Before Committing (SHOULD)
 
 - Review the session's work and `remember` any decisions or insights that haven't been stored yet

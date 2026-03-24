@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic</title>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Spline+Sans+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #09080b;
+  --s1: #0f0e12;
+  --s2: #16151b;
+  --s3: #1d1c24;
+  --ink: #e2dfd8;
+  --decision: #d4a24e;
+  --insight: #a87fc4;
+  --learning: #5ea0c4;
+  --error: #c46e5e;
+  --serif: 'EB Garamond', 'Georgia', serif;
+  --mono: 'Spline Sans Mono', monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--serif);
+  -webkit-font-smoothing: antialiased;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Depth field — the whole page is a scroll-driven focus plane */
+.depthscroll {
+  height: 100vh;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: y proximity;
+}
+.depthscroll::-webkit-scrollbar { width: 0; }
+
+/* Each memory is a full-viewport "plane" you scroll through */
+.plane {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 max(32px, 12vw);
+  scroll-snap-align: center;
+  position: relative;
+  transition: opacity 0.6s;
+}
+
+.plane-inner {
+  max-width: 640px;
+  width: 100%;
+  position: relative;
+}
+
+/* The memory text — the ONLY visual element */
+.plane-text {
+  font-family: var(--serif);
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  transition: opacity 0.5s, filter 0.5s, transform 0.5s;
+}
+
+/* Metadata — whisper quiet, appears contextually */
+.plane-meta {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  margin-top: 24px;
+  display: flex;
+  gap: 20px;
+  transition: opacity 0.4s;
+}
+.plane-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.plane-meta-label {
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  opacity: 0.3;
+}
+.plane-meta-val {
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+}
+
+/* The depth indicator — a thin line on the right showing where you are */
+.depth-track {
+  position: fixed;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 200px;
+  width: 1px;
+  background: rgba(226, 223, 216, 0.06);
+  z-index: 100;
+}
+.depth-marker {
+  position: absolute;
+  width: 1px;
+  background: rgba(226, 223, 216, 0.3);
+  transition: top 0.4s, height 0.4s;
+  left: 0;
+}
+.depth-dots {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+}
+.depth-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s;
+  opacity: 0.25;
+}
+.depth-dot:hover { transform: scale(1.8); opacity: 0.6; }
+.depth-dot.active { opacity: 0.8; transform: scale(1.4); }
+
+/* Brand — tiny, top left */
+.brand {
+  position: fixed;
+  top: 20px;
+  left: 28px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.85rem;
+  color: rgba(226, 223, 216, 0.2);
+  z-index: 100;
+  letter-spacing: 0.02em;
+}
+
+/* Ambient background per plane */
+.plane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  transition: opacity 0.8s;
+}
+.plane--decision::before {
+  background: radial-gradient(ellipse at 50% 50%, rgba(212, 162, 78, 0.03), transparent 60%);
+}
+.plane--insight::before {
+  background: radial-gradient(ellipse at 50% 50%, rgba(168, 127, 196, 0.03), transparent 60%);
+}
+.plane--learning::before {
+  background: radial-gradient(ellipse at 50% 50%, rgba(94, 160, 196, 0.03), transparent 60%);
+}
+.plane--error::before {
+  background: radial-gradient(ellipse at 50% 50%, rgba(196, 110, 94, 0.03), transparent 60%);
+}
+
+/* Grain */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  pointer-events: none;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 128px;
+}
+
+/* Keyboard hint */
+.hint {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  color: rgba(226, 223, 216, 0.12);
+  letter-spacing: 0.12em;
+  z-index: 100;
+  animation: hintFade 4s ease-in-out forwards;
+}
+@keyframes hintFade {
+  0%, 60% { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}
+
+/* Entry animation */
+@keyframes breatheIn {
+  0% { opacity: 0; transform: translateY(32px); filter: blur(8px); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.plane-inner {
+  animation: breatheIn 1s cubic-bezier(.2, .8, .2, 1) both;
+}
+.plane:nth-child(1) .plane-inner { animation-delay: 0.1s; }
+
+@media (max-width: 768px) {
+  .plane { padding: 0 24px; }
+  .depth-track { right: 12px; }
+  .brand { left: 16px; top: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="brand">mnemonic</div>
+
+<div class="depth-track">
+  <div class="depth-marker" id="depthMarker"></div>
+  <div class="depth-dots" id="depthDots"></div>
+</div>
+
+<div class="hint">scroll to explore &darr;</div>
+
+<div class="depthscroll" id="scroll">
+  <!-- Each memory is a full-page immersive plane -->
+
+  <div class="plane plane--insight" data-type="insight" data-sal="0.85">
+    <div class="plane-inner">
+      <div class="plane-text" style="font-size: 2.2rem; color: rgba(168, 127, 196, 0.95);">
+        Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems
+      </div>
+      <div class="plane-meta" style="color: rgba(168, 127, 196, 0.35);">
+        <div class="plane-meta-item"><span class="plane-meta-label">type</span><span class="plane-meta-val">insight</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">salience</span><span class="plane-meta-val">0.85</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">when</span><span class="plane-meta-val">10:05 AM</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">concepts</span><span class="plane-meta-val">agent, config, performance</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="plane plane--decision" data-type="decision" data-sal="0.79">
+    <div class="plane-inner">
+      <div class="plane-text" style="font-size: 2rem; color: rgba(212, 162, 78, 0.9);">
+        Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI
+      </div>
+      <div class="plane-meta" style="color: rgba(212, 162, 78, 0.3);">
+        <div class="plane-meta-item"><span class="plane-meta-label">type</span><span class="plane-meta-val">decision</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">salience</span><span class="plane-meta-val">0.79</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">when</span><span class="plane-meta-val">9:42 AM</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">concepts</span><span class="plane-meta-val">python, api, planning</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="plane plane--insight" data-type="insight" data-sal="0.76">
+    <div class="plane-inner">
+      <div class="plane-text" style="font-size: 1.85rem; color: rgba(168, 127, 196, 0.85);">
+        Back button fails to appear due to missing history push in neighbor click handler
+      </div>
+      <div class="plane-meta" style="color: rgba(168, 127, 196, 0.3);">
+        <div class="plane-meta-item"><span class="plane-meta-label">type</span><span class="plane-meta-val">insight</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">salience</span><span class="plane-meta-val">0.76</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">when</span><span class="plane-meta-val">9:18 AM</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">concepts</span><span class="plane-meta-val">javascript, ui, debugging</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="plane plane--learning" data-type="learning" data-sal="0.66">
+    <div class="plane-inner">
+      <div class="plane-text" style="font-size: 1.6rem; color: rgba(94, 160, 196, 0.75);">
+        Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval
+      </div>
+      <div class="plane-meta" style="color: rgba(94, 160, 196, 0.25);">
+        <div class="plane-meta-item"><span class="plane-meta-label">type</span><span class="plane-meta-val">learning</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">salience</span><span class="plane-meta-val">0.66</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">when</span><span class="plane-meta-val">8:55 AM</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">concepts</span><span class="plane-meta-val">go, retrieval, performance</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="plane plane--learning" data-type="learning" data-sal="0.51">
+    <div class="plane-inner">
+      <div class="plane-text" style="font-size: 1.35rem; color: rgba(94, 160, 196, 0.6);">
+        Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml for manual triggers
+      </div>
+      <div class="plane-meta" style="color: rgba(94, 160, 196, 0.2);">
+        <div class="plane-meta-item"><span class="plane-meta-label">type</span><span class="plane-meta-val">learning</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">salience</span><span class="plane-meta-val">0.51</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">when</span><span class="plane-meta-val">3:10 PM</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">concepts</span><span class="plane-meta-val">ci, deployment, github</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="plane plane--decision" data-type="decision" data-sal="0.44">
+    <div class="plane-inner">
+      <div class="plane-text" style="font-size: 1.2rem; color: rgba(212, 162, 78, 0.5);">
+        Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability
+      </div>
+      <div class="plane-meta" style="color: rgba(212, 162, 78, 0.18);">
+        <div class="plane-meta-item"><span class="plane-meta-label">type</span><span class="plane-meta-val">decision</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">salience</span><span class="plane-meta-val">0.44</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">when</span><span class="plane-meta-val">8:31 AM</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">concepts</span><span class="plane-meta-val">refactoring, configuration, go</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="plane plane--insight" data-type="insight" data-sal="0.39">
+    <div class="plane-inner">
+      <div class="plane-text" style="font-size: 1.1rem; color: rgba(168, 127, 196, 0.4);">
+        Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors
+      </div>
+      <div class="plane-meta" style="color: rgba(168, 127, 196, 0.15);">
+        <div class="plane-meta-item"><span class="plane-meta-label">type</span><span class="plane-meta-val">insight</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">salience</span><span class="plane-meta-val">0.39</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">when</span><span class="plane-meta-val">1:45 PM</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">concepts</span><span class="plane-meta-val">llm, benchmarking, performance</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="plane plane--decision" data-type="decision" data-sal="0.38">
+    <div class="plane-inner">
+      <div class="plane-text" style="font-size: 1.05rem; color: rgba(212, 162, 78, 0.38);">
+        Committed JSON repair and benchmark tools; Qwen3.5-0.8B parse rate rose from 78.3% to 98.1%
+      </div>
+      <div class="plane-meta" style="color: rgba(212, 162, 78, 0.14);">
+        <div class="plane-meta-item"><span class="plane-meta-label">type</span><span class="plane-meta-val">decision</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">salience</span><span class="plane-meta-val">0.38</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">when</span><span class="plane-meta-val">1:12 PM</span></div>
+        <div class="plane-meta-item"><span class="plane-meta-label">concepts</span><span class="plane-meta-val">python, llm, fix</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var scroller = document.getElementById('scroll');
+var planes = document.querySelectorAll('.plane');
+var marker = document.getElementById('depthMarker');
+var dotsContainer = document.getElementById('depthDots');
+var TC = { decision: '#d4a24e', insight: '#a87fc4', learning: '#5ea0c4', error: '#c46e5e' };
+
+// Build depth dots
+planes.forEach(function(p, i) {
+  var dot = document.createElement('div');
+  dot.className = 'depth-dot';
+  dot.style.background = TC[p.dataset.type];
+  dot.title = p.querySelector('.plane-text').textContent.substring(0, 40) + '...';
+  dot.onclick = function() {
+    planes[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  dotsContainer.appendChild(dot);
+});
+
+var dots = dotsContainer.querySelectorAll('.depth-dot');
+
+// Scroll-driven effects
+scroller.addEventListener('scroll', function() {
+  var scrollTop = scroller.scrollTop;
+  var scrollH = scroller.scrollHeight - scroller.clientHeight;
+  var pct = scrollTop / scrollH;
+
+  // Move depth marker
+  marker.style.top = (pct * 180) + 'px';
+  marker.style.height = (200 / planes.length) + 'px';
+
+  // Update active dot + plane visibility
+  var vh = window.innerHeight;
+  planes.forEach(function(p, i) {
+    var rect = p.getBoundingClientRect();
+    var center = rect.top + rect.height / 2;
+    var distFromCenter = Math.abs(center - vh / 2) / (vh / 2);
+
+    // Planes blur and dim as they scroll away from center
+    var inner = p.querySelector('.plane-inner');
+    if (distFromCenter < 0.3) {
+      inner.style.opacity = '1';
+      inner.style.filter = 'blur(0)';
+      inner.style.transform = 'translateY(0) scale(1)';
+      dots[i].classList.add('active');
+    } else if (distFromCenter < 0.8) {
+      var fade = 1 - (distFromCenter - 0.3) * 1.4;
+      inner.style.opacity = Math.max(0.15, fade);
+      inner.style.filter = 'blur(' + Math.min(6, (distFromCenter - 0.3) * 12) + 'px)';
+      inner.style.transform = 'translateY(' + ((distFromCenter - 0.3) * 20) + 'px) scale(' + (1 - (distFromCenter - 0.3) * 0.05) + ')';
+      dots[i].classList.remove('active');
+    } else {
+      inner.style.opacity = '0.08';
+      inner.style.filter = 'blur(6px)';
+      inner.style.transform = 'translateY(10px) scale(0.97)';
+      dots[i].classList.remove('active');
+    }
+  });
+});
+
+// Fire initial scroll event
+scroller.dispatchEvent(new Event('scroll'));
+</script>
+</body>
+</html>

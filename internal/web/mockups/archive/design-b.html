@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic — Design B: Structural</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --bg-primary: #0e0f13;
+    --bg-secondary: #14151b;
+    --bg-card: transparent;
+    --border-rule: rgba(255, 255, 255, 0.08);
+    --text-primary: #dfe1e8;
+    --text-secondary: #9ea3b5;
+    --text-muted: #6a6f82;
+    --text-dim: #3e4254;
+    --accent-cyan: #06b6d4;
+    --accent-violet: #8b5cf6;
+    --accent-blue: #3b82f6;
+    --accent-orange: #f59e0b;
+    --accent-red: #ef4444;
+    --accent-green: #22c55e;
+    --font-serif: 'Source Serif 4', Georgia, serif;
+    --font-sans: 'Inter', -apple-system, sans-serif;
+}
+
+html { font-size: 15px; }
+body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+}
+
+/* ── Nav — text only, no backgrounds ── */
+nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+    height: 52px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-primary);
+}
+.nav-brand {
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.nav-brand-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+}
+.nav-tabs {
+    display: flex;
+    gap: 0;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+.nav-tab {
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-family: var(--font-sans);
+    position: relative;
+    transition: color 150ms;
+    letter-spacing: 0.02em;
+    font-weight: 400;
+}
+.nav-tab:hover { color: var(--text-muted); }
+.nav-tab.active { color: var(--text-primary); font-weight: 500; }
+.nav-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20px;
+    right: 20px;
+    height: 1px;
+    background: var(--text-primary);
+}
+.nav-metrics {
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    display: flex;
+    gap: 20px;
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+}
+.nav-metric-value {
+    color: var(--text-muted);
+    margin-left: 5px;
+}
+
+/* ── Page Shell ── */
+.page { display: none; }
+.page.active { display: block; }
+.page-inner {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 24px;
+}
+
+/* ── Ruled-line memory entries ── */
+.entry-list {
+    display: flex;
+    flex-direction: column;
+}
+.entry {
+    display: grid;
+    grid-template-columns: 8px 1fr auto;
+    gap: 16px;
+    align-items: baseline;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border-rule);
+    cursor: pointer;
+    transition: background 150ms;
+    position: relative;
+}
+.entry:first-child {
+    border-top: 1px solid var(--border-rule);
+}
+@media (hover: hover) {
+    .entry:hover {
+        background: rgba(255, 255, 255, 0.015);
+    }
+}
+.entry-marker {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    margin-top: 6px;
+}
+.entry-marker--decision { background: var(--accent-orange); }
+.entry-marker--insight { background: var(--accent-violet); }
+.entry-marker--learning { background: var(--accent-blue); }
+.entry-marker--error { background: var(--accent-red); }
+.entry-marker--general { background: var(--text-dim); }
+
+.entry-summary {
+    font-family: var(--font-serif);
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--text-primary);
+    text-wrap: balance;
+}
+.entry-summary--high { font-weight: 500; }
+.entry-summary--medium { font-weight: 400; }
+.entry-summary--low { font-weight: 300; color: color-mix(in srgb, var(--text-primary) 75%, transparent); }
+
+.entry-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+    padding-top: 2px;
+}
+.entry-date {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+    white-space: nowrap;
+}
+.entry-salience {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+}
+.entry-concepts {
+    grid-column: 2 / -1;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+    padding-top: 0;
+    margin-top: -6px;
+}
+.entry-concepts span + span::before {
+    content: '\00b7';
+    margin: 0 6px;
+    color: var(--text-dim);
+    opacity: 0.4;
+}
+
+/* ── Section Headers ── */
+.section-header {
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+.section-count {
+    font-feature-settings: 'tnum' 1;
+    color: var(--text-dim);
+    font-weight: 400;
+    margin-left: 8px;
+    opacity: 0.6;
+}
+
+/* ── Mind Landing ── */
+.mind-search {
+    margin-bottom: 48px;
+}
+.mind-search input {
+    width: 100%;
+    padding: 14px 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-rule);
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    font-weight: 300;
+    outline: none;
+    transition: border-color 150ms;
+}
+.mind-search input::placeholder { color: var(--text-dim); }
+.mind-search input:focus { border-bottom-color: rgba(255, 255, 255, 0.2); }
+
+/* ── Ego Graph ── */
+.ego-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    min-height: 540px;
+    position: relative;
+}
+.ego-layout.panel-open {
+    grid-template-columns: 1fr 300px;
+    gap: 0;
+}
+.ego-canvas {
+    height: 540px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+.ego-canvas-label {
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    font-weight: 300;
+    letter-spacing: 0.02em;
+}
+.ego-breadcrumb {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ego-breadcrumb-back {
+    color: var(--text-dim);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    padding: 0;
+    transition: color 150ms;
+}
+.ego-breadcrumb-back:hover { color: var(--text-secondary); }
+.ego-breadcrumb-sep { color: var(--text-dim); opacity: 0.4; }
+.ego-breadcrumb-current { color: var(--text-secondary); }
+
+.ego-panel {
+    border-left: 1px solid var(--border-rule);
+    padding: 24px;
+    background: var(--bg-secondary);
+    overflow-y: auto;
+    animation: panelSlideIn 150ms ease-out;
+}
+@keyframes panelSlideIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.ego-panel-title {
+    font-family: var(--font-serif);
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    text-wrap: balance;
+}
+.ego-panel-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-rule);
+    font-size: 0.72rem;
+}
+.ego-panel-label { color: var(--text-dim); }
+.ego-panel-value {
+    color: var(--text-secondary);
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+}
+.ego-filter {
+    position: absolute;
+    top: 16px;
+    left: 0;
+}
+.ego-filter input {
+    padding: 8px 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-rule);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    outline: none;
+    width: 180px;
+    transition: border-color 150ms;
+}
+.ego-filter input:focus { border-bottom-color: rgba(255, 255, 255, 0.2); }
+.ego-filter input::placeholder { color: var(--text-dim); }
+
+/* ── Timeline ── */
+.tl-group {
+    margin-bottom: 40px;
+}
+.tl-group-header {
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0;
+}
+.tl-entry {
+    display: grid;
+    grid-template-columns: 72px 8px 1fr;
+    gap: 16px;
+    align-items: baseline;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-rule);
+    cursor: pointer;
+    transition: background 150ms;
+}
+.tl-entry:first-of-type {
+    border-top: 1px solid var(--border-rule);
+}
+@media (hover: hover) {
+    .tl-entry:hover {
+        background: rgba(255, 255, 255, 0.015);
+    }
+}
+.tl-time {
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+    text-align: right;
+    white-space: nowrap;
+    padding-top: 2px;
+}
+.tl-marker {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    margin-top: 5px;
+}
+.tl-content {
+    min-width: 0;
+}
+.tl-summary {
+    font-family: var(--font-serif);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    text-wrap: balance;
+    margin-bottom: 4px;
+}
+.tl-meta {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    font-feature-settings: 'tnum' 1;
+}
+.tl-meta span + span::before {
+    content: '\00b7';
+    margin: 0 5px;
+    opacity: 0.4;
+}
+
+/* ── Recall ── */
+.recall-search {
+    margin-bottom: 32px;
+}
+.recall-search input {
+    width: 100%;
+    padding: 14px 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-rule);
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-size: 1.05rem;
+    font-weight: 300;
+    outline: none;
+    transition: border-color 150ms;
+}
+.recall-search input::placeholder { color: var(--text-dim); }
+.recall-search input:focus { border-bottom-color: rgba(255, 255, 255, 0.2); }
+
+.recall-meta-bar {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 0;
+    padding-bottom: 0;
+    font-feature-settings: 'tnum' 1;
+}
+
+.recall-list {
+    display: flex;
+    flex-direction: column;
+}
+.recall-entry {
+    display: grid;
+    grid-template-columns: 48px 8px 1fr;
+    gap: 12px;
+    align-items: baseline;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-rule);
+    cursor: pointer;
+    transition: background 150ms;
+}
+.recall-entry:first-child {
+    border-top: 1px solid var(--border-rule);
+}
+@media (hover: hover) {
+    .recall-entry:hover {
+        background: rgba(255, 255, 255, 0.015);
+    }
+}
+.recall-score {
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--accent-cyan);
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+    text-align: right;
+    padding-top: 1px;
+}
+.recall-marker {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    margin-top: 5px;
+}
+.recall-content { min-width: 0; }
+.recall-summary {
+    font-family: var(--font-serif);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    text-wrap: balance;
+    margin-bottom: 4px;
+}
+.recall-entry-meta {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    font-feature-settings: 'tnum' 1;
+}
+.recall-entry-meta span + span::before {
+    content: '\00b7';
+    margin: 0 5px;
+    opacity: 0.4;
+}
+
+/* ── Fade-in animation (no translate — restrained) ── */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.entry, .tl-entry, .recall-entry {
+    animation: fadeIn 150ms ease-out both;
+}
+.entry:nth-child(1), .tl-entry:nth-child(2), .recall-entry:nth-child(1) { animation-delay: 0ms; }
+.entry:nth-child(2), .tl-entry:nth-child(3), .recall-entry:nth-child(2) { animation-delay: 40ms; }
+.entry:nth-child(3), .tl-entry:nth-child(4), .recall-entry:nth-child(3) { animation-delay: 80ms; }
+.entry:nth-child(4), .tl-entry:nth-child(5), .recall-entry:nth-child(4) { animation-delay: 120ms; }
+.entry:nth-child(5), .tl-entry:nth-child(6) { animation-delay: 160ms; }
+.entry:nth-child(6) { animation-delay: 200ms; }
+.entry:nth-child(7) { animation-delay: 240ms; }
+.entry:nth-child(8) { animation-delay: 280ms; }
+
+/* ── Heading typography ── */
+h1, h2, h3 {
+    font-family: var(--font-sans);
+    letter-spacing: -0.03em;
+}
+</style>
+</head>
+<body>
+
+<nav>
+    <div class="nav-brand">
+        <span class="nav-brand-dot"></span>
+        mnemonic
+    </div>
+    <div class="nav-tabs">
+        <button class="nav-tab active" onclick="showPage('mind', this)">Mind</button>
+        <button class="nav-tab" onclick="showPage('ego', this)">Graph</button>
+        <button class="nav-tab" onclick="showPage('timeline', this)">Timeline</button>
+        <button class="nav-tab" onclick="showPage('recall', this)">Recall</button>
+    </div>
+    <div class="nav-metrics">
+        <span>memories<span class="nav-metric-value">1,247</span></span>
+        <span>encoded<span class="nav-metric-value">98.2%</span></span>
+    </div>
+</nav>
+
+<!-- ═══ MIND LANDING ═══ -->
+<div class="page active" id="page-mind">
+    <div class="page-inner">
+        <div class="mind-search">
+            <input type="text" placeholder="Search memories...">
+        </div>
+
+        <div class="entry-list">
+            <!-- 1. Insight, 85% — high salience -->
+            <div class="entry">
+                <div class="entry-marker entry-marker--insight"></div>
+                <div class="entry-summary entry-summary--high">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+                <div class="entry-meta">
+                    <span class="entry-date">Mar 21</span>
+                    <span class="entry-salience">85%</span>
+                </div>
+                <div class="entry-concepts"><span>agent</span><span>config</span><span>performance</span></div>
+            </div>
+
+            <!-- 2. Decision, 79% — high salience -->
+            <div class="entry">
+                <div class="entry-marker entry-marker--decision"></div>
+                <div class="entry-summary entry-summary--high">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div>
+                <div class="entry-meta">
+                    <span class="entry-date">Mar 21</span>
+                    <span class="entry-salience">79%</span>
+                </div>
+                <div class="entry-concepts"><span>python</span><span>api</span><span>planning</span></div>
+            </div>
+
+            <!-- 3. Insight, 76% — high salience -->
+            <div class="entry">
+                <div class="entry-marker entry-marker--insight"></div>
+                <div class="entry-summary entry-summary--high">Back button fails to appear due to missing history push in neighbor click handler</div>
+                <div class="entry-meta">
+                    <span class="entry-date">Mar 21</span>
+                    <span class="entry-salience">76%</span>
+                </div>
+                <div class="entry-concepts"><span>javascript</span><span>ui</span><span>debugging</span></div>
+            </div>
+
+            <!-- 4. Learning, 66% — medium salience -->
+            <div class="entry">
+                <div class="entry-marker entry-marker--learning"></div>
+                <div class="entry-summary entry-summary--medium">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</div>
+                <div class="entry-meta">
+                    <span class="entry-date">Mar 21</span>
+                    <span class="entry-salience">66%</span>
+                </div>
+                <div class="entry-concepts"><span>go</span><span>retrieval</span><span>performance</span></div>
+            </div>
+
+            <!-- 5. Insight, 52% — medium salience -->
+            <div class="entry">
+                <div class="entry-marker entry-marker--insight"></div>
+                <div class="entry-summary entry-summary--medium">Mnemonic v0.30.0 release adds pattern scoping, bulk forget, and handoff tools across PRs #310-#314</div>
+                <div class="entry-meta">
+                    <span class="entry-date">Mar 20</span>
+                    <span class="entry-salience">52%</span>
+                </div>
+                <div class="entry-concepts"><span>deployment</span><span>documentation</span><span>cli</span></div>
+            </div>
+
+            <!-- 6. Learning, 51% — medium salience -->
+            <div class="entry">
+                <div class="entry-marker entry-marker--learning"></div>
+                <div class="entry-summary entry-summary--medium">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml for manual triggers</div>
+                <div class="entry-meta">
+                    <span class="entry-date">Mar 20</span>
+                    <span class="entry-salience">51%</span>
+                </div>
+                <div class="entry-concepts"><span>ci</span><span>deployment</span><span>github</span></div>
+            </div>
+
+            <!-- 7. Decision, 44% — medium salience -->
+            <div class="entry">
+                <div class="entry-marker entry-marker--decision"></div>
+                <div class="entry-summary entry-summary--medium">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+                <div class="entry-meta">
+                    <span class="entry-date">Mar 21</span>
+                    <span class="entry-salience">44%</span>
+                </div>
+                <div class="entry-concepts"><span>refactoring</span><span>configuration</span><span>go</span></div>
+            </div>
+
+            <!-- 8. Insight, 39% — low salience -->
+            <div class="entry">
+                <div class="entry-marker entry-marker--insight"></div>
+                <div class="entry-summary entry-summary--low">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+                <div class="entry-meta">
+                    <span class="entry-date">Mar 21</span>
+                    <span class="entry-salience">39%</span>
+                </div>
+                <div class="entry-concepts"><span>llm</span><span>benchmarking</span><span>performance</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ EGO GRAPH ═══ -->
+<div class="page" id="page-ego">
+    <div class="page-inner" style="max-width: 1080px;">
+        <div class="ego-breadcrumb">
+            <button class="ego-breadcrumb-back">&larr; Back</button>
+            <span class="ego-breadcrumb-sep">/</span>
+            <span>cleverness debt audit</span>
+            <span class="ego-breadcrumb-sep">/</span>
+            <span class="ego-breadcrumb-current">Centralized 40+ hardcoded values...</span>
+        </div>
+
+        <div class="ego-layout panel-open">
+            <div class="ego-canvas">
+                <div class="ego-filter">
+                    <input type="text" placeholder="Filter neighbors...">
+                </div>
+                <div class="ego-canvas-label">D3 force-directed ego graph renders here</div>
+            </div>
+            <div class="ego-panel">
+                <div class="ego-panel-title">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div>
+                <div class="ego-panel-row">
+                    <span class="ego-panel-label">Type</span>
+                    <span class="ego-panel-value" style="color: var(--accent-orange)">decision</span>
+                </div>
+                <div class="ego-panel-row">
+                    <span class="ego-panel-label">Salience</span>
+                    <span class="ego-panel-value">0.44</span>
+                </div>
+                <div class="ego-panel-row">
+                    <span class="ego-panel-label">Source</span>
+                    <span class="ego-panel-value">mcp</span>
+                </div>
+                <div class="ego-panel-row">
+                    <span class="ego-panel-label">Connections</span>
+                    <span class="ego-panel-value">15</span>
+                </div>
+                <div class="ego-panel-row">
+                    <span class="ego-panel-label">Created</span>
+                    <span class="ego-panel-value">Mar 21, 2026</span>
+                </div>
+                <div class="ego-panel-row">
+                    <span class="ego-panel-label">Last accessed</span>
+                    <span class="ego-panel-value">2h ago</span>
+                </div>
+                <div class="ego-panel-row" style="border-bottom: none;">
+                    <span class="ego-panel-label">Concepts</span>
+                    <span class="ego-panel-value" style="color: var(--text-muted)">refactoring, config, go</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TIMELINE ═══ -->
+<div class="page" id="page-timeline">
+    <div class="page-inner">
+        <div class="tl-group">
+            <div class="tl-group-header">Today<span class="section-count">5</span></div>
+
+            <div class="tl-entry">
+                <div class="tl-time">10:05 AM</div>
+                <div class="tl-marker entry-marker--insight"></div>
+                <div class="tl-content">
+                    <div class="tl-summary">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+                    <div class="tl-meta"><span>mcp</span><span>85%</span><span>agent, config, performance</span></div>
+                </div>
+            </div>
+
+            <div class="tl-entry">
+                <div class="tl-time">9:42 AM</div>
+                <div class="tl-marker entry-marker--decision"></div>
+                <div class="tl-content">
+                    <div class="tl-summary">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div>
+                    <div class="tl-meta"><span>mcp</span><span>79%</span><span>python, api, planning</span></div>
+                </div>
+            </div>
+
+            <div class="tl-entry">
+                <div class="tl-time">9:18 AM</div>
+                <div class="tl-marker entry-marker--insight"></div>
+                <div class="tl-content">
+                    <div class="tl-summary">Back button fails to appear due to missing history push in neighbor click handler</div>
+                    <div class="tl-meta"><span>mcp</span><span>76%</span><span>javascript, ui, debugging</span></div>
+                </div>
+            </div>
+
+            <div class="tl-entry">
+                <div class="tl-time">8:55 AM</div>
+                <div class="tl-marker entry-marker--learning"></div>
+                <div class="tl-content">
+                    <div class="tl-summary">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval scoring</div>
+                    <div class="tl-meta"><span>mcp</span><span>66%</span><span>go, retrieval, performance</span></div>
+                </div>
+            </div>
+
+            <div class="tl-entry">
+                <div class="tl-time">8:31 AM</div>
+                <div class="tl-marker entry-marker--decision"></div>
+                <div class="tl-content">
+                    <div class="tl-summary">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+                    <div class="tl-meta"><span>mcp</span><span>44%</span><span>refactoring, configuration, go</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tl-group">
+            <div class="tl-group-header">Yesterday<span class="section-count">3</span></div>
+
+            <div class="tl-entry">
+                <div class="tl-time">4:22 PM</div>
+                <div class="tl-marker entry-marker--insight"></div>
+                <div class="tl-content">
+                    <div class="tl-summary">Mnemonic v0.30.0 release adds pattern scoping, bulk forget, and handoff tools across PRs #310-#314</div>
+                    <div class="tl-meta"><span>mcp</span><span>52%</span><span>deployment, documentation, cli</span></div>
+                </div>
+            </div>
+
+            <div class="tl-entry">
+                <div class="tl-time">3:10 PM</div>
+                <div class="tl-marker entry-marker--learning"></div>
+                <div class="tl-content">
+                    <div class="tl-summary">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml for manual triggers</div>
+                    <div class="tl-meta"><span>mcp</span><span>51%</span><span>ci, deployment, github</span></div>
+                </div>
+            </div>
+
+            <div class="tl-entry">
+                <div class="tl-time">1:45 PM</div>
+                <div class="tl-marker entry-marker--insight"></div>
+                <div class="tl-content">
+                    <div class="tl-summary">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+                    <div class="tl-meta"><span>mcp</span><span>39%</span><span>llm, benchmarking, performance</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ RECALL ═══ -->
+<div class="page" id="page-recall">
+    <div class="page-inner">
+        <div class="recall-search">
+            <input type="text" placeholder="What do you remember about..." value="hardcoded agent weights">
+        </div>
+
+        <div class="recall-meta-bar" style="margin-bottom: 0;">4 results &middot; 12ms</div>
+
+        <div class="recall-list">
+            <div class="recall-entry">
+                <div class="recall-score">0.92</div>
+                <div class="recall-marker entry-marker--insight"></div>
+                <div class="recall-content">
+                    <div class="recall-summary">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+                    <div class="recall-entry-meta"><span>insight</span><span>agent, config, performance</span><span>Mar 21</span></div>
+                </div>
+            </div>
+
+            <div class="recall-entry">
+                <div class="recall-score">0.78</div>
+                <div class="recall-marker entry-marker--decision"></div>
+                <div class="recall-content">
+                    <div class="recall-summary">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+                    <div class="recall-entry-meta"><span>decision</span><span>refactoring, configuration, go</span><span>Mar 21</span></div>
+                </div>
+            </div>
+
+            <div class="recall-entry">
+                <div class="recall-score">0.61</div>
+                <div class="recall-marker entry-marker--learning"></div>
+                <div class="recall-content">
+                    <div class="recall-summary">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval scoring</div>
+                    <div class="recall-entry-meta"><span>learning</span><span>go, retrieval, performance</span><span>Mar 21</span></div>
+                </div>
+            </div>
+
+            <div class="recall-entry">
+                <div class="recall-score">0.43</div>
+                <div class="recall-marker entry-marker--insight"></div>
+                <div class="recall-content">
+                    <div class="recall-summary">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+                    <div class="recall-entry-meta"><span>insight</span><span>llm, benchmarking, performance</span><span>Mar 21</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showPage(name, btn) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    btn.classList.add('active');
+
+    // Re-trigger fade-in animations on the new page
+    const page = document.getElementById('page-' + name);
+    const items = page.querySelectorAll('.entry, .tl-entry, .recall-entry');
+    items.forEach(el => {
+        el.style.animation = 'none';
+        el.offsetHeight; // force reflow
+        el.style.animation = '';
+    });
+}
+</script>
+</body>
+</html>

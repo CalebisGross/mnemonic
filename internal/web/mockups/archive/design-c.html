@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic — Design C: Kinetic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --bg-primary: #0b0c12;
+    --bg-secondary: #111219;
+    --bg-tertiary: #181a24;
+    --bg-card: #151620;
+    --border-color: rgba(255, 255, 255, 0.04);
+    --border-glow: rgba(6, 182, 212, 0.3);
+    --text-primary: #e8eaf2;
+    --text-secondary: #b0b5c8;
+    --text-muted: #717794;
+    --text-dim: #494f68;
+    --accent-cyan: #06b6d4;
+    --accent-teal: #14b8a6;
+    --accent-violet: #8b5cf6;
+    --accent-green: #22c55e;
+    --accent-blue: #3b82f6;
+    --accent-orange: #f59e0b;
+    --accent-red: #ef4444;
+    --font-body: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+html { font-size: 15px; }
+
+body {
+    font-family: var(--font-body);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    background-size: 200% 200%;
+    animation: gradientShift 30s ease infinite;
+    background-image: linear-gradient(
+        135deg,
+        #0b0c12 0%,
+        #0d0e16 25%,
+        #0c0f18 50%,
+        #0e0c15 75%,
+        #0b0c12 100%
+    );
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 0%; }
+    25% { background-position: 100% 50%; }
+    50% { background-position: 50% 100%; }
+    75% { background-position: 0% 50%; }
+    100% { background-position: 0% 0%; }
+}
+
+/* ── Nav ── */
+nav {
+    display: flex;
+    align-items: center;
+    padding: 0 40px;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(11, 12, 18, 0.75);
+    backdrop-filter: blur(15px) saturate(180%);
+    -webkit-backdrop-filter: blur(15px) saturate(180%);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.nav-brand {
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    letter-spacing: 0.12em;
+    margin-right: 48px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.nav-brand-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+    animation: saliencePulse 3s ease-in-out infinite;
+}
+
+.nav-tabs {
+    display: flex;
+    gap: 6px;
+    height: 100%;
+    align-items: center;
+}
+.nav-tab {
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-family: var(--font-body);
+    border-radius: 20px;
+    transition: color 0.2s, background 0.2s, box-shadow 0.2s;
+    letter-spacing: 0.01em;
+}
+.nav-tab:hover {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.03);
+}
+.nav-tab.active {
+    color: var(--text-primary);
+    background: rgba(6, 182, 212, 0.1);
+    box-shadow: 0 0 12px rgba(6, 182, 212, 0.08);
+}
+.nav-spacer { flex: 1; }
+.nav-meta {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+    display: flex;
+    gap: 16px;
+}
+.nav-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.nav-meta-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+}
+
+/* ── Pages ── */
+.page { display: none; }
+.page.active { display: block; }
+.page-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 48px 40px;
+}
+
+/* ── Salience Pulse ── */
+@keyframes saliencePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.4); }
+    50% { box-shadow: 0 0 0 3px rgba(6, 182, 212, 0); }
+}
+
+/* ── Entry Animations ── */
+@keyframes cardReveal {
+    from {
+        opacity: 0;
+        transform: scale(0.97);
+        filter: blur(2px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1.0);
+        filter: blur(0);
+    }
+}
+
+.card, .tl-entry, .result-card {
+    animation: cardReveal 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.card:nth-child(1), .tl-entry:nth-child(1), .result-card:nth-child(1) { animation-delay: 0ms; }
+.card:nth-child(2), .tl-entry:nth-child(2), .result-card:nth-child(2) { animation-delay: 80ms; }
+.card:nth-child(3), .tl-entry:nth-child(3), .result-card:nth-child(3) { animation-delay: 160ms; }
+.card:nth-child(4), .tl-entry:nth-child(4), .result-card:nth-child(4) { animation-delay: 240ms; }
+.card:nth-child(5), .tl-entry:nth-child(5) { animation-delay: 320ms; }
+.card:nth-child(6) { animation-delay: 400ms; }
+.card:nth-child(7) { animation-delay: 480ms; }
+.card:nth-child(8) { animation-delay: 560ms; }
+
+/* ── Search Bar with Animated Border ── */
+.search-wrapper {
+    position: relative;
+    margin-bottom: 40px;
+}
+.search-wrapper input {
+    width: 100%;
+    padding: 16px 24px;
+    font-size: 1rem;
+    font-family: var(--font-body);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 2px solid transparent;
+    border-radius: 16px;
+    outline: none;
+    position: relative;
+    z-index: 1;
+}
+.search-wrapper input::placeholder {
+    color: var(--text-dim);
+}
+.search-wrapper input:focus {
+    background: var(--bg-tertiary);
+}
+.search-border-glow {
+    position: absolute;
+    inset: -2px;
+    border-radius: 18px;
+    background: conic-gradient(
+        from var(--search-angle, 0deg),
+        var(--accent-cyan),
+        var(--accent-violet),
+        var(--accent-teal),
+        var(--accent-cyan)
+    );
+    z-index: 0;
+    animation: searchBorderRotate 4s linear infinite;
+    opacity: 0.5;
+    transition: opacity 0.3s;
+}
+.search-wrapper:focus-within .search-border-glow {
+    opacity: 1;
+}
+@property --search-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+@keyframes searchBorderRotate {
+    to { --search-angle: 360deg; }
+}
+.search-hint {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    margin-top: 10px;
+    letter-spacing: 0.02em;
+}
+
+/* ── Cards ── */
+.card-grid {
+    display: grid;
+    gap: 16px;
+}
+.card-grid--mind {
+    grid-template-columns: 1fr;
+}
+
+.card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 24px 28px 22px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+@media (hover: hover) {
+    .card:hover {
+        border-color: var(--border-glow);
+        box-shadow:
+            0 4px 16px rgba(6, 182, 212, 0.06),
+            0 1px 4px rgba(0, 0, 0, 0.3);
+        transform: translateY(-2px);
+    }
+    .card:active {
+        transform: scale(0.98);
+    }
+}
+
+/* Type accent radial glow */
+.card--decision::before { background: radial-gradient(ellipse at 10% 10%, rgba(245, 158, 11, 0.05), transparent 60%); }
+.card--insight::before { background: radial-gradient(ellipse at 10% 10%, rgba(139, 92, 246, 0.05), transparent 60%); }
+.card--learning::before { background: radial-gradient(ellipse at 10% 10%, rgba(59, 130, 246, 0.05), transparent 60%); }
+.card--error::before { background: radial-gradient(ellipse at 10% 10%, rgba(239, 68, 68, 0.05), transparent 60%); }
+.card--general::before { background: radial-gradient(ellipse at 10% 10%, rgba(113, 119, 148, 0.04), transparent 60%); }
+.card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    pointer-events: none;
+}
+
+/* Salience-driven card brightness */
+.card--high {
+    background: color-mix(in srgb, var(--bg-card) 90%, rgba(255,255,255,0.04));
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.card--medium {
+    background: var(--bg-card);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+}
+.card--low {
+    background: color-mix(in srgb, var(--bg-card) 92%, rgba(0,0,0,0.1));
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    opacity: 0.85;
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.card-type {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.card-type--decision { color: var(--accent-orange); }
+.card-type--insight { color: var(--accent-violet); }
+.card-type--learning { color: var(--accent-blue); }
+.card-type--error { color: var(--accent-red); }
+.card-type--general { color: var(--text-dim); }
+.card-date {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum' 1;
+}
+
+/* Salience dot indicator */
+.salience-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(6, 182, 212, 0.15);
+    overflow: hidden;
+    animation: saliencePulse var(--pulse-speed, 4s) ease-in-out infinite;
+}
+.salience-dot-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--accent-cyan);
+    border-radius: 0 0 50% 50%;
+    transition: height 0.3s;
+}
+.salience-dot--high .salience-dot-fill { background: var(--accent-cyan); }
+.salience-dot--medium .salience-dot-fill { background: var(--accent-teal); }
+.salience-dot--low .salience-dot-fill { background: var(--text-dim); }
+
+.card-summary {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    line-height: 1.55;
+    text-wrap: balance;
+    margin-bottom: 14px;
+    padding-right: 28px;
+}
+
+.card-concepts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.card-concepts span {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--accent-violet) 8%, transparent);
+    padding: 3px 10px;
+    border-radius: 10px;
+    letter-spacing: 0.01em;
+}
+
+/* Featured card (full width, highest salience) */
+.card--featured {
+    grid-column: 1 / -1;
+}
+.card--featured .card-summary {
+    font-size: 1.05rem;
+    line-height: 1.5;
+}
+
+/* Two-column row */
+.card-row--2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+/* Three-column row */
+.card-row--3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width: 900px) {
+    .card-row--3 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+    .card-row--2, .card-row--3 { grid-template-columns: 1fr; }
+}
+
+/* ── Ego Graph ── */
+.ego-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.ego-back {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+}
+.ego-back:hover {
+    border-color: var(--border-glow);
+    color: var(--text-secondary);
+}
+.ego-breadcrumb {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.ego-breadcrumb-current {
+    color: var(--text-secondary);
+}
+
+.ego-canvas {
+    position: relative;
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    height: 520px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+.ego-canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(6,182,212,0.3), transparent),
+        radial-gradient(1px 1px at 40% 70%, rgba(139,92,246,0.2), transparent),
+        radial-gradient(1px 1px at 60% 20%, rgba(6,182,212,0.15), transparent),
+        radial-gradient(1px 1px at 80% 60%, rgba(139,92,246,0.25), transparent),
+        radial-gradient(1px 1px at 10% 80%, rgba(6,182,212,0.2), transparent),
+        radial-gradient(1px 1px at 70% 40%, rgba(139,92,246,0.15), transparent),
+        radial-gradient(1px 1px at 30% 50%, rgba(6,182,212,0.2), transparent),
+        radial-gradient(1px 1px at 90% 10%, rgba(139,92,246,0.3), transparent);
+    animation: particleDrift 20s linear infinite;
+    pointer-events: none;
+}
+@keyframes particleDrift {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(-10px, 15px); }
+    50% { transform: translate(5px, -10px); }
+    75% { transform: translate(-5px, 5px); }
+    100% { transform: translate(0, 0); }
+}
+/* Secondary particle layer for depth */
+.ego-canvas::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        radial-gradient(1.5px 1.5px at 15% 45%, rgba(6,182,212,0.12), transparent),
+        radial-gradient(1.5px 1.5px at 55% 35%, rgba(139,92,246,0.1), transparent),
+        radial-gradient(1.5px 1.5px at 75% 75%, rgba(6,182,212,0.08), transparent),
+        radial-gradient(1.5px 1.5px at 35% 85%, rgba(139,92,246,0.12), transparent),
+        radial-gradient(1.5px 1.5px at 85% 25%, rgba(6,182,212,0.1), transparent);
+    animation: particleDrift 32s linear infinite reverse;
+    pointer-events: none;
+}
+
+.ego-canvas-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    z-index: 1;
+}
+
+.ego-filter {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 5;
+}
+.ego-filter input {
+    background: rgba(11, 12, 18, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    padding: 8px 14px;
+    border-radius: 12px;
+    outline: none;
+    width: 200px;
+    transition: border-color 0.2s;
+}
+.ego-filter input:focus {
+    border-color: var(--border-glow);
+}
+.ego-filter input::placeholder {
+    color: var(--text-dim);
+}
+
+/* Mock graph nodes */
+.ego-node {
+    position: absolute;
+    border-radius: 50%;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    transition: transform 0.2s;
+}
+.ego-node:hover {
+    transform: scale(1.15);
+}
+.ego-node--center {
+    width: 56px;
+    height: 56px;
+    background: var(--accent-cyan);
+    left: calc(50% - 28px);
+    top: calc(50% - 28px);
+    box-shadow: 0 0 24px rgba(6, 182, 212, 0.3), 0 0 60px rgba(6, 182, 212, 0.1);
+    animation: egoNodePulse 3s ease-in-out infinite;
+    font-size: 0.65rem;
+    letter-spacing: 0.02em;
+}
+@keyframes egoNodePulse {
+    0%, 100% { box-shadow: 0 0 24px rgba(6, 182, 212, 0.3), 0 0 60px rgba(6, 182, 212, 0.1); }
+    50% { box-shadow: 0 0 32px rgba(6, 182, 212, 0.45), 0 0 80px rgba(6, 182, 212, 0.15); }
+}
+
+.ego-node--neighbor {
+    cursor: pointer;
+}
+/* Bezier edge lines (SVG) */
+.ego-edges {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+.ego-edge {
+    fill: none;
+    stroke-width: 1;
+    opacity: 0.3;
+}
+
+/* Detail panel — slides up from bottom */
+.ego-detail {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: rgba(21, 22, 32, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border-color);
+    padding: 24px 28px;
+    border-radius: 0 0 16px 16px;
+}
+.ego-detail-title {
+    font-size: 0.92rem;
+    color: var(--text-primary);
+    margin-bottom: 14px;
+    text-wrap: balance;
+    line-height: 1.45;
+}
+.ego-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+}
+.ego-detail-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ego-detail-label {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.ego-detail-value {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-feature-settings: 'tnum' 1;
+}
+
+/* ── Timeline ── */
+.timeline-header {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.timeline-header-count {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum' 1;
+    background: rgba(255,255,255,0.04);
+    padding: 2px 8px;
+    border-radius: 8px;
+}
+
+.timeline {
+    position: relative;
+    padding: 0 0 40px;
+}
+/* Center line */
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--border-color), rgba(6, 182, 212, 0.1), var(--border-color));
+    transform: translateX(-50%);
+}
+
+.tl-entry {
+    position: relative;
+    width: 46%;
+    margin-bottom: 28px;
+}
+.tl-entry:nth-child(odd) {
+    margin-left: 4%;
+    text-align: right;
+}
+.tl-entry:nth-child(even) {
+    margin-left: 50%;
+    padding-left: 4%;
+}
+
+/* Dot on center line */
+.tl-dot {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    top: 14px;
+    z-index: 2;
+}
+.tl-entry:nth-child(odd) .tl-dot {
+    right: -5%;
+    transform: translateX(50%);
+}
+.tl-entry:nth-child(even) .tl-dot {
+    left: -1%;
+    transform: translateX(-50%);
+}
+.tl-dot--decision { background: var(--accent-orange); box-shadow: 0 0 8px rgba(245, 158, 11, 0.3); }
+.tl-dot--insight { background: var(--accent-violet); box-shadow: 0 0 8px rgba(139, 92, 246, 0.3); }
+.tl-dot--learning { background: var(--accent-blue); box-shadow: 0 0 8px rgba(59, 130, 246, 0.3); }
+.tl-dot--error { background: var(--accent-red); box-shadow: 0 0 8px rgba(239, 68, 68, 0.3); }
+
+.tl-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 18px 22px;
+    border: 1px solid var(--border-color);
+    transition: border-color 0.2s;
+    text-align: left;
+}
+@media (hover: hover) {
+    .tl-card:hover {
+        border-color: var(--border-glow);
+    }
+}
+.tl-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+.tl-card-type {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.tl-card-time {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum' 1;
+}
+.tl-card-summary {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    text-wrap: balance;
+}
+.tl-card-meta {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+}
+.tl-card-meta span {
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum' 1;
+}
+
+/* ── Recall ── */
+.recall-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.recall-count {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+.recall-time {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum' 1;
+}
+
+.result-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.result-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+@media (hover: hover) {
+    .result-card:hover { border-color: var(--border-glow); }
+}
+
+.result-collapsed {
+    display: flex;
+    align-items: center;
+    padding: 16px 22px;
+    gap: 16px;
+}
+.result-score {
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+    font-size: 0.85rem;
+    font-weight: 600;
+    min-width: 44px;
+    text-align: center;
+    padding: 4px 0;
+    border-radius: 6px;
+}
+.result-score--high { color: var(--accent-green); background: rgba(34, 197, 94, 0.08); }
+.result-score--mid { color: var(--accent-cyan); background: rgba(6, 182, 212, 0.08); }
+.result-score--low { color: var(--text-dim); background: rgba(73, 79, 104, 0.1); }
+
+.result-preview {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.result-type-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 3px 10px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+.result-type-badge--insight { color: var(--accent-violet); background: rgba(139, 92, 246, 0.1); }
+.result-type-badge--decision { color: var(--accent-orange); background: rgba(245, 158, 11, 0.1); }
+.result-type-badge--learning { color: var(--accent-blue); background: rgba(59, 130, 246, 0.1); }
+.result-type-badge--error { color: var(--accent-red); background: rgba(239, 68, 68, 0.1); }
+
+.result-expand-icon {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+}
+.result-card.expanded .result-expand-icon {
+    transform: rotate(180deg);
+}
+
+.result-expanded {
+    display: none;
+    padding: 0 22px 18px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 0;
+}
+.result-card.expanded .result-expanded {
+    display: block;
+    padding-top: 16px;
+}
+.result-full-summary {
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    line-height: 1.55;
+    text-wrap: balance;
+    margin-bottom: 12px;
+}
+.result-meta-grid {
+    display: flex;
+    gap: 20px;
+    font-size: 0.72rem;
+}
+.result-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.result-meta-label {
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.65rem;
+}
+.result-meta-value {
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum' 1;
+}
+.result-concepts {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+}
+.result-concepts span {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--accent-violet) 8%, transparent);
+    padding: 2px 8px;
+    border-radius: 8px;
+}
+
+/* ── Headings ── */
+h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+h1 + .subtitle {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    margin-bottom: 32px;
+}
+</style>
+</head>
+<body>
+
+<nav>
+    <div class="nav-brand">
+        <span class="nav-brand-dot"></span>
+        m n e m o n i c
+    </div>
+    <div class="nav-tabs">
+        <button class="nav-tab active" onclick="showPage('mind', this)">Mind</button>
+        <button class="nav-tab" onclick="showPage('ego', this)">Graph</button>
+        <button class="nav-tab" onclick="showPage('timeline', this)">Timeline</button>
+        <button class="nav-tab" onclick="showPage('recall', this)">Recall</button>
+    </div>
+    <div class="nav-spacer"></div>
+    <div class="nav-meta">
+        <div class="nav-meta-item">
+            <span class="nav-meta-dot"></span>
+            <span>1,247 memories</span>
+        </div>
+        <div class="nav-meta-item">
+            <span>v0.32.0</span>
+        </div>
+    </div>
+</nav>
+
+<!-- ═══ MIND LANDING ═══ -->
+<div class="page active" id="page-mind">
+    <div class="page-inner">
+        <div class="search-wrapper">
+            <div class="search-border-glow"></div>
+            <input type="text" placeholder="Search your memories...">
+            <div class="search-hint">semantic search with spread activation</div>
+        </div>
+
+        <!-- Featured card: highest salience (85%) - full width -->
+        <div style="margin-bottom: 16px;">
+            <div class="card card--insight card--high card--featured" style="--pulse-speed: 2.2s;">
+                <div class="salience-dot salience-dot--high" style="--pulse-speed: 2.2s;">
+                    <div class="salience-dot-fill" style="height: 85%;"></div>
+                </div>
+                <div class="card-header">
+                    <span class="card-type card-type--insight">insight</span>
+                    <span class="card-date">Mar 21</span>
+                </div>
+                <div class="card-summary">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems — perception, consolidation, and dreaming agents all using magic numbers that should be configurable</div>
+                <div class="card-concepts">
+                    <span>agent</span><span>config</span><span>performance</span><span>architecture</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2-column row: next highest salience (79%, 76%) -->
+        <div class="card-row--2" style="margin-bottom: 16px;">
+            <div class="card card--decision card--high" style="--pulse-speed: 2.4s; animation-delay: 80ms;">
+                <div class="salience-dot salience-dot--high" style="--pulse-speed: 2.4s;">
+                    <div class="salience-dot-fill" style="height: 79%;"></div>
+                </div>
+                <div class="card-header">
+                    <span class="card-type card-type--decision">decision</span>
+                    <span class="card-date">Mar 21</span>
+                </div>
+                <div class="card-summary">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI over building a custom adapter</div>
+                <div class="card-concepts">
+                    <span>python</span><span>api</span><span>planning</span>
+                </div>
+            </div>
+            <div class="card card--insight card--high" style="--pulse-speed: 2.5s; animation-delay: 160ms;">
+                <div class="salience-dot salience-dot--high" style="--pulse-speed: 2.5s;">
+                    <div class="salience-dot-fill" style="height: 76%;"></div>
+                </div>
+                <div class="card-header">
+                    <span class="card-type card-type--insight">insight</span>
+                    <span class="card-date">Mar 21</span>
+                </div>
+                <div class="card-summary">Back button fails to appear due to missing history push in neighbor click handler — state management in the graph view needs a proper stack</div>
+                <div class="card-concepts">
+                    <span>javascript</span><span>ui</span><span>debugging</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3-column row: medium salience (66%, 52%, 51%) -->
+        <div class="card-row--3" style="margin-bottom: 16px;">
+            <div class="card card--learning card--medium" style="--pulse-speed: 3.5s; animation-delay: 240ms;">
+                <div class="salience-dot salience-dot--medium" style="--pulse-speed: 3.5s;">
+                    <div class="salience-dot-fill" style="height: 66%;"></div>
+                </div>
+                <div class="card-header">
+                    <span class="card-type card-type--learning">learning</span>
+                    <span class="card-date">Mar 21</span>
+                </div>
+                <div class="card-summary">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval scoring</div>
+                <div class="card-concepts">
+                    <span>go</span><span>retrieval</span><span>performance</span>
+                </div>
+            </div>
+            <div class="card card--insight card--medium" style="--pulse-speed: 4s; animation-delay: 320ms;">
+                <div class="salience-dot salience-dot--medium" style="--pulse-speed: 4s;">
+                    <div class="salience-dot-fill" style="height: 52%;"></div>
+                </div>
+                <div class="card-header">
+                    <span class="card-type card-type--insight">insight</span>
+                    <span class="card-date">Mar 20</span>
+                </div>
+                <div class="card-summary">Mnemonic v0.30.0 release adds pattern scoping, bulk forget, and handoff tools across PRs #310-#314</div>
+                <div class="card-concepts">
+                    <span>deployment</span><span>documentation</span><span>cli</span>
+                </div>
+            </div>
+            <div class="card card--learning card--medium" style="--pulse-speed: 4s; animation-delay: 400ms;">
+                <div class="salience-dot salience-dot--medium" style="--pulse-speed: 4s;">
+                    <div class="salience-dot-fill" style="height: 51%;"></div>
+                </div>
+                <div class="card-header">
+                    <span class="card-type card-type--learning">learning</span>
+                    <span class="card-date">Mar 20</span>
+                </div>
+                <div class="card-summary">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml for manual triggers</div>
+                <div class="card-concepts">
+                    <span>ci</span><span>deployment</span><span>github</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3-column row: lower salience (44%, 39%, 38%) -->
+        <div class="card-row--3">
+            <div class="card card--decision card--low" style="--pulse-speed: 5.5s; animation-delay: 480ms;">
+                <div class="salience-dot salience-dot--low" style="--pulse-speed: 5.5s;">
+                    <div class="salience-dot-fill" style="height: 44%;"></div>
+                </div>
+                <div class="card-header">
+                    <span class="card-type card-type--decision">decision</span>
+                    <span class="card-date">Mar 21</span>
+                </div>
+                <div class="card-summary">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+                <div class="card-concepts">
+                    <span>refactoring</span><span>configuration</span><span>go</span>
+                </div>
+            </div>
+            <div class="card card--insight card--low" style="--pulse-speed: 6s; animation-delay: 560ms;">
+                <div class="salience-dot salience-dot--low" style="--pulse-speed: 6s;">
+                    <div class="salience-dot-fill" style="height: 39%;"></div>
+                </div>
+                <div class="card-header">
+                    <span class="card-type card-type--insight">insight</span>
+                    <span class="card-date">Mar 21</span>
+                </div>
+                <div class="card-summary">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+                <div class="card-concepts">
+                    <span>llm</span><span>benchmarking</span><span>performance</span>
+                </div>
+            </div>
+            <div class="card card--decision card--low" style="--pulse-speed: 6s; animation-delay: 640ms;">
+                <div class="salience-dot salience-dot--low" style="--pulse-speed: 6s;">
+                    <div class="salience-dot-fill" style="height: 38%;"></div>
+                </div>
+                <div class="card-header">
+                    <span class="card-type card-type--decision">decision</span>
+                    <span class="card-date">Mar 20</span>
+                </div>
+                <div class="card-summary">Committed JSON repair and benchmark tools; Qwen3.5-0.8B parse rate rose from 78.3% to 98.1%</div>
+                <div class="card-concepts">
+                    <span>python</span><span>llm</span><span>benchmarking</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ EGO GRAPH ═══ -->
+<div class="page" id="page-ego">
+    <div class="page-inner" style="max-width: 1300px;">
+        <div class="ego-header">
+            <button class="ego-back">&larr; Back</button>
+            <div class="ego-breadcrumb">
+                <span style="cursor:pointer;color:var(--accent-cyan)">cleverness debt audit</span>
+                <span style="margin: 0 8px; color: var(--text-dim)">/</span>
+                <span class="ego-breadcrumb-current">Centralized 40+ hardcoded values...</span>
+            </div>
+        </div>
+        <div class="ego-canvas">
+            <div class="ego-filter">
+                <input type="text" placeholder="Filter neighbors...">
+            </div>
+
+            <!-- SVG edges (bezier curves) -->
+            <svg class="ego-edges" viewBox="0 0 1000 520" preserveAspectRatio="none">
+                <path class="ego-edge" d="M500,260 C420,200 320,190 280,170" stroke="var(--accent-orange)" stroke-width="1.5"/>
+                <path class="ego-edge" d="M500,260 C540,200 620,180 680,160" stroke="var(--accent-violet)" stroke-width="1.2"/>
+                <path class="ego-edge" d="M500,260 C450,300 360,340 300,360" stroke="var(--accent-blue)" stroke-width="1"/>
+                <path class="ego-edge" d="M500,260 C560,310 650,350 720,370" stroke="var(--accent-violet)" stroke-width="1.3"/>
+                <path class="ego-edge" d="M500,260 C480,180 430,120 380,90" stroke="var(--accent-cyan)" stroke-width="0.8"/>
+                <path class="ego-edge" d="M500,260 C530,180 600,120 660,80" stroke="var(--accent-orange)" stroke-width="1"/>
+                <path class="ego-edge" d="M500,260 C440,280 350,270 250,260" stroke="var(--accent-red)" stroke-width="0.9"/>
+                <path class="ego-edge" d="M500,260 C520,320 540,400 560,430" stroke="var(--accent-blue)" stroke-width="1.1"/>
+            </svg>
+
+            <!-- Center ego node -->
+            <div class="ego-node ego-node--center">ego</div>
+
+            <!-- Neighbor nodes -->
+            <div class="ego-node ego-node--neighbor" style="width:38px;height:38px;background:var(--accent-orange);left:262px;top:151px;opacity:0.85;box-shadow:0 0 12px rgba(245,158,11,0.25);">
+                <span style="font-size:0.5rem"></span>
+            </div>
+            <div class="ego-node ego-node--neighbor" style="width:34px;height:34px;background:var(--accent-violet);left:663px;top:143px;opacity:0.8;box-shadow:0 0 10px rgba(139,92,246,0.25);">
+                <span style="font-size:0.5rem"></span>
+            </div>
+            <div class="ego-node ego-node--neighbor" style="width:30px;height:30px;background:var(--accent-blue);left:285px;top:345px;opacity:0.75;box-shadow:0 0 8px rgba(59,130,246,0.25);">
+                <span style="font-size:0.5rem"></span>
+            </div>
+            <div class="ego-node ego-node--neighbor" style="width:36px;height:36px;background:var(--accent-violet);left:702px;top:352px;opacity:0.82;box-shadow:0 0 10px rgba(139,92,246,0.25);">
+                <span style="font-size:0.5rem"></span>
+            </div>
+            <div class="ego-node ego-node--neighbor" style="width:24px;height:24px;background:var(--accent-cyan);left:368px;top:78px;opacity:0.65;box-shadow:0 0 6px rgba(6,182,212,0.2);">
+                <span style="font-size:0.5rem"></span>
+            </div>
+            <div class="ego-node ego-node--neighbor" style="width:28px;height:28px;background:var(--accent-orange);left:646px;top:66px;opacity:0.7;box-shadow:0 0 8px rgba(245,158,11,0.2);">
+                <span style="font-size:0.5rem"></span>
+            </div>
+            <div class="ego-node ego-node--neighbor" style="width:22px;height:22px;background:var(--accent-red);left:239px;top:249px;opacity:0.6;box-shadow:0 0 6px rgba(239,68,68,0.2);">
+                <span style="font-size:0.5rem"></span>
+            </div>
+            <div class="ego-node ego-node--neighbor" style="width:26px;height:26px;background:var(--accent-blue);left:544px;top:417px;opacity:0.68;box-shadow:0 0 6px rgba(59,130,246,0.2);">
+                <span style="font-size:0.5rem"></span>
+            </div>
+
+            <!-- Detail panel (slides up from bottom) -->
+            <div class="ego-detail">
+                <div class="ego-detail-title">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+                <div class="ego-detail-grid">
+                    <div class="ego-detail-row">
+                        <span class="ego-detail-label">Type</span>
+                        <span class="ego-detail-value" style="color: var(--accent-orange);">decision</span>
+                    </div>
+                    <div class="ego-detail-row">
+                        <span class="ego-detail-label">Salience</span>
+                        <span class="ego-detail-value">0.44</span>
+                    </div>
+                    <div class="ego-detail-row">
+                        <span class="ego-detail-label">Source</span>
+                        <span class="ego-detail-value">mcp</span>
+                    </div>
+                    <div class="ego-detail-row">
+                        <span class="ego-detail-label">Connections</span>
+                        <span class="ego-detail-value">15</span>
+                    </div>
+                    <div class="ego-detail-row">
+                        <span class="ego-detail-label">Created</span>
+                        <span class="ego-detail-value">Mar 21, 2026</span>
+                    </div>
+                    <div class="ego-detail-row">
+                        <span class="ego-detail-label">Concepts</span>
+                        <span class="ego-detail-value">refactoring, config, go</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TIMELINE ═══ -->
+<div class="page" id="page-timeline">
+    <div class="page-inner">
+        <div class="timeline-header">
+            Today
+            <span class="timeline-header-count">8 memories</span>
+        </div>
+
+        <div class="timeline">
+            <!-- Entry 1 (left) -->
+            <div class="tl-entry">
+                <div class="tl-dot tl-dot--insight"></div>
+                <div class="tl-card">
+                    <div class="tl-card-header">
+                        <span class="tl-card-type card-type--insight">insight</span>
+                        <span class="tl-card-time">10:05 AM</span>
+                    </div>
+                    <div class="tl-card-summary">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+                    <div class="tl-card-meta">
+                        <span>mcp</span>
+                        <span>85%</span>
+                        <span>agent &middot; config &middot; performance</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entry 2 (right) -->
+            <div class="tl-entry">
+                <div class="tl-dot tl-dot--decision"></div>
+                <div class="tl-card">
+                    <div class="tl-card-header">
+                        <span class="tl-card-type card-type--decision">decision</span>
+                        <span class="tl-card-time">9:42 AM</span>
+                    </div>
+                    <div class="tl-card-summary">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div>
+                    <div class="tl-card-meta">
+                        <span>mcp</span>
+                        <span>79%</span>
+                        <span>python &middot; api &middot; planning</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entry 3 (left) -->
+            <div class="tl-entry">
+                <div class="tl-dot tl-dot--insight"></div>
+                <div class="tl-card">
+                    <div class="tl-card-header">
+                        <span class="tl-card-type card-type--insight">insight</span>
+                        <span class="tl-card-time">9:18 AM</span>
+                    </div>
+                    <div class="tl-card-summary">Back button fails to appear due to missing history push in neighbor click handler</div>
+                    <div class="tl-card-meta">
+                        <span>mcp</span>
+                        <span>76%</span>
+                        <span>javascript &middot; ui &middot; debugging</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entry 4 (right) -->
+            <div class="tl-entry">
+                <div class="tl-dot tl-dot--learning"></div>
+                <div class="tl-card">
+                    <div class="tl-card-header">
+                        <span class="tl-card-type card-type--learning">learning</span>
+                        <span class="tl-card-time">8:55 AM</span>
+                    </div>
+                    <div class="tl-card-summary">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval scoring</div>
+                    <div class="tl-card-meta">
+                        <span>mcp</span>
+                        <span>66%</span>
+                        <span>go &middot; retrieval &middot; performance</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entry 5 (left) -->
+            <div class="tl-entry">
+                <div class="tl-dot tl-dot--insight"></div>
+                <div class="tl-card">
+                    <div class="tl-card-header">
+                        <span class="tl-card-type card-type--insight">insight</span>
+                        <span class="tl-card-time">8:31 AM</span>
+                    </div>
+                    <div class="tl-card-summary">Mnemonic v0.30.0 release adds pattern scoping, bulk forget, and handoff tools across PRs #310-#314</div>
+                    <div class="tl-card-meta">
+                        <span>mcp</span>
+                        <span>52%</span>
+                        <span>deployment &middot; documentation &middot; cli</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entry 6 (right) -->
+            <div class="tl-entry">
+                <div class="tl-dot tl-dot--learning"></div>
+                <div class="tl-card">
+                    <div class="tl-card-header">
+                        <span class="tl-card-type card-type--learning">learning</span>
+                        <span class="tl-card-time">8:12 AM</span>
+                    </div>
+                    <div class="tl-card-summary">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml for manual triggers</div>
+                    <div class="tl-card-meta">
+                        <span>mcp</span>
+                        <span>51%</span>
+                        <span>ci &middot; deployment &middot; github</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entry 7 (left) -->
+            <div class="tl-entry">
+                <div class="tl-dot tl-dot--decision"></div>
+                <div class="tl-card">
+                    <div class="tl-card-header">
+                        <span class="tl-card-type card-type--decision">decision</span>
+                        <span class="tl-card-time">7:48 AM</span>
+                    </div>
+                    <div class="tl-card-summary">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+                    <div class="tl-card-meta">
+                        <span>mcp</span>
+                        <span>44%</span>
+                        <span>refactoring &middot; configuration &middot; go</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entry 8 (right) -->
+            <div class="tl-entry">
+                <div class="tl-dot tl-dot--decision"></div>
+                <div class="tl-card">
+                    <div class="tl-card-header">
+                        <span class="tl-card-type card-type--decision">decision</span>
+                        <span class="tl-card-time">7:20 AM</span>
+                    </div>
+                    <div class="tl-card-summary">Committed JSON repair and benchmark tools; Qwen3.5-0.8B parse rate rose from 78.3% to 98.1%</div>
+                    <div class="tl-card-meta">
+                        <span>mcp</span>
+                        <span>38%</span>
+                        <span>python &middot; llm &middot; benchmarking</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ RECALL ═══ -->
+<div class="page" id="page-recall">
+    <div class="page-inner">
+        <div class="search-wrapper" style="margin-bottom: 28px;">
+            <div class="search-border-glow"></div>
+            <input type="text" value="hardcoded agent weights" placeholder="What do you remember about...">
+        </div>
+
+        <div class="recall-header">
+            <span class="recall-count">4 results</span>
+            <span class="recall-time">12ms</span>
+        </div>
+
+        <div class="result-list">
+            <div class="result-card expanded">
+                <div class="result-collapsed" onclick="toggleResult(this)">
+                    <div class="result-score result-score--high">0.92</div>
+                    <div class="result-preview">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+                    <span class="result-type-badge result-type-badge--insight">insight</span>
+                    <span class="result-expand-icon">&#x25BC;</span>
+                </div>
+                <div class="result-expanded">
+                    <div class="result-full-summary">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems — perception, consolidation, and dreaming agents all using magic numbers that should be configurable</div>
+                    <div class="result-meta-grid">
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Salience</span>
+                            <span class="result-meta-value">85%</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Source</span>
+                            <span class="result-meta-value">mcp</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Created</span>
+                            <span class="result-meta-value">Mar 21, 2026</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Associations</span>
+                            <span class="result-meta-value">12</span>
+                        </div>
+                    </div>
+                    <div class="result-concepts">
+                        <span>agent</span><span>config</span><span>performance</span><span>architecture</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="result-card">
+                <div class="result-collapsed" onclick="toggleResult(this)">
+                    <div class="result-score result-score--high">0.78</div>
+                    <div class="result-preview">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+                    <span class="result-type-badge result-type-badge--decision">decision</span>
+                    <span class="result-expand-icon">&#x25BC;</span>
+                </div>
+                <div class="result-expanded">
+                    <div class="result-full-summary">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+                    <div class="result-meta-grid">
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Salience</span>
+                            <span class="result-meta-value">44%</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Source</span>
+                            <span class="result-meta-value">mcp</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Created</span>
+                            <span class="result-meta-value">Mar 21, 2026</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Associations</span>
+                            <span class="result-meta-value">15</span>
+                        </div>
+                    </div>
+                    <div class="result-concepts">
+                        <span>refactoring</span><span>configuration</span><span>go</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="result-card">
+                <div class="result-collapsed" onclick="toggleResult(this)">
+                    <div class="result-score result-score--mid">0.61</div>
+                    <div class="result-preview">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval scoring</div>
+                    <span class="result-type-badge result-type-badge--learning">learning</span>
+                    <span class="result-expand-icon">&#x25BC;</span>
+                </div>
+                <div class="result-expanded">
+                    <div class="result-full-summary">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval scoring</div>
+                    <div class="result-meta-grid">
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Salience</span>
+                            <span class="result-meta-value">66%</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Source</span>
+                            <span class="result-meta-value">mcp</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Created</span>
+                            <span class="result-meta-value">Mar 21, 2026</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Associations</span>
+                            <span class="result-meta-value">8</span>
+                        </div>
+                    </div>
+                    <div class="result-concepts">
+                        <span>go</span><span>retrieval</span><span>performance</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="result-card">
+                <div class="result-collapsed" onclick="toggleResult(this)">
+                    <div class="result-score result-score--low">0.43</div>
+                    <div class="result-preview">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+                    <span class="result-type-badge result-type-badge--insight">insight</span>
+                    <span class="result-expand-icon">&#x25BC;</span>
+                </div>
+                <div class="result-expanded">
+                    <div class="result-full-summary">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+                    <div class="result-meta-grid">
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Salience</span>
+                            <span class="result-meta-value">39%</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Source</span>
+                            <span class="result-meta-value">mcp</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Created</span>
+                            <span class="result-meta-value">Mar 21, 2026</span>
+                        </div>
+                        <div class="result-meta-item">
+                            <span class="result-meta-label">Associations</span>
+                            <span class="result-meta-value">5</span>
+                        </div>
+                    </div>
+                    <div class="result-concepts">
+                        <span>llm</span><span>benchmarking</span><span>performance</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showPage(name, btn) {
+    // Use View Transitions API if available
+    const doSwitch = () => {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById('page-' + name).classList.add('active');
+        btn.classList.add('active');
+        // Re-trigger entry animations
+        const page = document.getElementById('page-' + name);
+        page.querySelectorAll('.card, .tl-entry, .result-card').forEach(el => {
+            el.style.animation = 'none';
+            el.offsetHeight; // force reflow
+            el.style.animation = '';
+        });
+    };
+
+    if (document.startViewTransition) {
+        document.startViewTransition(doSwitch);
+    } else {
+        doSwitch();
+    }
+}
+
+function toggleResult(collapsed) {
+    const card = collapsed.closest('.result-card');
+    card.classList.toggle('expanded');
+}
+</script>
+</body>
+</html>

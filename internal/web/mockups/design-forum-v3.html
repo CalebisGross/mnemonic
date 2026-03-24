@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0b0b0f;
+  --bg-panel: #0f0f14;
+  --bg-row: #111117;
+  --bg-row-alt: #0f0f15;
+  --bg-row-hover: #16161e;
+  --bg-nested: #0d0d12;
+  --bg-accent: #13131f;
+  --border: #1a1a28;
+  --border-accent: #252540;
+  --text: #c4c4d0;
+  --text-bright: #e4e4ee;
+  --text-dim: #6a6a80;
+  --text-faint: #3a3a50;
+  --link: #7b94d8;
+  --link-hover: #9db0f0;
+  --accent: #5c72b8;
+  --accent-bar: #4a5c9a;
+  --green: #4a9060;
+  --green-dim: rgba(74,144,96,0.15);
+  --decision: #d0982e;
+  --insight: #9a72b8;
+  --learning: #4a8eb8;
+  --error: #b85a4a;
+  --font: Verdana, Geneva, Tahoma, sans-serif;
+  --mono: 'Lucida Console', 'Courier New', monospace;
+}
+
+html { font-size: 11px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: auto;
+  line-height: 1.4;
+  padding-bottom: 24px;
+}
+
+/* ── Top header — gradient bar like vBulletin ── */
+.top {
+  background: linear-gradient(to bottom, #181830, #101020);
+  border-bottom: 2px solid var(--accent-bar);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.top-brand {
+  font-size: 1.6rem;
+  font-weight: bold;
+  color: #8898d0;
+  letter-spacing: -0.03em;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+.top-brand small {
+  font-size: 0.7rem;
+  font-weight: normal;
+  color: var(--text-dim);
+  margin-left: 8px;
+}
+.top-right {
+  font-size: 1rem;
+  color: var(--text-dim);
+}
+.top-right a { color: var(--link); text-decoration: none; }
+.top-right a:hover { color: var(--link-hover); text-decoration: underline; }
+
+/* ── Nav bar ── */
+.navbar {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.navbar-tabs { display: flex; gap: 0; height: 30px; }
+.ntab {
+  padding: 0 14px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+  font-weight: bold;
+  color: var(--text-dim);
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font);
+  transition: color 0.1s, background 0.1s;
+}
+.ntab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.ntab.active { color: var(--link); background: rgba(92,114,184,0.08); }
+.navbar-right {
+  margin-left: auto;
+  font-size: 0.92rem;
+  color: var(--text-faint);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.navbar-right .online { color: var(--green); font-weight: bold; }
+
+/* ── Breadcrumb ── */
+.crumbs {
+  padding: 6px 16px;
+  font-size: 0.92rem;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.crumbs a { color: var(--link); text-decoration: none; }
+.crumbs a:hover { text-decoration: underline; color: var(--link-hover); }
+.crumbs .sep { margin: 0 5px; color: var(--text-faint); }
+
+/* ── Pages ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Welcome / stats panel ── */
+.welcome-panel {
+  margin: 8px 16px;
+  border: 1px solid var(--border-accent);
+  background: var(--bg-panel);
+}
+.welcome-bar {
+  padding: 6px 10px;
+  background: linear-gradient(to bottom, rgba(92,114,184,0.1), rgba(92,114,184,0.03));
+  border-bottom: 1px solid var(--border-accent);
+  font-size: 1rem;
+  font-weight: bold;
+  color: var(--text-bright);
+}
+.welcome-body {
+  padding: 8px 10px;
+  font-size: 0.92rem;
+  display: flex;
+  justify-content: space-between;
+}
+.welcome-body .stats { display: flex; gap: 14px; }
+.stat-val { color: var(--text-bright); font-weight: bold; }
+
+/* ── Forum block — the core ── */
+.fblock {
+  margin: 6px 16px;
+  border: 1px solid var(--border-accent);
+}
+.fblock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  background: linear-gradient(to bottom, rgba(92,114,184,0.12), rgba(92,114,184,0.04));
+  border-bottom: 1px solid var(--border-accent);
+  cursor: pointer;
+}
+.fblock-title {
+  font-size: 1.05rem;
+  font-weight: bold;
+  color: var(--text-bright);
+}
+.fblock-toggle {
+  font-size: 0.85rem;
+  color: var(--text-faint);
+}
+
+/* Column headers */
+.colh {
+  display: grid;
+  gap: 0;
+  padding: 3px 10px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: var(--text-faint);
+  background: var(--bg-accent);
+  border-bottom: 1px solid var(--border);
+}
+.colh-ep { grid-template-columns: 28px 1fr 52px 52px 130px; }
+.colh-mem { grid-template-columns: 28px 1fr 48px 48px 110px; }
+.colh span:nth-child(3),
+.colh span:nth-child(4) { text-align: center; }
+.colh span:last-child { text-align: right; }
+
+/* ── Forum row ── */
+.frow {
+  display: grid;
+  gap: 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.06s;
+  align-items: center;
+}
+.frow-ep { grid-template-columns: 28px 1fr 52px 52px 130px; }
+.frow-mem { grid-template-columns: 28px 1fr 48px 48px 110px; }
+.frow:nth-child(odd) { background: var(--bg-row); }
+.frow:nth-child(even) { background: var(--bg-row-alt); }
+.frow:hover { background: var(--bg-row-hover); }
+
+/* Status icon — like vBulletin's folder icons */
+.frow-icon {
+  width: 22px; height: 22px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: bold;
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+.icon-ep { background: rgba(92,114,184,0.15); color: var(--accent); border: 1px solid rgba(92,114,184,0.25); }
+.icon-new { position: relative; }
+.icon-new::after {
+  content: '';
+  position: absolute;
+  top: -2px; right: -2px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 1px solid var(--bg);
+}
+.icon-in { background: rgba(154,114,184,0.12); color: var(--insight); border: 1px solid rgba(154,114,184,0.2); }
+.icon-de { background: rgba(208,152,46,0.12); color: var(--decision); border: 1px solid rgba(208,152,46,0.2); }
+.icon-le { background: rgba(74,142,184,0.12); color: var(--learning); border: 1px solid rgba(74,142,184,0.2); }
+.icon-er { background: rgba(184,90,74,0.12); color: var(--error); border: 1px solid rgba(184,90,74,0.2); }
+
+.frow-content { padding-left: 8px; min-width: 0; }
+.frow-title {
+  font-size: 1rem;
+  font-weight: bold;
+  color: var(--link);
+  text-decoration: none;
+  display: block;
+}
+.frow:hover .frow-title { color: var(--link-hover); text-decoration: underline; }
+.frow-sub {
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.frow-tags { display: inline; }
+.frow-tag {
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  background: rgba(255,255,255,0.03);
+  padding: 0 4px;
+  margin-left: 2px;
+  font-family: var(--mono);
+}
+.frow-stat {
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  text-align: center;
+  font-feature-settings: 'tnum' 1;
+}
+.frow-last {
+  text-align: right;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.frow-last-time { color: var(--text-dim); font-family: var(--mono); font-feature-settings: 'tnum' 1; }
+.frow-last-via { color: var(--text-faint); font-size: 0.82rem; }
+
+/* Salience-driven weight */
+.sal-hi .frow-title { color: var(--link); }
+.sal-mid .frow-title { color: var(--text-dim); font-weight: normal; }
+.sal-lo .frow-title { color: var(--text-faint); font-weight: normal; }
+.sal-lo .frow-stat { color: var(--text-faint); }
+
+/* ── Expandable dropdown — nested memories inside episode ── */
+.expand-zone {
+  display: none;
+  background: var(--bg-nested);
+  border-top: 1px solid var(--border);
+  border-bottom: 2px solid var(--border-accent);
+}
+.expand-zone.open { display: block; }
+.expand-header {
+  padding: 4px 10px 4px 46px;
+  font-size: 0.85rem;
+  color: var(--text-faint);
+  background: var(--bg-accent);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+}
+.expand-header a { color: var(--link); text-decoration: none; font-weight: bold; }
+.expand-header a:hover { text-decoration: underline; }
+.nested-row {
+  display: grid;
+  grid-template-columns: 46px 22px 1fr 48px 80px;
+  gap: 0;
+  padding: 5px 10px;
+  border-bottom: 1px solid rgba(26,26,40,0.5);
+  transition: background 0.06s;
+  align-items: center;
+  cursor: pointer;
+}
+.nested-row:nth-child(odd) { background: rgba(13,13,18,0.8); }
+.nested-row:nth-child(even) { background: rgba(15,15,21,0.6); }
+.nested-row:hover { background: var(--bg-row-hover); }
+.nested-indent { border-left: 2px solid var(--border); height: 100%; margin-left: 20px; }
+.nested-text {
+  font-size: 0.92rem;
+  color: var(--text);
+  padding-left: 6px;
+}
+.nested-text:hover { color: var(--link-hover); }
+.nested-sal { font-family: var(--mono); font-size: 0.85rem; color: var(--text-faint); text-align: center; font-feature-settings: 'tnum' 1; }
+.nested-time { font-family: var(--mono); font-size: 0.82rem; color: var(--text-faint); text-align: right; font-feature-settings: 'tnum' 1; }
+
+/* ── Thread detail view ── */
+.thread-wrap {
+  margin: 8px 16px;
+  border: 1px solid var(--border-accent);
+}
+.thread-top {
+  padding: 10px 12px;
+  background: linear-gradient(to bottom, rgba(92,114,184,0.1), rgba(92,114,184,0.03));
+  border-bottom: 1px solid var(--border-accent);
+}
+.thread-title-big {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: var(--text-bright);
+  margin-bottom: 4px;
+}
+.thread-meta {
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  display: flex;
+  gap: 14px;
+}
+.thread-meta b { color: var(--text); font-weight: bold; }
+
+/* Post — vBulletin classic layout */
+.post {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  border-bottom: 1px solid var(--border-accent);
+}
+.post:nth-child(odd) { background: var(--bg-row); }
+.post:nth-child(even) { background: var(--bg-row-alt); }
+.post-left {
+  padding: 8px;
+  border-right: 1px solid var(--border);
+  font-size: 0.85rem;
+  text-align: center;
+}
+.post-type-badge {
+  font-weight: bold;
+  font-size: 0.92rem;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  padding: 2px 0;
+  border-radius: 2px;
+}
+.post-type-badge--insight { color: var(--insight); background: rgba(154,114,184,0.1); }
+.post-type-badge--decision { color: var(--decision); background: rgba(208,152,46,0.1); }
+.post-type-badge--learning { color: var(--learning); background: rgba(74,142,184,0.1); }
+.post-stat-row {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  margin: 2px 0;
+}
+.post-stat-row b { color: var(--text-dim); }
+.post-right {
+  padding: 8px 10px;
+}
+.post-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.post-head a { color: var(--link); text-decoration: none; }
+.post-head a:hover { text-decoration: underline; }
+.post-body-text {
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+.post-tags {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.post-tag {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  background: rgba(255,255,255,0.03);
+  padding: 1px 5px;
+  font-family: var(--mono);
+  border: 1px solid var(--border);
+}
+/* Quoted association — like quoting a post */
+.quote-block {
+  border: 1px solid var(--border);
+  margin-top: 6px;
+  background: rgba(255,255,255,0.015);
+}
+.quote-head {
+  padding: 3px 8px;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border);
+  font-weight: bold;
+}
+.quote-body {
+  padding: 6px 8px;
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* ── Timeline ── */
+.tl-head {
+  padding: 5px 16px;
+  font-size: 0.92rem;
+  font-weight: bold;
+  color: var(--text-dim);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 30px;
+  z-index: 50;
+  display: flex;
+  justify-content: space-between;
+}
+.tl-head-count { font-weight: normal; color: var(--text-faint); }
+.tlr {
+  display: grid;
+  grid-template-columns: 50px 22px 1fr 44px;
+  gap: 6px;
+  padding: 5px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.06s;
+  align-items: center;
+}
+.tlr:nth-child(odd) { background: var(--bg-row); }
+.tlr:nth-child(even) { background: var(--bg-row-alt); }
+.tlr:hover { background: var(--bg-row-hover); }
+.tlr-time { font-family: var(--mono); font-size: 0.85rem; color: var(--text-faint); text-align: right; font-feature-settings: 'tnum' 1; }
+.tlr-dot { width: 8px; height: 8px; border-radius: 2px; margin: 0 auto; }
+.tlr-text { font-size: 0.92rem; color: var(--text); }
+.tlr-text:hover { color: var(--link-hover); }
+.tlr-sal { font-family: var(--mono); font-size: 0.82rem; color: var(--text-faint); text-align: right; }
+
+/* ── Recall ── */
+.recall-bar {
+  padding: 6px 16px;
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.recall-bar input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 1rem;
+  font-family: var(--font);
+  outline: none;
+}
+.recall-bar input:focus { border-color: var(--accent); }
+.recall-bar input::placeholder { color: var(--text-faint); }
+.btn2 {
+  font-size: 0.92rem;
+  font-weight: bold;
+  color: var(--text-bright);
+  background: var(--accent-bar);
+  border: 1px solid var(--accent);
+  padding: 3px 12px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.btn2:hover { background: var(--accent); }
+.recall-info {
+  padding: 4px 16px;
+  font-size: 0.85rem;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  border-bottom: 1px solid var(--border);
+}
+.rcolh {
+  display: grid;
+  grid-template-columns: 40px 28px 1fr 48px 48px 90px;
+  gap: 0;
+  padding: 3px 16px;
+  font-size: 0.82rem;
+  font-weight: bold;
+  color: var(--text-faint);
+  background: var(--bg-accent);
+  border-bottom: 1px solid var(--border);
+}
+.rcolh span:nth-child(1) { text-align: center; }
+.rcolh span:nth-child(4),
+.rcolh span:nth-child(5) { text-align: center; }
+.rcolh span:last-child { text-align: right; }
+.rr {
+  display: grid;
+  grid-template-columns: 40px 28px 1fr 48px 48px 90px;
+  gap: 0;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.06s;
+  align-items: center;
+}
+.rr:nth-child(odd) { background: var(--bg-row); }
+.rr:nth-child(even) { background: var(--bg-row-alt); }
+.rr:hover { background: var(--bg-row-hover); }
+.rr-score { font-family: var(--mono); font-size: 1.05rem; font-weight: bold; text-align: center; font-feature-settings: 'tnum' 1, 'zero' 1; }
+.rr-score-hi { color: var(--link); }
+.rr-score-mid { color: var(--text-dim); }
+.rr-score-lo { color: var(--text-faint); }
+.rr-title { font-size: 0.92rem; color: var(--link); padding-left: 6px; }
+.rr:hover .rr-title { color: var(--link-hover); text-decoration: underline; }
+
+/* ── Footer ── */
+.foot {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 20px;
+  background: linear-gradient(to bottom, #101020, #0d0d18);
+  border-top: 1px solid var(--border-accent);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  gap: 10px;
+  z-index: 100;
+}
+.foot span + span::before { content: '·'; margin-right: 10px; color: var(--border-accent); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="top-brand">mnemonic <small>v0.33.0 — cognitive memory daemon</small></div>
+  <div class="top-right"><a href="#">Dashboard</a> | <a href="#">Config</a> | <a href="#">Export</a></div>
+</div>
+
+<div class="navbar">
+  <div class="navbar-tabs">
+    <button class="ntab active" onclick="go('mind',this)">Forum</button>
+    <button class="ntab" onclick="go('thread',this)">Thread View</button>
+    <button class="ntab" onclick="go('timeline',this)">Timeline</button>
+    <button class="ntab" onclick="go('recall',this)">Search</button>
+  </div>
+  <div class="navbar-right">
+    <span class="online">● daemon online</span>
+    <span>77 memories</span>
+  </div>
+</div>
+
+<!-- ═══ FORUM VIEW ═══ -->
+<div class="page active" id="p-mind">
+  <div class="crumbs"><a href="#">mnemonic</a><span class="sep">›</span> <a href="#">mnemonic</a> (project)</div>
+
+  <div class="welcome-panel">
+    <div class="welcome-bar">Welcome Back</div>
+    <div class="welcome-body">
+      <span>Last visit: Today at 08:14 AM · <span style="color:var(--green);font-weight:bold">3 new memories</span> since then</span>
+      <div class="stats">
+        <span><span class="stat-val">77</span> active</span>
+        <span><span class="stat-val">8</span> fading</span>
+        <span><span class="stat-val">27</span> archived</span>
+        <span><span class="stat-val">9</span> merged</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Episodes -->
+  <div class="fblock">
+    <div class="fblock-head">
+      <div class="fblock-title">Episodes</div>
+      <div class="fblock-toggle">3 episodes today</div>
+    </div>
+    <div class="colh colh-ep"><span></span><span>Episode</span><span>Mem</span><span>Files</span><span>Last Activity</span></div>
+
+    <div class="frow frow-ep" onclick="toggle('exp1')">
+      <div class="frow-icon icon-ep icon-new">EP</div>
+      <div class="frow-content"><span class="frow-title">Mnemonic v0.31.0 Release and the Linux Watcher Race Condition</span><div class="frow-sub">Shipped PRs #296-#309. Race condition in watcher_other.go <span class="frow-tags"><span class="frow-tag">race condition</span><span class="frow-tag">inotify</span></span></div></div>
+      <div class="frow-stat">6</div>
+      <div class="frow-stat">3</div>
+      <div class="frow-last"><div class="frow-last-time">08:55 AM</div><div class="frow-last-via">satisfying</div></div>
+    </div>
+
+    <!-- EXPANDABLE: nested memories for this episode -->
+    <div class="expand-zone" id="exp1">
+      <div class="expand-header"><span>6 memories in this episode</span><a href="#" onclick="go('thread',document.querySelectorAll('.ntab')[1])">View full thread →</a></div>
+      <div class="nested-row"><div></div><div class="frow-icon icon-in" style="width:18px;height:18px;font-size:0.6rem">IN</div><div class="nested-text">Critical audit found cleverness debt and hardcoded agent weights across 6+ subsystems</div><div class="nested-sal">85%</div><div class="nested-time">10:05</div></div>
+      <div class="nested-row"><div></div><div class="frow-icon icon-de" style="width:18px;height:18px;font-size:0.6rem">DE</div><div class="nested-text">Evaluated 3 options for RLE write endpoints; recommended upstream RIMAPI</div><div class="nested-sal">79%</div><div class="nested-time">9:42</div></div>
+      <div class="nested-row"><div></div><div class="frow-icon icon-in" style="width:18px;height:18px;font-size:0.6rem">IN</div><div class="nested-text">Back button fails to appear due to missing history push in neighbor click handler</div><div class="nested-sal">76%</div><div class="nested-time">9:18</div></div>
+      <div class="nested-row"><div></div><div class="frow-icon icon-le" style="width:18px;height:18px;font-size:0.6rem">LE</div><div class="nested-text">Verified context_boost 30-minute decay window and distinguished from activity_bonus</div><div class="nested-sal">66%</div><div class="nested-time">8:55</div></div>
+    </div>
+
+    <div class="frow frow-ep" onclick="toggle('exp2')">
+      <div class="frow-icon icon-ep">EP</div>
+      <div class="frow-content"><span class="frow-title">System Audit and Recursive Self-Correction</span><div class="frow-sub">50% encoding failure rate. Reinforced Principle 2. <span class="frow-tags"><span class="frow-tag">system audit</span><span class="frow-tag">encoding</span></span></div></div>
+      <div class="frow-stat">6</div>
+      <div class="frow-stat">3</div>
+      <div class="frow-last"><div class="frow-last-time">10:05 AM</div><div class="frow-last-via">satisfying</div></div>
+    </div>
+    <div class="expand-zone" id="exp2">
+      <div class="expand-header"><span>6 memories in this episode</span><a href="#">View full thread →</a></div>
+      <div class="nested-row"><div></div><div class="frow-icon icon-in" style="width:18px;height:18px;font-size:0.6rem">IN</div><div class="nested-text">Audit identified 50% encoding failure rate; missed opportunity for root cause analysis</div><div class="nested-sal">85%</div><div class="nested-time">10:04</div></div>
+      <div class="nested-row"><div></div><div class="frow-icon icon-de" style="width:18px;height:18px;font-size:0.6rem">DE</div><div class="nested-text">Reinforced principle p2: prefer diagnostic tools over recall for audits</div><div class="nested-sal">80%</div><div class="nested-time">10:04</div></div>
+      <div class="nested-row"><div></div><div class="frow-icon icon-le" style="width:18px;height:18px;font-size:0.6rem">LE</div><div class="nested-text">Created structured strategies for system audits, config reviews, and self-improvement</div><div class="nested-sal">90%</div><div class="nested-time">10:05</div></div>
+    </div>
+
+    <div class="frow frow-ep">
+      <div class="frow-icon icon-ep">EP</div>
+      <div class="frow-content"><span class="frow-title">Mnemonic Version Management and Upgrade</span><div class="frow-sub">Downgraded to v0.29.1. Training script conflicts. <span class="frow-tags"><span class="frow-tag">deployment</span></span></div></div>
+      <div class="frow-stat">3</div>
+      <div class="frow-stat">2</div>
+      <div class="frow-last"><div class="frow-last-time">02:02 AM</div><div class="frow-last-via">neutral</div></div>
+    </div>
+  </div>
+
+  <!-- Standalone memories -->
+  <div class="fblock">
+    <div class="fblock-head">
+      <div class="fblock-title">Recent Memories</div>
+      <div class="fblock-toggle">sorted by salience</div>
+    </div>
+    <div class="colh colh-mem"><span></span><span>Memory</span><span>Sal</span><span>Links</span><span>Created</span></div>
+
+    <div class="frow frow-mem sal-hi"><div class="frow-icon icon-le">LE</div><div class="frow-content"><span class="frow-title">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml</span><div class="frow-sub"><span class="frow-tags"><span class="frow-tag">ci</span><span class="frow-tag">deployment</span><span class="frow-tag">github</span></span></div></div><div class="frow-stat">51%</div><div class="frow-stat">3</div><div class="frow-last"><div class="frow-last-time">3:10 PM</div><div class="frow-last-via">mcp</div></div></div>
+
+    <div class="frow frow-mem sal-mid"><div class="frow-icon icon-de">DE</div><div class="frow-content"><span class="frow-title">Centralized 40+ hardcoded values into config.yaml to improve configurability</span><div class="frow-sub"><span class="frow-tags"><span class="frow-tag">refactoring</span><span class="frow-tag">configuration</span><span class="frow-tag">go</span></span></div></div><div class="frow-stat">44%</div><div class="frow-stat">12</div><div class="frow-last"><div class="frow-last-time">8:31 AM</div><div class="frow-last-via">mcp</div></div></div>
+
+    <div class="frow frow-mem sal-lo"><div class="frow-icon icon-in">IN</div><div class="frow-content"><span class="frow-title">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans</span><div class="frow-sub"><span class="frow-tags"><span class="frow-tag">llm</span><span class="frow-tag">benchmarking</span></span></div></div><div class="frow-stat">39%</div><div class="frow-stat">5</div><div class="frow-last"><div class="frow-last-time">1:45 PM</div><div class="frow-last-via">mcp</div></div></div>
+
+    <div class="frow frow-mem sal-lo"><div class="frow-icon icon-de">DE</div><div class="frow-content"><span class="frow-title">Committed JSON repair and benchmark tools; parse rate 78.3% → 98.1%</span><div class="frow-sub"><span class="frow-tags"><span class="frow-tag">python</span><span class="frow-tag">llm</span></span></div></div><div class="frow-stat">38%</div><div class="frow-stat">7</div><div class="frow-last"><div class="frow-last-time">1:12 PM</div><div class="frow-last-via">mcp</div></div></div>
+  </div>
+</div>
+
+<!-- ═══ THREAD VIEW ═══ -->
+<div class="page" id="p-thread">
+  <div class="crumbs"><a href="#" onclick="go('mind',document.querySelectorAll('.ntab')[0])">mnemonic</a><span class="sep">›</span> <a href="#">Episodes</a><span class="sep">›</span> Mnemonic v0.31.0 Release</div>
+
+  <div class="thread-wrap">
+    <div class="thread-top">
+      <div class="thread-title-big">Mnemonic v0.31.0 Release and the Linux Watcher Race Condition</div>
+      <div class="thread-meta">
+        <span><b>Mood:</b> satisfying</span>
+        <span><b>Duration:</b> 8:55 – 9:04 AM</span>
+        <span><b>Memories:</b> 6</span>
+        <span><b>Files:</b> config.yaml, CLAUDE.md, extract.go</span>
+      </div>
+    </div>
+
+    <div class="post">
+      <div class="post-left">
+        <div class="post-type-badge post-type-badge--insight">Insight</div>
+        <div class="post-stat-row">Salience: <b>85%</b></div>
+        <div class="post-stat-row">Links: <b>15</b></div>
+        <div class="post-stat-row">Source: <b>mcp</b></div>
+        <div class="post-stat-row" style="margin-top:6px;color:var(--text-faint)">10:05 AM</div>
+      </div>
+      <div class="post-right">
+        <div class="post-head"><span>Memory #1 of 6</span><a href="#">View in Graph</a></div>
+        <div class="post-body-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems. Analysis revealed fundamental asymmetries in how the system compounds knowledge. Retrieval quality improves through Hebbian learning, but consolidation artifacts remain fragile.</div>
+        <div class="post-tags"><span class="post-tag">agent</span><span class="post-tag">config</span><span class="post-tag">performance</span></div>
+        <div class="quote-block">
+          <div class="quote-head">↳ Associated Memory (decision · similarity: 0.82)</div>
+          <div class="quote-body">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="post">
+      <div class="post-left">
+        <div class="post-type-badge post-type-badge--decision">Decision</div>
+        <div class="post-stat-row">Salience: <b>79%</b></div>
+        <div class="post-stat-row">Links: <b>8</b></div>
+        <div class="post-stat-row">Source: <b>mcp</b></div>
+        <div class="post-stat-row" style="margin-top:6px;color:var(--text-faint)">9:42 AM</div>
+      </div>
+      <div class="post-right">
+        <div class="post-head"><span>Memory #2 of 6</span><a href="#">View in Graph</a></div>
+        <div class="post-body-text">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI (v1.8.2). Option analysis: direct writes (fast, no upstream), adapter pattern (medium), and full contribution (slow, sustainable). Chose full contribution for long-term maintainability.</div>
+        <div class="post-tags"><span class="post-tag">python</span><span class="post-tag">api</span><span class="post-tag">planning</span><span class="post-tag">decision</span></div>
+      </div>
+    </div>
+
+    <div class="post">
+      <div class="post-left">
+        <div class="post-type-badge post-type-badge--learning">Learning</div>
+        <div class="post-stat-row">Salience: <b>66%</b></div>
+        <div class="post-stat-row">Links: <b>6</b></div>
+        <div class="post-stat-row">Source: <b>mcp</b></div>
+        <div class="post-stat-row" style="margin-top:6px;color:var(--text-faint)">8:55 AM</div>
+      </div>
+      <div class="post-right">
+        <div class="post-head"><span>Memory #3 of 6</span><a href="#">View in Graph</a></div>
+        <div class="post-body-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval. The decay uses exponential falloff with a 1800-second half-life, applied in the spread activation scoring pipeline.</div>
+        <div class="post-tags"><span class="post-tag">go</span><span class="post-tag">retrieval</span><span class="post-tag">performance</span></div>
+        <div class="quote-block">
+          <div class="quote-head">↳ Reinforces (temporal)</div>
+          <div class="quote-body">Mnemonic's retrieval feedback is written to SQLite but never read by the retrieval agent's ranking algorithm</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TIMELINE ═══ -->
+<div class="page" id="p-timeline">
+  <div class="crumbs"><a href="#">mnemonic</a><span class="sep">›</span> Timeline</div>
+  <div class="tl-head"><span>Friday, March 21</span><span class="tl-head-count">6 memories</span></div>
+  <div class="tlr"><div class="tlr-time">10:05</div><div class="tlr-dot" style="background:var(--insight)"></div><div class="tlr-text">Critical audit found cleverness debt and hardcoded agent weights across 6+ subsystems</div><div class="tlr-sal">85%</div></div>
+  <div class="tlr"><div class="tlr-time">9:42</div><div class="tlr-dot" style="background:var(--decision)"></div><div class="tlr-text">Evaluated 3 options for RLE write endpoints; recommended upstream RIMAPI</div><div class="tlr-sal">79%</div></div>
+  <div class="tlr"><div class="tlr-time">9:18</div><div class="tlr-dot" style="background:var(--insight)"></div><div class="tlr-text">Back button fails to appear due to missing history push in neighbor click handler</div><div class="tlr-sal">76%</div></div>
+  <div class="tlr"><div class="tlr-time">8:55</div><div class="tlr-dot" style="background:var(--learning)"></div><div class="tlr-text">Verified context_boost 30-minute decay window and distinguished from activity_bonus</div><div class="tlr-sal">66%</div></div>
+  <div class="tlr"><div class="tlr-time">8:31</div><div class="tlr-dot" style="background:var(--decision)"></div><div class="tlr-text">Centralized 40+ hardcoded values into config.yaml to improve configurability</div><div class="tlr-sal">44%</div></div>
+  <div class="tl-head"><span>Thursday, March 20</span><span class="tl-head-count">2 memories</span></div>
+  <div class="tlr"><div class="tlr-time">3:10 PM</div><div class="tlr-dot" style="background:var(--learning)"></div><div class="tlr-text">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml</div><div class="tlr-sal">51%</div></div>
+  <div class="tlr"><div class="tlr-time">1:12 PM</div><div class="tlr-dot" style="background:var(--decision)"></div><div class="tlr-text">Committed JSON repair and benchmark tools; parse rate 78.3% → 98.1%</div><div class="tlr-sal">38%</div></div>
+</div>
+
+<!-- ═══ RECALL ═══ -->
+<div class="page" id="p-recall">
+  <div class="crumbs"><a href="#">mnemonic</a><span class="sep">›</span> Search</div>
+  <div class="recall-bar">
+    <input type="text" placeholder="What do you remember about..." value="hardcoded agent weights">
+    <button class="btn2">Search</button>
+  </div>
+  <div class="recall-info">4 results · 12ms · spread activation: 3 hops</div>
+  <div class="rcolh"><span>Score</span><span></span><span>Memory</span><span>Sal</span><span>Links</span><span>Created</span></div>
+  <div class="rr"><div class="rr-score rr-score-hi">.92</div><div class="frow-icon icon-in" style="width:18px;height:18px;font-size:0.6rem">IN</div><div class="rr-title">Critical audit found cleverness debt and hardcoded agent weights across 6+ subsystems</div><div class="frow-stat">85%</div><div class="frow-stat">15</div><div class="frow-last"><div class="frow-last-time">10:05</div></div></div>
+  <div class="rr"><div class="rr-score rr-score-mid">.78</div><div class="frow-icon icon-de" style="width:18px;height:18px;font-size:0.6rem">DE</div><div class="rr-title">Centralized 40+ hardcoded values into config.yaml to improve configurability</div><div class="frow-stat">44%</div><div class="frow-stat">12</div><div class="frow-last"><div class="frow-last-time">8:31</div></div></div>
+  <div class="rr"><div class="rr-score rr-score-mid">.61</div><div class="frow-icon icon-le" style="width:18px;height:18px;font-size:0.6rem">LE</div><div class="rr-title">Verified context_boost 30-minute decay window and distinguished from activity_bonus</div><div class="frow-stat">66%</div><div class="frow-stat">6</div><div class="frow-last"><div class="frow-last-time">8:55</div></div></div>
+  <div class="rr"><div class="rr-score rr-score-lo">.43</div><div class="frow-icon icon-in" style="width:18px;height:18px;font-size:0.6rem">IN</div><div class="rr-title">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans</div><div class="frow-stat">39%</div><div class="frow-stat">5</div><div class="frow-last"><div class="frow-last-time">1:45</div></div></div>
+</div>
+
+<div class="foot">
+  <span>mnemonic v0.33.0</span>
+  <span>77 active</span>
+  <span>8 fading</span>
+  <span>27 archived</span>
+  <span>encoding: idle</span>
+  <span>consolidation: 16:31</span>
+</div>
+
+<script>
+function go(name, btn) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.ntab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('p-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+function toggle(id) {
+  var el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300;1,9..40,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0e;
+  --paper: #0f0f14;
+  --rule: rgba(255,248,235,0.04);
+  --rule-hover: rgba(255,248,235,0.08);
+  --ink: #f0ebe0;
+  --ink-2: #b0a998;
+  --ink-3: #6b6358;
+  --ink-4: #3d3832;
+  --decision: #d4a24e;
+  --insight: #a87fc4;
+  --learning: #5ea0c4;
+  --error: #c46e5e;
+  --display: 'Playfair Display', Georgia, serif;
+  --body: 'DM Sans', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+html { font-size: 15px; scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ── Masthead ── */
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--rule);
+}
+.masthead-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  height: 48px;
+}
+.masthead-brand {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.1rem;
+  color: var(--ink-3);
+  margin-right: 40px;
+  letter-spacing: -0.01em;
+}
+.masthead-nav { display: flex; gap: 0; }
+.masthead-link {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: var(--ink-4);
+  letter-spacing: 0.05em;
+  padding: 16px 14px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  position: relative;
+  transition: color 0.3s;
+}
+.masthead-link:hover { color: var(--ink-3); }
+.masthead-link.active { color: var(--ink-2); }
+.masthead-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 14px; right: 14px;
+  height: 1px;
+  background: var(--ink-3);
+}
+.masthead-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  color: var(--ink-4);
+  font-feature-settings: 'tnum' 1;
+}
+.masthead-dot {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: #6b9e5e;
+  box-shadow: 0 0 6px rgba(107,158,94,0.4);
+}
+
+/* ── Page container ── */
+.page { display: none; }
+.page.active { display: block; }
+.sheet {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+
+/* ══════════════════════════════════════════
+   MIND — the broadsheet
+   ══════════════════════════════════════════ */
+
+/* Date header — thin rule with date */
+.edition {
+  padding: 20px 0 12px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.edition-date {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--ink-4);
+  letter-spacing: 0.06em;
+  font-feature-settings: 'tnum' 1;
+}
+.edition-search {
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  padding: 2px 0;
+  outline: none;
+  width: 180px;
+  text-align: right;
+  transition: all 0.3s;
+}
+.edition-search::placeholder { color: var(--ink-4); }
+.edition-search:focus {
+  border-bottom-color: var(--ink-4);
+  width: 260px;
+  color: var(--ink);
+}
+
+/* The broadsheet grid — intentionally asymmetric */
+.broadsheet {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr 1px 1fr;
+  gap: 0;
+  margin-bottom: 48px;
+}
+.broadsheet-rule {
+  background: var(--rule);
+  width: 1px;
+}
+
+/* Articles — no boxes, just typography */
+.article {
+  padding: 24px 28px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.3s;
+}
+@media (hover: hover) {
+  .article:hover { background: rgba(255,248,235,0.015); }
+}
+
+/* Spanning — salience drives prominence */
+.article--lead {
+  grid-column: 1 / -1;
+  border-bottom: 1px solid var(--rule);
+  padding: 36px 0 40px;
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 48px;
+}
+.article--major {
+  grid-column: span 3;
+  border-bottom: 1px solid var(--rule);
+}
+.article--standard {
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Type indicator — a colored overline, nothing else */
+.article-type {
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.article-type::before {
+  content: '';
+  width: 12px; height: 1px;
+}
+.article-type--decision { color: var(--decision); }
+.article-type--decision::before { background: var(--decision); }
+.article-type--insight { color: var(--insight); }
+.article-type--insight::before { background: var(--insight); }
+.article-type--learning { color: var(--learning); }
+.article-type--learning::before { background: var(--learning); }
+.article-type--error { color: var(--error); }
+.article-type--error::before { background: var(--error); }
+
+/* Headlines — size varies by prominence */
+.article-headline {
+  font-family: var(--display);
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-wrap: balance;
+  margin-bottom: 12px;
+}
+.article--lead .article-headline { font-size: 2rem; }
+.article--major .article-headline { font-size: 1.35rem; }
+.article--standard .article-headline { font-size: 1rem; }
+
+/* Lede — only on lead/major articles */
+.article-lede {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  color: var(--ink-2);
+  font-weight: 300;
+}
+
+/* Footer metadata */
+.article-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  color: var(--ink-4);
+  font-feature-settings: 'tnum' 1;
+}
+.article-concepts {
+  display: flex;
+  gap: 4px;
+}
+.article-concept {
+  color: var(--ink-3);
+  transition: color 0.2s;
+}
+.article-concept:hover { color: var(--ink-2); }
+.article-sal {
+  margin-left: auto;
+  opacity: 0.5;
+}
+
+/* Sidebar in lead article */
+.article-sidebar {
+  border-left: 1px solid var(--rule);
+  padding-left: 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.article-sidebar-label {
+  font-family: var(--mono);
+  font-size: 0.48rem;
+  color: var(--ink-4);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.sidebar-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.sidebar-item:last-child { border-bottom: none; }
+.sidebar-item:hover { background: rgba(255,248,235,0.02); margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: 2px; }
+.sidebar-item-type {
+  font-family: var(--mono);
+  font-size: 0.45rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.sidebar-item-text {
+  font-family: var(--display);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+/* ══════════════════════════════════════════
+   TIMELINE — sticky headers + vertical feed
+   ══════════════════════════════════════════ */
+.timeline-feed {
+  padding-top: 24px;
+  padding-bottom: 80px;
+}
+.tl-day {
+  position: sticky;
+  top: 49px;
+  z-index: 10;
+  background: var(--bg);
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 8px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--ink-4);
+  letter-spacing: 0.06em;
+  font-feature-settings: 'tnum' 1;
+  display: flex;
+  justify-content: space-between;
+}
+.tl-entry {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 24px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+@media (hover: hover) {
+  .tl-entry:hover { background: rgba(255,248,235,0.01); margin: 0 -12px; padding-left: 12px; padding-right: 12px; border-radius: 3px; }
+}
+.tl-time {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--ink-4);
+  font-feature-settings: 'tnum' 1;
+  text-align: right;
+  padding-top: 2px;
+}
+.tl-type {
+  font-family: var(--mono);
+  font-size: 0.48rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.tl-type::before {
+  content: '';
+  width: 8px; height: 1px;
+}
+.tl-text {
+  font-family: var(--display);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ink);
+  font-weight: 400;
+  margin-bottom: 6px;
+  text-wrap: balance;
+}
+.tl-meta {
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  color: var(--ink-4);
+}
+
+/* ══════════════════════════════════════════
+   RECALL — conversational search
+   ══════════════════════════════════════════ */
+.recall-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding-top: 64px;
+  padding-bottom: 80px;
+}
+.recall-prompt {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 1.6rem;
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-bottom: 20px;
+}
+.recall-input {
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--ink-4);
+  font-family: var(--display);
+  font-size: 1.4rem;
+  font-weight: 400;
+  color: var(--ink);
+  padding: 8px 0;
+  outline: none;
+  transition: border-color 0.3s;
+  margin-bottom: 12px;
+}
+.recall-input::placeholder { color: var(--ink-4); }
+.recall-input:focus { border-color: var(--ink-3); }
+.recall-stats {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  color: var(--ink-4);
+  font-feature-settings: 'tnum' 1;
+  margin-bottom: 40px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--rule);
+}
+.recall-result {
+  padding: 28px 0;
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+@media (hover: hover) {
+  .recall-result:hover { background: rgba(255,248,235,0.015); margin: 0 -16px; padding-left: 16px; padding-right: 16px; border-radius: 3px; }
+}
+.recall-score {
+  position: absolute;
+  top: 28px; right: 0;
+  font-family: var(--mono);
+  font-size: 1.8rem;
+  font-weight: 300;
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+  line-height: 1;
+  color: var(--ink-4);
+}
+.recall-result:first-child .recall-score { color: var(--ink-3); }
+.recall-r-type {
+  font-family: var(--mono);
+  font-size: 0.48rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.recall-r-type::before {
+  content: '';
+  width: 8px; height: 1px;
+}
+.recall-r-text {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  line-height: 1.45;
+  color: var(--ink);
+  font-weight: 400;
+  padding-right: 72px;
+  text-wrap: balance;
+  margin-bottom: 8px;
+}
+.recall-r-meta {
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  color: var(--ink-4);
+}
+
+/* ══════════════════════════════════════════
+   GRAPH — ego graph canvas
+   ══════════════════════════════════════════ */
+.graph-container {
+  padding: 24px 0 80px;
+}
+.graph-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.graph-back {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--ink-4);
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 4px 10px;
+  transition: all 0.2s;
+}
+.graph-back:hover { border-color: var(--rule-hover); color: var(--ink-3); }
+.graph-trail {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  color: var(--ink-4);
+}
+.graph-canvas {
+  width: 100%;
+  height: 520px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.graph-canvas::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(168,127,196,0.02), transparent 50%),
+    radial-gradient(ellipse at 70% 60%, rgba(94,160,196,0.02), transparent 50%);
+  pointer-events: none;
+}
+.graph-placeholder {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 0.85rem;
+  color: var(--ink-4);
+}
+.graph-detail {
+  position: absolute;
+  bottom: 20px; right: 20px;
+  width: 260px;
+  background: rgba(10,10,14,0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 20px;
+  z-index: 10;
+}
+.graph-detail-type {
+  font-family: var(--mono);
+  font-size: 0.48rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.graph-detail-text {
+  font-family: var(--display);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.graph-detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 0.55rem;
+  border-bottom: 1px solid var(--rule);
+}
+.graph-detail-row:last-child { border-bottom: none; }
+.graph-detail-label { color: var(--ink-4); }
+.graph-detail-val {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ── Animations ── */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.article, .tl-entry, .recall-result, .sidebar-item {
+  animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.article:nth-child(1) { animation-delay: 0.05s; }
+.article:nth-child(2) { animation-delay: 0.1s; }
+.article:nth-child(3) { animation-delay: 0.15s; }
+.article:nth-child(4) { animation-delay: 0.2s; }
+.article:nth-child(5) { animation-delay: 0.25s; }
+.tl-entry:nth-child(1) { animation-delay: 0.05s; }
+.tl-entry:nth-child(2) { animation-delay: 0.1s; }
+.tl-entry:nth-child(3) { animation-delay: 0.15s; }
+.tl-entry:nth-child(4) { animation-delay: 0.2s; }
+.tl-entry:nth-child(5) { animation-delay: 0.25s; }
+.recall-result:nth-child(1) { animation-delay: 0.08s; }
+.recall-result:nth-child(2) { animation-delay: 0.16s; }
+.recall-result:nth-child(3) { animation-delay: 0.24s; }
+.recall-result:nth-child(4) { animation-delay: 0.32s; }
+
+/* grain */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.018;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 128px;
+}
+
+@media (max-width: 800px) {
+  .broadsheet { grid-template-columns: 1fr; }
+  .broadsheet-rule { display: none; }
+  .article--lead { grid-template-columns: 1fr; gap: 24px; }
+  .article--major { grid-column: span 1; }
+  .sheet { padding: 0 20px; }
+  .masthead-inner { padding: 0 20px; }
+}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-brand">mnemonic</div>
+    <div class="masthead-nav">
+      <button class="masthead-link active" onclick="go('mind',this)">mind</button>
+      <button class="masthead-link" onclick="go('timeline',this)">timeline</button>
+      <button class="masthead-link" onclick="go('recall',this)">recall</button>
+      <button class="masthead-link" onclick="go('graph',this)">graph</button>
+    </div>
+    <div class="masthead-right"><span class="masthead-dot"></span> 77 memories &middot; 3.6 MB</div>
+  </div>
+</div>
+
+<!-- ═══ MIND ═══ -->
+<div class="page active" id="p-mind">
+  <div class="sheet">
+    <div class="edition">
+      <span class="edition-date">SATURDAY, MARCH 21, 2026</span>
+      <input class="edition-search" type="text" placeholder="search...">
+    </div>
+
+    <div class="broadsheet">
+      <!-- LEAD — highest salience, full width with sidebar -->
+      <div class="article article--lead">
+        <div>
+          <div class="article-type article-type--insight">insight</div>
+          <div class="article-headline">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+          <div class="article-lede">A deep analysis of Mnemonic's agent architecture revealed fundamental asymmetries in how the system compounds knowledge. Retrieval quality improves through Hebbian learning, but consolidation artifacts remain fragile under aggressive grounding verification.</div>
+          <div class="article-foot">
+            <span>10:05 AM</span>
+            <div class="article-concepts"><span class="article-concept">agent</span> <span class="article-concept">config</span> <span class="article-concept">performance</span></div>
+            <span class="article-sal">85%</span>
+          </div>
+        </div>
+        <div class="article-sidebar">
+          <div class="article-sidebar-label">Related memories</div>
+          <div class="sidebar-item">
+            <div class="sidebar-item-type" style="color:var(--decision)">decision</div>
+            <div class="sidebar-item-text">Centralized 40+ hardcoded values into config.yaml</div>
+          </div>
+          <div class="sidebar-item">
+            <div class="sidebar-item-type" style="color:var(--learning)">learning</div>
+            <div class="sidebar-item-text">Verified context_boost 30-minute decay window</div>
+          </div>
+          <div class="sidebar-item">
+            <div class="sidebar-item-type" style="color:var(--insight)">insight</div>
+            <div class="sidebar-item-text">Qwen3.5-0.8B identified as top small model for JSON ActionPlans</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAJOR — second highest, spans 2 columns -->
+      <div class="article article--major">
+        <div class="article-type article-type--decision">decision</div>
+        <div class="article-headline">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div>
+        <div class="article-lede">After comparing direct DB writes, a custom REST layer, and upstream contribution, the RIMAPI path won on maintainability and community leverage despite higher initial effort.</div>
+        <div class="article-foot">
+          <span>9:42 AM</span>
+          <div class="article-concepts"><span class="article-concept">python</span> <span class="article-concept">api</span> <span class="article-concept">planning</span></div>
+          <span class="article-sal">79%</span>
+        </div>
+      </div>
+
+      <div class="broadsheet-rule"></div>
+
+      <!-- STANDARD — fills remaining column -->
+      <div class="article article--standard">
+        <div class="article-type article-type--insight">insight</div>
+        <div class="article-headline">Back button fails to appear due to missing history push in neighbor click handler</div>
+        <div class="article-foot">
+          <span>9:18 AM</span>
+          <div class="article-concepts"><span class="article-concept">javascript</span> <span class="article-concept">ui</span></div>
+          <span class="article-sal">76%</span>
+        </div>
+      </div>
+
+      <!-- Second row — three equal columns -->
+      <div class="article article--standard">
+        <div class="article-type article-type--learning">learning</div>
+        <div class="article-headline">Verified context_boost 30-minute decay window and distinguished it from activity_bonus</div>
+        <div class="article-foot">
+          <span>8:55 AM</span>
+          <div class="article-concepts"><span class="article-concept">go</span> <span class="article-concept">retrieval</span></div>
+          <span class="article-sal">66%</span>
+        </div>
+      </div>
+
+      <div class="broadsheet-rule"></div>
+
+      <div class="article article--standard">
+        <div class="article-type article-type--learning">learning</div>
+        <div class="article-headline">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml</div>
+        <div class="article-foot">
+          <span>Mar 20</span>
+          <div class="article-concepts"><span class="article-concept">ci</span> <span class="article-concept">deployment</span></div>
+          <span class="article-sal">51%</span>
+        </div>
+      </div>
+
+      <div class="broadsheet-rule"></div>
+
+      <div class="article article--standard">
+        <div class="article-type article-type--decision">decision</div>
+        <div class="article-headline">Centralized 40+ hardcoded values into config.yaml to improve configurability</div>
+        <div class="article-foot">
+          <span>8:31 AM</span>
+          <div class="article-concepts"><span class="article-concept">refactoring</span> <span class="article-concept">go</span></div>
+          <span class="article-sal">44%</span>
+        </div>
+      </div>
+
+      <!-- Bottom row -->
+      <div class="article article--standard">
+        <div class="article-type article-type--insight">insight</div>
+        <div class="article-headline">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans</div>
+        <div class="article-foot">
+          <span>1:45 PM</span>
+          <div class="article-concepts"><span class="article-concept">llm</span> <span class="article-concept">benchmarking</span></div>
+          <span class="article-sal">39%</span>
+        </div>
+      </div>
+
+      <div class="broadsheet-rule"></div>
+
+      <div class="article article--standard" style="grid-column: span 3">
+        <div class="article-type article-type--decision">decision</div>
+        <div class="article-headline">Committed JSON repair and benchmark tools; Qwen3.5-0.8B parse rate rose from 78.3% to 98.1%</div>
+        <div class="article-foot">
+          <span>Mar 20</span>
+          <div class="article-concepts"><span class="article-concept">python</span> <span class="article-concept">llm</span> <span class="article-concept">fix</span></div>
+          <span class="article-sal">38%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TIMELINE ═══ -->
+<div class="page" id="p-timeline">
+  <div class="sheet">
+    <div class="timeline-feed">
+      <div class="tl-day"><span>FRIDAY, MARCH 21</span><span>6 memories</span></div>
+      <div class="tl-entry">
+        <div class="tl-time">10:05</div>
+        <div>
+          <div class="tl-type article-type--insight">insight</div>
+          <div class="tl-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+          <div class="tl-meta">agent &middot; config &middot; performance &middot; 85%</div>
+        </div>
+      </div>
+      <div class="tl-entry">
+        <div class="tl-time">9:42</div>
+        <div>
+          <div class="tl-type article-type--decision">decision</div>
+          <div class="tl-text">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div>
+          <div class="tl-meta">python &middot; api &middot; planning &middot; 79%</div>
+        </div>
+      </div>
+      <div class="tl-entry">
+        <div class="tl-time">9:18</div>
+        <div>
+          <div class="tl-type article-type--insight">insight</div>
+          <div class="tl-text">Back button fails to appear due to missing history push in neighbor click handler</div>
+          <div class="tl-meta">javascript &middot; ui &middot; debugging &middot; 76%</div>
+        </div>
+      </div>
+      <div class="tl-entry">
+        <div class="tl-time">8:55</div>
+        <div>
+          <div class="tl-type article-type--learning">learning</div>
+          <div class="tl-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</div>
+          <div class="tl-meta">go &middot; retrieval &middot; performance &middot; 66%</div>
+        </div>
+      </div>
+      <div class="tl-entry">
+        <div class="tl-time">8:31</div>
+        <div>
+          <div class="tl-type article-type--decision">decision</div>
+          <div class="tl-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div>
+          <div class="tl-meta">refactoring &middot; configuration &middot; go &middot; 44%</div>
+        </div>
+      </div>
+
+      <div class="tl-day"><span>THURSDAY, MARCH 20</span><span>2 memories</span></div>
+      <div class="tl-entry">
+        <div class="tl-time">3:10 PM</div>
+        <div>
+          <div class="tl-type article-type--learning">learning</div>
+          <div class="tl-text">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml</div>
+          <div class="tl-meta">ci &middot; deployment &middot; github &middot; 51%</div>
+        </div>
+      </div>
+      <div class="tl-entry">
+        <div class="tl-time">1:12 PM</div>
+        <div>
+          <div class="tl-type article-type--decision">decision</div>
+          <div class="tl-text">Committed JSON repair and benchmark tools; Qwen3.5-0.8B parse rate rose from 78.3% to 98.1%</div>
+          <div class="tl-meta">python &middot; llm &middot; benchmarking &middot; 38%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RECALL ═══ -->
+<div class="page" id="p-recall">
+  <div class="sheet">
+    <div class="recall-page">
+      <div class="recall-prompt">What do you remember about...</div>
+      <input class="recall-input" type="text" value="hardcoded agent weights">
+      <div class="recall-stats">4 results &middot; 12ms &middot; spread activation: 3 hops</div>
+
+      <div class="recall-result">
+        <div class="recall-score">.92</div>
+        <div class="recall-r-type article-type--insight">insight</div>
+        <div class="recall-r-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+        <div class="recall-r-meta">agent &middot; config &middot; performance &middot; Mar 21 10:05</div>
+      </div>
+
+      <div class="recall-result">
+        <div class="recall-score">.78</div>
+        <div class="recall-r-type article-type--decision">decision</div>
+        <div class="recall-r-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+        <div class="recall-r-meta">refactoring &middot; configuration &middot; go &middot; Mar 21 8:31</div>
+      </div>
+
+      <div class="recall-result">
+        <div class="recall-score">.61</div>
+        <div class="recall-r-type article-type--learning">learning</div>
+        <div class="recall-r-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</div>
+        <div class="recall-r-meta">go &middot; retrieval &middot; performance &middot; Mar 21 8:55</div>
+      </div>
+
+      <div class="recall-result">
+        <div class="recall-score">.43</div>
+        <div class="recall-r-type article-type--insight">insight</div>
+        <div class="recall-r-text">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+        <div class="recall-r-meta">llm &middot; benchmarking &middot; performance &middot; Mar 21 1:45 PM</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GRAPH ═══ -->
+<div class="page" id="p-graph">
+  <div class="sheet">
+    <div class="graph-container">
+      <div class="graph-bar">
+        <button class="graph-back">&larr; back</button>
+        <div class="graph-trail">
+          cleverness debt &rsaquo; <span style="color:var(--ink-2)">Centralized 40+ hardcoded values...</span>
+        </div>
+      </div>
+      <div class="graph-canvas">
+        <div class="graph-placeholder">ego graph renders here</div>
+        <div class="graph-detail">
+          <div class="graph-detail-type" style="color:var(--decision)">decision</div>
+          <div class="graph-detail-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div>
+          <div class="graph-detail-row"><span class="graph-detail-label">salience</span><span class="graph-detail-val">0.44</span></div>
+          <div class="graph-detail-row"><span class="graph-detail-label">source</span><span class="graph-detail-val">mcp</span></div>
+          <div class="graph-detail-row"><span class="graph-detail-label">connections</span><span class="graph-detail-val">15</span></div>
+          <div class="graph-detail-row"><span class="graph-detail-label">created</span><span class="graph-detail-val">Mar 21, 2026</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function go(name, btn) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.masthead-link').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('p-' + name).classList.add('active');
+  btn.classList.add('active');
+  // Re-trigger animations
+  var page = document.getElementById('p-' + name);
+  page.querySelectorAll('.article, .tl-entry, .recall-result, .sidebar-item').forEach(function(el) {
+    el.style.animation = 'none';
+    el.offsetHeight;
+    el.style.animation = '';
+  });
+  window.scrollTo(0, 0);
+}
+</script>
+</body>
+</html>

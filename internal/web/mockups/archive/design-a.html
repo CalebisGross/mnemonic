@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic — Focus</title>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,300;0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,300;1,7..72,400&family=Manrope:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --void: #08080a;
+    --surface: #0e0e12;
+    --float: #141418;
+    --text-1: #eeeef0;
+    --text-2: #a0a0ad;
+    --text-3: #5c5c6e;
+    --text-4: #33333f;
+    --decision: #e8b15e;
+    --insight: #b07fd4;
+    --learning: #5ea4d4;
+    --error: #d46b5e;
+    --serif: 'Literata', Georgia, serif;
+    --sans: 'Manrope', -apple-system, sans-serif;
+    --mono: 'Fira Code', monospace;
+}
+
+html { font-size: 16px; }
+body {
+    font-family: var(--sans);
+    background: var(--void);
+    color: var(--text-1);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+}
+
+/* ═══ NAV — barely there ═══ */
+nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    padding: 0 32px;
+    z-index: 200;
+    background: linear-gradient(to bottom, var(--void) 60%, transparent);
+    pointer-events: none;
+}
+nav > * { pointer-events: auto; }
+.brand {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--text-2);
+    margin-right: 40px;
+    letter-spacing: -0.02em;
+}
+.tabs { display: flex; gap: 24px; }
+.tab {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-4);
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-family: var(--sans);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: color 0.3s;
+    padding: 0;
+}
+.tab:hover { color: var(--text-3); }
+.tab.active { color: var(--text-2); }
+.nav-right {
+    margin-left: auto;
+    font-size: 0.65rem;
+    color: var(--text-4);
+    font-family: var(--mono);
+    font-feature-settings: 'tnum' 1;
+}
+
+/* ═══ PAGES ═══ */
+.page { display: none; padding-top: 48px; }
+.page.active { display: block; }
+
+/* ═══ MIND — memories as floating text, no cards ═══ */
+.mind-search {
+    text-align: center;
+    padding: 80px 32px 60px;
+}
+.mind-search input {
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--text-4);
+    color: var(--text-1);
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    font-weight: 300;
+    font-style: italic;
+    padding: 8px 0;
+    width: 400px;
+    max-width: 80vw;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.3s;
+}
+.mind-search input::placeholder { color: var(--text-4); font-style: italic; }
+.mind-search input:focus { border-color: var(--text-3); }
+
+/* The stream — no cards, just memories flowing down */
+.stream {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 32px 120px;
+}
+.memory {
+    padding: 36px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    cursor: pointer;
+    transition: opacity 0.3s;
+    position: relative;
+}
+.memory:last-child { border-bottom: none; }
+@media (hover: hover) {
+    .stream:hover .memory { opacity: 0.4; }
+    .stream:hover .memory:hover { opacity: 1; }
+}
+
+/* Salience controls visual presence */
+.memory[data-sal="high"] .memory-text { font-size: 1.3rem; color: var(--text-1); font-weight: 400; }
+.memory[data-sal="mid"] .memory-text { font-size: 1.05rem; color: var(--text-2); font-weight: 400; }
+.memory[data-sal="low"] .memory-text { font-size: 0.92rem; color: var(--text-3); font-weight: 300; }
+
+.memory-type {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.memory-type::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+.memory-type--decision { color: var(--decision); }
+.memory-type--decision::before { background: var(--decision); box-shadow: 0 0 6px rgba(232,177,94,0.4); }
+.memory-type--insight { color: var(--insight); }
+.memory-type--insight::before { background: var(--insight); box-shadow: 0 0 6px rgba(176,127,212,0.4); }
+.memory-type--learning { color: var(--learning); }
+.memory-type--learning::before { background: var(--learning); box-shadow: 0 0 6px rgba(94,164,212,0.4); }
+.memory-type--error { color: var(--error); }
+.memory-type--error::before { background: var(--error); box-shadow: 0 0 6px rgba(212,107,94,0.4); }
+
+.memory-text {
+    font-family: var(--serif);
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+}
+
+.memory-footer {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 0.65rem;
+    color: var(--text-4);
+    font-family: var(--mono);
+    font-feature-settings: 'tnum' 1;
+}
+.memory-concepts {
+    display: flex;
+    gap: 6px;
+}
+.memory-concept {
+    color: var(--text-3);
+    transition: color 0.2s;
+}
+.memory-concept:hover { color: var(--text-2); }
+
+/* ═══ TIMELINE — horizontal moments ═══ */
+.timeline-container {
+    padding: 80px 0 120px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+.timeline-label {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 0.8rem;
+    color: var(--text-4);
+    padding: 0 48px;
+    margin-bottom: 32px;
+}
+.timeline-track {
+    display: flex;
+    gap: 0;
+    padding: 0 48px;
+    min-width: max-content;
+}
+.moment {
+    width: 340px;
+    flex-shrink: 0;
+    padding: 0 24px;
+    border-left: 1px solid rgba(255,255,255,0.04);
+    cursor: pointer;
+    transition: background 0.3s;
+    position: relative;
+}
+.moment:first-child { border-left: none; }
+@media (hover: hover) {
+    .moment:hover { background: rgba(255,255,255,0.015); }
+}
+.moment-time {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--text-4);
+    font-feature-settings: 'tnum' 1;
+    margin-bottom: 16px;
+}
+.moment-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    margin-bottom: 14px;
+}
+.moment-text {
+    font-family: var(--serif);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--text-2);
+    text-wrap: balance;
+    margin-bottom: 12px;
+}
+.moment-meta {
+    font-size: 0.6rem;
+    color: var(--text-4);
+    font-family: var(--mono);
+}
+
+/* ═══ RECALL — conversational ═══ */
+.recall-container {
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 80px 32px 120px;
+}
+.recall-query {
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    font-weight: 300;
+    font-style: italic;
+    color: var(--text-1);
+    margin-bottom: 8px;
+    text-wrap: balance;
+}
+.recall-input {
+    width: 100%;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--text-4);
+    color: var(--text-1);
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    font-weight: 300;
+    font-style: italic;
+    padding: 8px 0;
+    outline: none;
+    margin-bottom: 40px;
+}
+.recall-input::placeholder { color: var(--text-4); }
+.recall-input:focus { border-color: var(--text-3); }
+.recall-stats {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--text-4);
+    margin-bottom: 32px;
+    font-feature-settings: 'tnum' 1;
+}
+.recall-answer {
+    margin-bottom: 40px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    position: relative;
+}
+.recall-answer:last-child { border-bottom: none; }
+.recall-score {
+    position: absolute;
+    right: 0;
+    top: 0;
+    font-family: var(--mono);
+    font-size: 1.6rem;
+    font-weight: 300;
+    font-feature-settings: 'tnum' 1;
+    line-height: 1;
+}
+.recall-score--high { color: var(--text-2); }
+.recall-score--mid { color: var(--text-3); }
+.recall-score--low { color: var(--text-4); }
+.recall-answer-type {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.recall-answer-type::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+}
+.recall-answer-type--insight { color: var(--insight); }
+.recall-answer-type--insight::before { background: var(--insight); }
+.recall-answer-type--decision { color: var(--decision); }
+.recall-answer-type--decision::before { background: var(--decision); }
+.recall-answer-type--learning { color: var(--learning); }
+.recall-answer-type--learning::before { background: var(--learning); }
+.recall-answer-text {
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--text-1);
+    text-wrap: balance;
+    padding-right: 60px;
+    margin-bottom: 10px;
+}
+.recall-answer-meta {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--text-4);
+}
+
+/* ═══ EGO GRAPH ═══ */
+.ego-container {
+    padding: 64px 32px 120px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+.ego-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.ego-back {
+    font-size: 0.7rem;
+    color: var(--text-4);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: var(--sans);
+    padding: 0;
+    transition: color 0.2s;
+}
+.ego-back:hover { color: var(--text-3); }
+.ego-trail {
+    font-size: 0.65rem;
+    color: var(--text-4);
+    font-family: var(--mono);
+}
+.ego-trail-current { color: var(--text-2); }
+
+.ego-canvas {
+    height: 560px;
+    background: var(--surface);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+}
+/* Ambient depth */
+.ego-canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 35% 35%, rgba(176,127,212,0.04), transparent 55%),
+        radial-gradient(ellipse at 65% 65%, rgba(94,164,212,0.03), transparent 55%);
+    pointer-events: none;
+}
+.ego-center-text {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 0.85rem;
+    color: var(--text-4);
+}
+.ego-filter {
+    position: absolute;
+    top: 16px; left: 16px;
+}
+.ego-filter input {
+    padding: 6px 10px;
+    background: rgba(8,8,10,0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 6px;
+    color: var(--text-1);
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    outline: none;
+    width: 160px;
+}
+.ego-filter input::placeholder { color: var(--text-4); }
+
+.ego-detail {
+    position: absolute;
+    bottom: 16px; right: 16px;
+    width: 280px;
+    background: rgba(14,14,18,0.8);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 10px;
+    padding: 20px;
+}
+.ego-detail-type {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ego-detail-type::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--decision);
+}
+.ego-detail-title {
+    font-family: var(--serif);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--text-1);
+    margin-bottom: 16px;
+}
+.ego-detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    font-size: 0.66rem;
+}
+.ego-detail-label { color: var(--text-4); }
+.ego-detail-val { color: var(--text-3); font-family: var(--mono); font-feature-settings: 'tnum' 1, 'zero' 1; }
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes arrive {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.memory { animation: arrive 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.memory:nth-child(1) { animation-delay: 0.1s; }
+.memory:nth-child(2) { animation-delay: 0.18s; }
+.memory:nth-child(3) { animation-delay: 0.26s; }
+.memory:nth-child(4) { animation-delay: 0.34s; }
+.memory:nth-child(5) { animation-delay: 0.42s; }
+.memory:nth-child(6) { animation-delay: 0.5s; }
+.memory:nth-child(7) { animation-delay: 0.58s; }
+.memory:nth-child(8) { animation-delay: 0.66s; }
+
+.moment { animation: arrive 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.moment:nth-child(1) { animation-delay: 0.08s; }
+.moment:nth-child(2) { animation-delay: 0.16s; }
+.moment:nth-child(3) { animation-delay: 0.24s; }
+.moment:nth-child(4) { animation-delay: 0.32s; }
+.moment:nth-child(5) { animation-delay: 0.4s; }
+
+.recall-answer { animation: arrive 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.recall-answer:nth-child(1) { animation-delay: 0.1s; }
+.recall-answer:nth-child(2) { animation-delay: 0.2s; }
+.recall-answer:nth-child(3) { animation-delay: 0.3s; }
+.recall-answer:nth-child(4) { animation-delay: 0.4s; }
+
+@media (max-width: 700px) {
+    .mind-search { padding: 60px 20px 40px; }
+    .stream { padding: 0 20px 80px; }
+    .timeline-track { padding: 0 20px; }
+    .moment { width: 280px; }
+    nav { padding: 0 20px; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+    <div class="brand">mnemonic</div>
+    <div class="tabs">
+        <button class="tab active" onclick="go('mind',this)">Mind</button>
+        <button class="tab" onclick="go('graph',this)">Graph</button>
+        <button class="tab" onclick="go('timeline',this)">Timeline</button>
+        <button class="tab" onclick="go('recall',this)">Recall</button>
+    </div>
+    <div class="nav-right">77 mem &middot; 3.6 MB</div>
+</nav>
+
+<!-- ═══ MIND ═══ -->
+<div class="page active" id="p-mind">
+    <div class="mind-search">
+        <input type="text" placeholder="search memories...">
+    </div>
+    <div class="stream">
+        <div class="memory" data-sal="high">
+            <div class="memory-type memory-type--insight">insight</div>
+            <div class="memory-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+            <div class="memory-footer">
+                <span>Mar 21</span>
+                <span>&middot;</span>
+                <span>85%</span>
+                <span>&middot;</span>
+                <div class="memory-concepts"><span class="memory-concept">agent</span><span class="memory-concept">config</span><span class="memory-concept">performance</span></div>
+            </div>
+        </div>
+
+        <div class="memory" data-sal="high">
+            <div class="memory-type memory-type--decision">decision</div>
+            <div class="memory-text">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div>
+            <div class="memory-footer">
+                <span>Mar 21</span>
+                <span>&middot;</span>
+                <span>79%</span>
+                <span>&middot;</span>
+                <div class="memory-concepts"><span class="memory-concept">python</span><span class="memory-concept">api</span><span class="memory-concept">planning</span></div>
+            </div>
+        </div>
+
+        <div class="memory" data-sal="high">
+            <div class="memory-type memory-type--insight">insight</div>
+            <div class="memory-text">Back button fails to appear due to missing history push in neighbor click handler</div>
+            <div class="memory-footer">
+                <span>Mar 21</span>
+                <span>&middot;</span>
+                <span>76%</span>
+                <span>&middot;</span>
+                <div class="memory-concepts"><span class="memory-concept">javascript</span><span class="memory-concept">ui</span><span class="memory-concept">debugging</span></div>
+            </div>
+        </div>
+
+        <div class="memory" data-sal="mid">
+            <div class="memory-type memory-type--learning">learning</div>
+            <div class="memory-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</div>
+            <div class="memory-footer">
+                <span>Mar 21</span>
+                <span>&middot;</span>
+                <span>66%</span>
+                <span>&middot;</span>
+                <div class="memory-concepts"><span class="memory-concept">go</span><span class="memory-concept">retrieval</span><span class="memory-concept">performance</span></div>
+            </div>
+        </div>
+
+        <div class="memory" data-sal="mid">
+            <div class="memory-type memory-type--insight">insight</div>
+            <div class="memory-text">Mnemonic v0.30.0 release adds pattern scoping, bulk forget, and handoff tools across PRs #310-#314</div>
+            <div class="memory-footer">
+                <span>Mar 20</span>
+                <span>&middot;</span>
+                <span>52%</span>
+                <span>&middot;</span>
+                <div class="memory-concepts"><span class="memory-concept">deployment</span><span class="memory-concept">documentation</span><span class="memory-concept">cli</span></div>
+            </div>
+        </div>
+
+        <div class="memory" data-sal="mid">
+            <div class="memory-type memory-type--decision">decision</div>
+            <div class="memory-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+            <div class="memory-footer">
+                <span>Mar 21</span>
+                <span>&middot;</span>
+                <span>44%</span>
+                <span>&middot;</span>
+                <div class="memory-concepts"><span class="memory-concept">refactoring</span><span class="memory-concept">configuration</span><span class="memory-concept">go</span></div>
+            </div>
+        </div>
+
+        <div class="memory" data-sal="low">
+            <div class="memory-type memory-type--insight">insight</div>
+            <div class="memory-text">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+            <div class="memory-footer">
+                <span>Mar 21</span>
+                <span>&middot;</span>
+                <span>39%</span>
+                <span>&middot;</span>
+                <div class="memory-concepts"><span class="memory-concept">llm</span><span class="memory-concept">benchmarking</span><span class="memory-concept">performance</span></div>
+            </div>
+        </div>
+
+        <div class="memory" data-sal="low">
+            <div class="memory-type memory-type--decision">decision</div>
+            <div class="memory-text">Committed JSON repair and benchmark tools; Qwen3.5-0.8B parse rate rose from 78.3% to 98.1%</div>
+            <div class="memory-footer">
+                <span>Mar 20</span>
+                <span>&middot;</span>
+                <span>38%</span>
+                <span>&middot;</span>
+                <div class="memory-concepts"><span class="memory-concept">python</span><span class="memory-concept">llm</span><span class="memory-concept">fix</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ GRAPH ═══ -->
+<div class="page" id="p-graph">
+    <div class="ego-container">
+        <div class="ego-nav">
+            <button class="ego-back">&larr; back</button>
+            <div class="ego-trail">
+                <span style="cursor:pointer">cleverness debt</span>
+                <span style="margin:0 4px;opacity:0.3">/</span>
+                <span class="ego-trail-current">Centralized 40+ hardcoded values...</span>
+            </div>
+        </div>
+        <div class="ego-canvas">
+            <div class="ego-filter"><input type="text" placeholder="filter..."></div>
+            <div class="ego-center-text">constellation</div>
+            <div class="ego-detail">
+                <div class="ego-detail-type" style="color:var(--decision)">decision</div>
+                <div class="ego-detail-title">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div>
+                <div class="ego-detail-row"><span class="ego-detail-label">salience</span><span class="ego-detail-val">0.44</span></div>
+                <div class="ego-detail-row"><span class="ego-detail-label">source</span><span class="ego-detail-val">mcp</span></div>
+                <div class="ego-detail-row"><span class="ego-detail-label">connections</span><span class="ego-detail-val">15</span></div>
+                <div class="ego-detail-row"><span class="ego-detail-label">created</span><span class="ego-detail-val">Mar 21, 2026</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TIMELINE — horizontal scroll ═══ -->
+<div class="page" id="p-timeline">
+    <div class="timeline-container">
+        <div class="timeline-label">Today, March 21</div>
+        <div class="timeline-track">
+            <div class="moment">
+                <div class="moment-time">10:05 AM</div>
+                <div class="moment-dot" style="background:var(--insight);box-shadow:0 0 6px rgba(176,127,212,0.4)"></div>
+                <div class="moment-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+                <div class="moment-meta">insight &middot; agent, config, performance &middot; 85%</div>
+            </div>
+            <div class="moment">
+                <div class="moment-time">9:42 AM</div>
+                <div class="moment-dot" style="background:var(--decision);box-shadow:0 0 6px rgba(232,177,94,0.4)"></div>
+                <div class="moment-text">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div>
+                <div class="moment-meta">decision &middot; python, api, planning &middot; 79%</div>
+            </div>
+            <div class="moment">
+                <div class="moment-time">9:18 AM</div>
+                <div class="moment-dot" style="background:var(--insight);box-shadow:0 0 6px rgba(176,127,212,0.4)"></div>
+                <div class="moment-text">Back button fails to appear due to missing history push in neighbor click handler</div>
+                <div class="moment-meta">insight &middot; javascript, ui, debugging &middot; 76%</div>
+            </div>
+            <div class="moment">
+                <div class="moment-time">8:55 AM</div>
+                <div class="moment-dot" style="background:var(--learning);box-shadow:0 0 6px rgba(94,164,212,0.4)"></div>
+                <div class="moment-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</div>
+                <div class="moment-meta">learning &middot; go, retrieval, performance &middot; 66%</div>
+            </div>
+            <div class="moment">
+                <div class="moment-time">8:31 AM</div>
+                <div class="moment-dot" style="background:var(--decision);box-shadow:0 0 6px rgba(232,177,94,0.4)"></div>
+                <div class="moment-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div>
+                <div class="moment-meta">decision &middot; refactoring, config, go &middot; 44%</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ RECALL — conversational ═══ -->
+<div class="page" id="p-recall">
+    <div class="recall-container">
+        <input class="recall-input" type="text" placeholder="what do you remember about..." value="hardcoded agent weights">
+        <div class="recall-stats">4 results &middot; 12ms &middot; spread activation: 3 hops</div>
+
+        <div class="recall-answer">
+            <div class="recall-score recall-score--high">.92</div>
+            <div class="recall-answer-type recall-answer-type--insight">insight</div>
+            <div class="recall-answer-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+            <div class="recall-answer-meta">agent &middot; config &middot; performance &middot; Mar 21</div>
+        </div>
+
+        <div class="recall-answer">
+            <div class="recall-score recall-score--mid">.78</div>
+            <div class="recall-answer-type recall-answer-type--decision">decision</div>
+            <div class="recall-answer-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+            <div class="recall-answer-meta">refactoring &middot; configuration &middot; go &middot; Mar 21</div>
+        </div>
+
+        <div class="recall-answer">
+            <div class="recall-score recall-score--mid">.61</div>
+            <div class="recall-answer-type recall-answer-type--learning">learning</div>
+            <div class="recall-answer-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval scoring</div>
+            <div class="recall-answer-meta">go &middot; retrieval &middot; performance &middot; Mar 21</div>
+        </div>
+
+        <div class="recall-answer">
+            <div class="recall-score recall-score--low">.43</div>
+            <div class="recall-answer-type recall-answer-type--insight">insight</div>
+            <div class="recall-answer-text">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+            <div class="recall-answer-meta">llm &middot; benchmarking &middot; performance &middot; Mar 21</div>
+        </div>
+    </div>
+</div>
+
+<script>
+function go(name, btn) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('p-' + name).classList.add('active');
+    btn.classList.add('active');
+    // Re-trigger animations
+    var page = document.getElementById('p-' + name);
+    page.querySelectorAll('.memory, .moment, .recall-answer').forEach(el => {
+        el.style.animation = 'none';
+        el.offsetHeight;
+        el.style.animation = '';
+    });
+}
+</script>
+</body>
+</html>

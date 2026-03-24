@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0c0c0f;
+  --surface: #121215;
+  --raised: #18181c;
+  --border: rgba(255,255,255,0.06);
+  --border-2: rgba(255,255,255,0.03);
+
+  --text-0: #f4f4f5;
+  --text-1: #d1d1d6;
+  --text-2: #8e8e99;
+  --text-3: #52525c;
+  --text-4: #33333a;
+
+  --accent: #b1cc7a;
+  --accent-dim: rgba(177,204,122,0.12);
+  --accent-glow: rgba(177,204,122,0.06);
+
+  --decision: #d4a24e;
+  --insight: #a87fc4;
+  --learning: #5ea0c4;
+  --error: #c46e5e;
+
+  --sans: 'Inter', -apple-system, sans-serif;
+  --serif: 'Newsreader', Georgia, serif;
+  --mono: 'JetBrains Mono', monospace;
+
+  --max-w: 980px;
+  --px: 40px;
+}
+
+html { font-size: 14px; }
+body {
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+/* ── Nav ── */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(12,12,15,0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 var(--px);
+  display: flex;
+  align-items: center;
+  height: 52px;
+  gap: 32px;
+}
+.nav-brand {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.05rem;
+  font-weight: 400;
+  color: var(--text-2);
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+.nav-tabs {
+  display: flex;
+  gap: 4px;
+}
+.nav-tab {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-3);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--sans);
+  transition: color 0.2s, background 0.2s;
+}
+.nav-tab:hover { color: var(--text-2); background: rgba(255,255,255,0.03); }
+.nav-tab.active { color: var(--text-0); background: rgba(255,255,255,0.06); }
+
+.nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: var(--text-4);
+  font-family: var(--mono);
+  font-feature-settings: 'tnum' 1;
+}
+.nav-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.7;
+  box-shadow: 0 0 8px rgba(177,204,122,0.3);
+}
+
+/* ── Pages ── */
+.page { display: none; }
+.page.active { display: block; }
+.container {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 var(--px);
+}
+
+/* ══════════════════════════════════
+   MIND
+   ══════════════════════════════════ */
+
+.mind-header {
+  padding: 40px 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mind-title {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-3);
+  letter-spacing: -0.01em;
+}
+.mind-search {
+  position: relative;
+}
+.mind-search input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-0);
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  padding: 7px 12px 7px 32px;
+  outline: none;
+  width: 200px;
+  transition: all 0.3s;
+}
+.mind-search input::placeholder { color: var(--text-4); }
+.mind-search input:focus { width: 280px; border-color: rgba(177,204,122,0.25); box-shadow: 0 0 0 3px rgba(177,204,122,0.06); }
+.mind-search::before {
+  content: '';
+  position: absolute;
+  left: 11px; top: 50%;
+  transform: translateY(-50%);
+  width: 12px; height: 12px;
+  border: 1.5px solid var(--text-4);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Featured memory — the big one */
+.featured {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 32px;
+}
+.featured:hover {
+  border-color: rgba(177,204,122,0.15);
+  box-shadow: 0 0 0 1px rgba(177,204,122,0.06);
+}
+.featured-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 100px;
+  margin-bottom: 16px;
+}
+.featured-badge::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+.badge--insight { color: var(--insight); background: rgba(168,127,196,0.1); }
+.badge--insight::before { background: var(--insight); }
+.badge--decision { color: var(--decision); background: rgba(212,162,78,0.1); }
+.badge--decision::before { background: var(--decision); }
+.badge--learning { color: var(--learning); background: rgba(94,160,196,0.1); }
+.badge--learning::before { background: var(--learning); }
+.badge--error { color: var(--error); background: rgba(196,110,94,0.1); }
+.badge--error::before { background: var(--error); }
+
+.featured-headline {
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text-0);
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.featured-lede {
+  font-size: 0.85rem;
+  font-weight: 300;
+  line-height: 1.65;
+  color: var(--text-2);
+  margin-bottom: 20px;
+}
+.featured-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.72rem;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-feature-settings: 'tnum' 1;
+}
+.featured-concepts { display: flex; gap: 6px; }
+.concept-tag {
+  font-size: 0.68rem;
+  color: var(--text-2);
+  background: rgba(255,255,255,0.04);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  transition: background 0.2s;
+}
+.concept-tag:hover { background: rgba(255,255,255,0.08); }
+
+/* Related sidebar in featured */
+.featured-related {
+  border-left: 1px solid var(--border);
+  padding-left: 24px;
+}
+.featured-related-title {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--text-3);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.related-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-2);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.related-item:last-child { border-bottom: none; }
+.related-item:hover { opacity: 0.8; }
+.related-item-type {
+  font-size: 0.62rem;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.related-item-text {
+  font-size: 0.82rem;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+/* Memory list — clean rows */
+.memory-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 80px;
+}
+.memory-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 22px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.memory-card:hover {
+  border-color: rgba(255,255,255,0.1);
+  background: var(--raised);
+}
+.memory-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.62rem;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+.memory-card-badge::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+}
+.memory-card-text {
+  font-size: 0.88rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-0);
+  margin-bottom: 14px;
+  text-wrap: balance;
+}
+.memory-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-4);
+  font-family: var(--mono);
+  font-feature-settings: 'tnum' 1;
+}
+.memory-card-concepts {
+  display: flex;
+  gap: 4px;
+}
+.memory-card-concept {
+  color: var(--text-3);
+  font-size: 0.65rem;
+}
+
+/* Low-salience memories — more compact */
+.memory-card--dim {
+  opacity: 0.65;
+}
+.memory-card--dim:hover { opacity: 1; }
+.memory-card--dim .memory-card-text {
+  font-size: 0.82rem;
+  color: var(--text-2);
+}
+
+/* ══════════════════════════════════
+   TIMELINE
+   ══════════════════════════════════ */
+.timeline {
+  padding: 32px 0 80px;
+}
+.tl-day-header {
+  position: sticky;
+  top: 53px;
+  z-index: 10;
+  background: var(--bg);
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-3);
+  font-weight: 500;
+}
+.tl-row {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-2);
+  cursor: pointer;
+  transition: background 0.15s;
+  border-radius: 6px;
+}
+.tl-row:hover { background: var(--accent-glow); margin: 0 -8px; padding-left: 8px; padding-right: 8px; }
+.tl-time {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-4);
+  font-feature-settings: 'tnum' 1;
+  text-align: right;
+  padding-top: 1px;
+}
+.tl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.62rem;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.tl-badge::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+}
+.tl-text {
+  font-size: 0.88rem;
+  color: var(--text-0);
+  line-height: 1.45;
+  margin-bottom: 6px;
+}
+.tl-meta {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-4);
+}
+
+/* ══════════════════════════════════
+   RECALL
+   ══════════════════════════════════ */
+.recall {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 0 80px;
+}
+.recall-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.recall-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-0);
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  padding: 12px 16px;
+  outline: none;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.recall-input::placeholder { color: var(--text-4); }
+.recall-input:focus { border-color: rgba(177,204,122,0.3); box-shadow: 0 0 0 3px rgba(177,204,122,0.06); }
+.recall-btn {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+.recall-btn:hover { opacity: 0.85; }
+.recall-stats {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--text-4);
+  font-feature-settings: 'tnum' 1;
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.recall-result {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--border-2);
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1fr 48px;
+  gap: 16px;
+  transition: background 0.15s;
+  border-radius: 6px;
+}
+.recall-result:hover { background: var(--accent-glow); margin: 0 -12px; padding-left: 12px; padding-right: 12px; }
+.recall-r-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.62rem;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.recall-r-badge::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+}
+.recall-r-text {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text-0);
+  margin-bottom: 8px;
+}
+.recall-r-meta {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-4);
+}
+.recall-score {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+  color: var(--text-3);
+  text-align: right;
+  padding-top: 20px;
+}
+.recall-result:first-child .recall-score { color: var(--accent); }
+
+/* ══════════════════════════════════
+   GRAPH
+   ══════════════════════════════════ */
+.graph {
+  padding: 32px 0 80px;
+}
+.graph-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.graph-back {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-family: var(--sans);
+  transition: all 0.2s;
+}
+.graph-back:hover { border-color: rgba(255,255,255,0.1); color: var(--text-2); }
+.graph-trail {
+  font-size: 0.72rem;
+  color: var(--text-4);
+}
+.graph-trail b { color: var(--text-2); font-weight: 400; }
+.graph-canvas {
+  width: 100%;
+  height: 520px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.graph-canvas::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 40% 40%, rgba(177,204,122,0.015), transparent 60%);
+  pointer-events: none;
+}
+.graph-placeholder {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-4);
+  font-size: 0.82rem;
+}
+.graph-detail {
+  position: absolute;
+  bottom: 20px; right: 20px;
+  width: 260px;
+  background: rgba(12,12,15,0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  z-index: 10;
+}
+.graph-d-type {
+  font-size: 0.62rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.graph-d-type::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+}
+.graph-d-text {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-0);
+  margin-bottom: 14px;
+}
+.graph-d-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 0.68rem;
+}
+.graph-d-row + .graph-d-row { border-top: 1px solid var(--border-2); }
+.graph-d-label { color: var(--text-4); }
+.graph-d-val { color: var(--text-2); font-family: var(--mono); font-feature-settings: 'tnum' 1; }
+
+/* ── Animations ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.featured, .memory-card, .tl-row, .recall-result, .related-item {
+  animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.featured { animation-delay: 0.05s; }
+.memory-card:nth-child(1) { animation-delay: 0.08s; }
+.memory-card:nth-child(2) { animation-delay: 0.12s; }
+.memory-card:nth-child(3) { animation-delay: 0.16s; }
+.memory-card:nth-child(4) { animation-delay: 0.2s; }
+.memory-card:nth-child(5) { animation-delay: 0.24s; }
+.memory-card:nth-child(6) { animation-delay: 0.28s; }
+.tl-row:nth-child(2) { animation-delay: 0.05s; }
+.tl-row:nth-child(3) { animation-delay: 0.1s; }
+.tl-row:nth-child(4) { animation-delay: 0.15s; }
+.tl-row:nth-child(5) { animation-delay: 0.2s; }
+.tl-row:nth-child(6) { animation-delay: 0.25s; }
+.recall-result:nth-child(1) { animation-delay: 0.08s; }
+.recall-result:nth-child(2) { animation-delay: 0.14s; }
+.recall-result:nth-child(3) { animation-delay: 0.2s; }
+.recall-result:nth-child(4) { animation-delay: 0.26s; }
+
+@media (max-width: 768px) {
+  :root { --px: 20px; }
+  .featured { grid-template-columns: 1fr; }
+  .featured-related { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: 20px; }
+  .memory-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-inner">
+    <div class="nav-brand">mnemonic</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="go('mind',this)">Mind</button>
+      <button class="nav-tab" onclick="go('timeline',this)">Timeline</button>
+      <button class="nav-tab" onclick="go('recall',this)">Recall</button>
+      <button class="nav-tab" onclick="go('graph',this)">Graph</button>
+    </div>
+    <div class="nav-right"><span class="nav-dot"></span> 77 memories</div>
+  </div>
+</header>
+
+<!-- ═══ MIND ═══ -->
+<div class="page active" id="p-mind">
+  <div class="container">
+    <div class="mind-header">
+      <div class="mind-title">Recent memories</div>
+      <div class="mind-search"><input type="text" placeholder="Search..."></div>
+    </div>
+
+    <div class="featured">
+      <div>
+        <div class="featured-badge badge--insight">insight</div>
+        <div class="featured-headline">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+        <div class="featured-lede">Analysis of the agent architecture revealed fundamental asymmetries in how the system compounds knowledge. Retrieval quality improves through Hebbian learning, but consolidation artifacts remain fragile under aggressive grounding verification.</div>
+        <div class="featured-concepts" style="margin-bottom:16px">
+          <span class="concept-tag">agent</span>
+          <span class="concept-tag">config</span>
+          <span class="concept-tag">performance</span>
+        </div>
+        <div class="featured-meta">
+          <span>10:05 AM</span>
+          <span style="opacity:0.3">&middot;</span>
+          <span>85% salience</span>
+        </div>
+      </div>
+      <div class="featured-related">
+        <div class="featured-related-title">Connected</div>
+        <div class="related-item">
+          <div class="related-item-type" style="color:var(--decision)">decision</div>
+          <div class="related-item-text">Centralized 40+ hardcoded values into config.yaml</div>
+        </div>
+        <div class="related-item">
+          <div class="related-item-type" style="color:var(--learning)">learning</div>
+          <div class="related-item-text">Verified context_boost 30-minute decay window</div>
+        </div>
+        <div class="related-item">
+          <div class="related-item-type" style="color:var(--insight)">insight</div>
+          <div class="related-item-text">Qwen3.5-0.8B identified as top small model</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="memory-grid">
+      <div class="memory-card">
+        <div class="memory-card-badge badge--decision">decision</div>
+        <div class="memory-card-text">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div>
+        <div class="memory-card-foot">
+          <div class="memory-card-concepts">
+            <span class="memory-card-concept">python</span>
+            <span class="memory-card-concept">api</span>
+            <span class="memory-card-concept">planning</span>
+          </div>
+          <span>79%</span>
+        </div>
+      </div>
+
+      <div class="memory-card">
+        <div class="memory-card-badge badge--insight">insight</div>
+        <div class="memory-card-text">Back button fails to appear due to missing history push in neighbor click handler</div>
+        <div class="memory-card-foot">
+          <div class="memory-card-concepts">
+            <span class="memory-card-concept">javascript</span>
+            <span class="memory-card-concept">ui</span>
+            <span class="memory-card-concept">debugging</span>
+          </div>
+          <span>76%</span>
+        </div>
+      </div>
+
+      <div class="memory-card">
+        <div class="memory-card-badge badge--learning">learning</div>
+        <div class="memory-card-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</div>
+        <div class="memory-card-foot">
+          <div class="memory-card-concepts">
+            <span class="memory-card-concept">go</span>
+            <span class="memory-card-concept">retrieval</span>
+            <span class="memory-card-concept">performance</span>
+          </div>
+          <span>66%</span>
+        </div>
+      </div>
+
+      <div class="memory-card">
+        <div class="memory-card-badge badge--learning">learning</div>
+        <div class="memory-card-text">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml</div>
+        <div class="memory-card-foot">
+          <div class="memory-card-concepts">
+            <span class="memory-card-concept">ci</span>
+            <span class="memory-card-concept">deployment</span>
+            <span class="memory-card-concept">github</span>
+          </div>
+          <span>51%</span>
+        </div>
+      </div>
+
+      <div class="memory-card memory-card--dim">
+        <div class="memory-card-badge badge--decision">decision</div>
+        <div class="memory-card-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div>
+        <div class="memory-card-foot">
+          <div class="memory-card-concepts">
+            <span class="memory-card-concept">refactoring</span>
+            <span class="memory-card-concept">go</span>
+          </div>
+          <span>44%</span>
+        </div>
+      </div>
+
+      <div class="memory-card memory-card--dim">
+        <div class="memory-card-badge badge--insight">insight</div>
+        <div class="memory-card-text">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+        <div class="memory-card-foot">
+          <div class="memory-card-concepts">
+            <span class="memory-card-concept">llm</span>
+            <span class="memory-card-concept">benchmarking</span>
+          </div>
+          <span>39%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TIMELINE ═══ -->
+<div class="page" id="p-timeline">
+  <div class="container">
+    <div class="timeline">
+      <div class="tl-day-header"><span>Friday, March 21</span><span style="color:var(--text-4);font-weight:400">6 memories</span></div>
+
+      <div class="tl-row"><div class="tl-time">10:05</div><div><div class="tl-badge badge--insight">insight</div><div class="tl-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div><div class="tl-meta">agent &middot; config &middot; performance &middot; 85%</div></div></div>
+
+      <div class="tl-row"><div class="tl-time">9:42</div><div><div class="tl-badge badge--decision">decision</div><div class="tl-text">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div><div class="tl-meta">python &middot; api &middot; planning &middot; 79%</div></div></div>
+
+      <div class="tl-row"><div class="tl-time">9:18</div><div><div class="tl-badge badge--insight">insight</div><div class="tl-text">Back button fails to appear due to missing history push in neighbor click handler</div><div class="tl-meta">javascript &middot; ui &middot; debugging &middot; 76%</div></div></div>
+
+      <div class="tl-row"><div class="tl-time">8:55</div><div><div class="tl-badge badge--learning">learning</div><div class="tl-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</div><div class="tl-meta">go &middot; retrieval &middot; performance &middot; 66%</div></div></div>
+
+      <div class="tl-row"><div class="tl-time">8:31</div><div><div class="tl-badge badge--decision">decision</div><div class="tl-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div><div class="tl-meta">refactoring &middot; configuration &middot; go &middot; 44%</div></div></div>
+
+      <div class="tl-day-header"><span>Thursday, March 20</span><span style="color:var(--text-4);font-weight:400">2 memories</span></div>
+
+      <div class="tl-row"><div class="tl-time">3:10 PM</div><div><div class="tl-badge badge--learning">learning</div><div class="tl-text">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml</div><div class="tl-meta">ci &middot; deployment &middot; github &middot; 51%</div></div></div>
+
+      <div class="tl-row"><div class="tl-time">1:12 PM</div><div><div class="tl-badge badge--decision">decision</div><div class="tl-text">Committed JSON repair and benchmark tools; Qwen3.5-0.8B parse rate rose from 78.3% to 98.1%</div><div class="tl-meta">python &middot; llm &middot; benchmarking &middot; 38%</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RECALL ═══ -->
+<div class="page" id="p-recall">
+  <div class="container">
+    <div class="recall">
+      <div class="recall-bar">
+        <input class="recall-input" type="text" placeholder="What do you remember about..." value="hardcoded agent weights">
+        <button class="recall-btn">Recall</button>
+      </div>
+      <div class="recall-stats">4 results &middot; 12ms &middot; 3 hops</div>
+
+      <div class="recall-result"><div><div class="recall-r-badge badge--insight">insight</div><div class="recall-r-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div><div class="recall-r-meta">agent &middot; config &middot; performance &middot; Mar 21</div></div><div class="recall-score">.92</div></div>
+
+      <div class="recall-result"><div><div class="recall-r-badge badge--decision">decision</div><div class="recall-r-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div><div class="recall-r-meta">refactoring &middot; configuration &middot; go &middot; Mar 21</div></div><div class="recall-score">.78</div></div>
+
+      <div class="recall-result"><div><div class="recall-r-badge badge--learning">learning</div><div class="recall-r-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</div><div class="recall-r-meta">go &middot; retrieval &middot; performance &middot; Mar 21</div></div><div class="recall-score">.61</div></div>
+
+      <div class="recall-result"><div><div class="recall-r-badge badge--insight">insight</div><div class="recall-r-text">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div><div class="recall-r-meta">llm &middot; benchmarking &middot; performance &middot; Mar 21</div></div><div class="recall-score">.43</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GRAPH ═══ -->
+<div class="page" id="p-graph">
+  <div class="container">
+    <div class="graph">
+      <div class="graph-bar">
+        <button class="graph-back">&larr; Back</button>
+        <div class="graph-trail">cleverness debt &rsaquo; <b>Centralized 40+ hardcoded values...</b></div>
+      </div>
+      <div class="graph-canvas">
+        <div class="graph-placeholder">ego graph renders here</div>
+        <div class="graph-detail">
+          <div class="graph-d-type badge--decision" style="color:var(--decision)">decision</div>
+          <div class="graph-d-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div>
+          <div class="graph-d-row"><span class="graph-d-label">salience</span><span class="graph-d-val">0.44</span></div>
+          <div class="graph-d-row"><span class="graph-d-label">source</span><span class="graph-d-val">mcp</span></div>
+          <div class="graph-d-row"><span class="graph-d-label">connections</span><span class="graph-d-val">15</span></div>
+          <div class="graph-d-row"><span class="graph-d-label">created</span><span class="graph-d-val">Mar 21, 2026</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function go(name, btn) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('p-' + name).classList.add('active');
+  btn.classList.add('active');
+  var page = document.getElementById('p-' + name);
+  page.querySelectorAll('.featured, .memory-card, .tl-row, .recall-result, .related-item').forEach(function(el) {
+    el.style.animation = 'none';
+    el.offsetHeight;
+    el.style.animation = '';
+  });
+  window.scrollTo(0, 0);
+}
+</script>
+</body>
+</html>

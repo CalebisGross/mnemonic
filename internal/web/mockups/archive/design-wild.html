@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Azeret+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+@font-face {
+  font-family: 'Departure';
+  src: url('https://fonts.cdnfonts.com/css/departure-mono') format('woff2');
+  font-display: swap;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --void: #050507;
+  --deep: #0a0a0f;
+  --surface: #111118;
+  --dim-edge: rgba(255,255,255,0.04);
+  --t1: #f0eee8;
+  --t2: #a8a4a0;
+  --t3: #605c58;
+  --t4: #353230;
+  --decision: #e8b15e;
+  --insight: #b07fd4;
+  --learning: #5ea4d4;
+  --error: #d46b5e;
+  --glow-decision: rgba(232,177,94,0.15);
+  --glow-insight: rgba(176,127,212,0.15);
+  --glow-learning: rgba(94,164,212,0.15);
+  --glow-error: rgba(212,107,94,0.15);
+  --display: 'Cormorant Garamond', 'Garamond', serif;
+  --mono: 'Azeret Mono', 'SF Mono', monospace;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--display);
+  background: var(--void);
+  color: var(--t1);
+  -webkit-font-smoothing: antialiased;
+  cursor: default;
+}
+
+/* ═══ PARTICLE CANVAS — the living background ═══ */
+#particles {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ═══ NAV — ethereal, part of the atmosphere ═══ */
+.shell-nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  padding: 0 36px;
+  z-index: 100;
+  background: linear-gradient(180deg, rgba(5,5,7,0.9) 0%, rgba(5,5,7,0.4) 70%, transparent 100%);
+}
+.shell-brand {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 300;
+  font-style: italic;
+  color: var(--t2);
+  letter-spacing: 0.04em;
+  margin-right: auto;
+  user-select: none;
+}
+.shell-tabs {
+  display: flex;
+  gap: 0;
+}
+.shell-tab {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: var(--t4);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 8px 20px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  position: relative;
+  transition: color 0.5s;
+}
+.shell-tab:hover { color: var(--t3); }
+.shell-tab.active { color: var(--t2); }
+.shell-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--t2);
+  transform: translateX(-50%);
+  box-shadow: 0 0 8px rgba(255,255,255,0.3);
+}
+.shell-status {
+  margin-left: 32px;
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  color: var(--t4);
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.shell-pulse {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: #5ea45e;
+  box-shadow: 0 0 8px rgba(94,164,94,0.6);
+  animation: breathe 3s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.7); }
+}
+
+/* ═══ PAGES ═══ */
+.view { display: none; position: fixed; inset: 0; z-index: 10; overflow: hidden; }
+.view.active { display: block; }
+
+/* ═══ MIND — memories as celestial objects ═══ */
+.mind-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.mind-search {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  text-align: center;
+}
+.mind-search input {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 999px;
+  padding: 10px 28px;
+  width: 320px;
+  color: var(--t1);
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 300;
+  font-style: italic;
+  outline: none;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: all 0.4s;
+}
+.mind-search input::placeholder { color: var(--t4); font-style: italic; }
+.mind-search input:focus {
+  border-color: rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  width: 380px;
+}
+
+/* Memory orbs */
+.orb {
+  position: absolute;
+  cursor: pointer;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), filter 0.4s;
+  transform-origin: center center;
+}
+.orb:hover {
+  transform: scale(1.08) !important;
+  z-index: 30;
+}
+.orb-glow {
+  position: absolute;
+  inset: -40%;
+  border-radius: 50%;
+  filter: blur(30px);
+  opacity: 0.4;
+  pointer-events: none;
+}
+.orb-core {
+  position: relative;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+  backdrop-filter: blur(4px);
+}
+.orb-core::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.08), transparent 60%);
+  pointer-events: none;
+}
+.orb-text {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 220px;
+  text-align: center;
+  font-family: var(--display);
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--t2);
+  line-height: 1.4;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  text-wrap: balance;
+}
+.orb:hover .orb-text { opacity: 1; }
+.orb-type {
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  display: block;
+  margin-bottom: 4px;
+}
+.orb-meta {
+  font-family: var(--mono);
+  font-size: 0.48rem;
+  color: var(--t4);
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+  display: block;
+}
+/* Salience ring — subtle orbiting dot */
+.orb-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.04);
+  pointer-events: none;
+}
+.orb-ring::after {
+  content: '';
+  position: absolute;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: white;
+  top: -1.5px;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: orbit var(--orbit-speed, 8s) linear infinite;
+  opacity: 0.5;
+}
+@keyframes orbit {
+  from { transform: translateX(-50%) rotate(0deg) translateY(calc(var(--orbit-r, 30px))) rotate(0deg); }
+  to { transform: translateX(-50%) rotate(360deg) translateY(calc(var(--orbit-r, 30px))) rotate(-360deg); }
+}
+
+/* ═══ GRAPH — ego graph placeholder ═══ */
+.graph-container {
+  position: absolute;
+  inset: 60px 0 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.graph-breadcrumb {
+  position: absolute;
+  top: 20px;
+  left: 36px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--t4);
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 20;
+}
+.graph-back {
+  color: var(--t3);
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--dim-edge);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.06em;
+  transition: all 0.3s;
+}
+.graph-back:hover { border-color: rgba(255,255,255,0.1); color: var(--t2); }
+.graph-canvas {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+/* Ego node - center */
+.ego-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+.ego-core {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, rgba(232,177,94,0.25), rgba(232,177,94,0.05));
+  border: 1px solid rgba(232,177,94,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  animation: ego-pulse 4s ease-in-out infinite;
+  box-shadow: 0 0 40px rgba(232,177,94,0.08);
+}
+@keyframes ego-pulse {
+  0%, 100% { box-shadow: 0 0 40px rgba(232,177,94,0.08); }
+  50% { box-shadow: 0 0 60px rgba(232,177,94,0.15); }
+}
+.ego-label {
+  font-family: var(--display);
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--t2);
+  max-width: 200px;
+  text-wrap: balance;
+  line-height: 1.4;
+}
+/* Satellite nodes */
+.satellite {
+  position: absolute;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+.satellite:hover { transform: scale(1.1); }
+.sat-dot {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.sat-line {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.06;
+}
+.sat-label {
+  font-family: var(--display);
+  font-size: 0.72rem;
+  color: var(--t3);
+  max-width: 140px;
+  line-height: 1.3;
+}
+/* Graph detail panel */
+.graph-detail {
+  position: absolute;
+  bottom: 24px; right: 24px;
+  width: 280px;
+  background: rgba(10,10,15,0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--dim-edge);
+  border-radius: 16px;
+  padding: 24px;
+  z-index: 20;
+}
+.gd-type {
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gd-type::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+}
+.gd-type--decision { color: var(--decision); }
+.gd-type--decision::before { background: var(--decision); }
+.gd-title {
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--t1);
+  margin-bottom: 18px;
+}
+.gd-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 0.62rem;
+}
+.gd-label { color: var(--t4); font-family: var(--mono); letter-spacing: 0.06em; }
+.gd-val { color: var(--t3); font-family: var(--mono); font-feature-settings: 'tnum' 1, 'zero' 1; }
+
+.graph-filter {
+  position: absolute;
+  top: 20px; right: 24px;
+  z-index: 20;
+}
+.graph-filter input {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--dim-edge);
+  border-radius: 999px;
+  padding: 6px 16px;
+  color: var(--t1);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  outline: none;
+  width: 150px;
+  backdrop-filter: blur(12px);
+}
+.graph-filter input::placeholder { color: var(--t4); }
+
+/* ═══ TIMELINE — vertical stream with depth ═══ */
+.timeline-container {
+  position: absolute;
+  inset: 60px 0 0 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.timeline-container::-webkit-scrollbar { width: 0; }
+.timeline-inner {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 60px 36px 120px;
+  position: relative;
+}
+/* The thread */
+.timeline-inner::before {
+  content: '';
+  position: absolute;
+  left: 36px;
+  top: 60px;
+  bottom: 120px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.06) 10%, rgba(255,255,255,0.06) 90%, transparent);
+}
+.tl-date-marker {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  color: var(--t4);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 32px;
+  padding-left: 28px;
+  position: relative;
+}
+.tl-date-marker::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--t4);
+  transform: translateY(-50%);
+}
+.tl-moment {
+  padding: 0 0 40px 28px;
+  position: relative;
+  cursor: pointer;
+  transition: opacity 0.3s;
+}
+.tl-moment::before {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: 8px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  background: var(--void);
+}
+.tl-moment--insight::before { border-color: var(--insight); box-shadow: 0 0 8px var(--glow-insight); }
+.tl-moment--decision::before { border-color: var(--decision); box-shadow: 0 0 8px var(--glow-decision); }
+.tl-moment--learning::before { border-color: var(--learning); box-shadow: 0 0 8px var(--glow-learning); }
+.tl-moment--error::before { border-color: var(--error); box-shadow: 0 0 8px var(--glow-error); }
+.tl-time {
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  color: var(--t4);
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+  font-feature-settings: 'tnum' 1;
+}
+.tl-text {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--t2);
+  text-wrap: balance;
+  margin-bottom: 6px;
+}
+.tl-concepts {
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  color: var(--t4);
+  letter-spacing: 0.06em;
+}
+
+/* ═══ RECALL — searchlight emerging from dark ═══ */
+.recall-container {
+  position: absolute;
+  inset: 60px 0 0 0;
+  overflow-y: auto;
+}
+.recall-container::-webkit-scrollbar { width: 0; }
+.recall-inner {
+  max-width: 580px;
+  margin: 0 auto;
+  padding: 80px 36px 120px;
+}
+.recall-prompt {
+  margin-bottom: 48px;
+}
+.recall-prompt input {
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 12px 0;
+  color: var(--t1);
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 300;
+  font-style: italic;
+  outline: none;
+  transition: border-color 0.4s;
+}
+.recall-prompt input::placeholder { color: var(--t4); }
+.recall-prompt input:focus { border-color: rgba(255,255,255,0.12); }
+.recall-info {
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  color: var(--t4);
+  letter-spacing: 0.08em;
+  margin-top: 8px;
+  font-feature-settings: 'tnum' 1;
+}
+
+.recall-result {
+  padding: 32px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  position: relative;
+  cursor: pointer;
+}
+.recall-result:last-child { border-bottom: none; }
+
+/* The searchlight effect — brighter results glow more */
+.recall-result[data-relevance="high"] { }
+.recall-result[data-relevance="mid"] .rr-text { color: var(--t2); }
+.recall-result[data-relevance="low"] .rr-text { color: var(--t3); }
+.recall-result[data-relevance="low"] { opacity: 0.7; }
+
+.rr-score {
+  font-family: var(--mono);
+  font-size: 2rem;
+  font-weight: 300;
+  position: absolute;
+  right: 0;
+  top: 32px;
+  font-feature-settings: 'tnum' 1;
+  line-height: 1;
+}
+.rr-score--high { color: rgba(255,255,255,0.2); }
+.rr-score--mid { color: rgba(255,255,255,0.1); }
+.rr-score--low { color: rgba(255,255,255,0.05); }
+.rr-type {
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rr-type::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+}
+.rr-type--insight { color: var(--insight); }
+.rr-type--insight::before { background: var(--insight); box-shadow: 0 0 6px var(--glow-insight); }
+.rr-type--decision { color: var(--decision); }
+.rr-type--decision::before { background: var(--decision); box-shadow: 0 0 6px var(--glow-decision); }
+.rr-type--learning { color: var(--learning); }
+.rr-type--learning::before { background: var(--learning); box-shadow: 0 0 6px var(--glow-learning); }
+.rr-text {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--t1);
+  padding-right: 80px;
+  text-wrap: balance;
+  margin-bottom: 8px;
+}
+.rr-meta {
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  color: var(--t4);
+  letter-spacing: 0.06em;
+}
+
+/* ═══ ENTRY ANIMATIONS ═══ */
+@keyframes materialize {
+  0% { opacity: 0; transform: scale(0.8) translateY(20px); filter: blur(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+}
+@keyframes float-in {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.orb { animation: materialize 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.tl-moment { animation: float-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.recall-result { animation: float-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Stagger */
+.orb:nth-child(1) { animation-delay: 0.1s; }
+.orb:nth-child(2) { animation-delay: 0.2s; }
+.orb:nth-child(3) { animation-delay: 0.3s; }
+.orb:nth-child(4) { animation-delay: 0.4s; }
+.orb:nth-child(5) { animation-delay: 0.5s; }
+.orb:nth-child(6) { animation-delay: 0.6s; }
+.orb:nth-child(7) { animation-delay: 0.7s; }
+.orb:nth-child(8) { animation-delay: 0.8s; }
+
+.tl-moment:nth-child(2) { animation-delay: 0.08s; }
+.tl-moment:nth-child(3) { animation-delay: 0.16s; }
+.tl-moment:nth-child(4) { animation-delay: 0.24s; }
+.tl-moment:nth-child(5) { animation-delay: 0.32s; }
+.tl-moment:nth-child(6) { animation-delay: 0.4s; }
+.tl-moment:nth-child(7) { animation-delay: 0.48s; }
+.tl-moment:nth-child(8) { animation-delay: 0.56s; }
+
+.recall-result:nth-child(1) { animation-delay: 0.15s; }
+.recall-result:nth-child(2) { animation-delay: 0.3s; }
+.recall-result:nth-child(3) { animation-delay: 0.45s; }
+.recall-result:nth-child(4) { animation-delay: 0.6s; }
+
+/* ═══ SUBTLE GRAIN OVERLAY ═══ */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+}
+</style>
+</head>
+<body>
+
+<canvas id="particles"></canvas>
+
+<div class="shell-nav">
+  <div class="shell-brand">mnemonic</div>
+  <div class="shell-tabs">
+    <button class="shell-tab active" onclick="switchView('mind', this)">mind</button>
+    <button class="shell-tab" onclick="switchView('graph', this)">graph</button>
+    <button class="shell-tab" onclick="switchView('timeline', this)">timeline</button>
+    <button class="shell-tab" onclick="switchView('recall', this)">recall</button>
+  </div>
+  <div class="shell-status">
+    <span class="shell-pulse"></span>
+    <span>77 memories &middot; 3.6 mb</span>
+  </div>
+</div>
+
+<!-- ═══ MIND — celestial field ═══ -->
+<div class="view active" id="v-mind">
+  <div class="mind-field" id="mindField">
+    <div class="mind-search">
+      <input type="text" placeholder="search memories...">
+    </div>
+    <!-- Orbs placed by JS based on salience -->
+  </div>
+</div>
+
+<!-- ═══ GRAPH ═══ -->
+<div class="view" id="v-graph">
+  <div class="graph-container">
+    <div class="graph-breadcrumb">
+      <button class="graph-back">&larr; back</button>
+      <span style="color:var(--t4)">cleverness debt</span>
+      <span style="opacity:0.3">/</span>
+      <span style="color:var(--t2)">Centralized 40+ hardcoded values...</span>
+    </div>
+    <div class="graph-filter"><input type="text" placeholder="filter..."></div>
+    <div class="graph-canvas">
+      <!-- Center ego node -->
+      <div class="ego-center">
+        <div class="ego-core">
+          <span style="font-family:var(--mono);font-size:0.5rem;color:var(--decision);letter-spacing:0.1em">DEC</span>
+        </div>
+        <div class="ego-label">Centralized 40+ hardcoded values into config.yaml</div>
+      </div>
+      <!-- Satellite nodes positioned by JS -->
+      <div id="satellites"></div>
+      <!-- SVG lines -->
+      <svg id="egoLines" style="position:absolute;inset:0;pointer-events:none;width:100%;height:100%"></svg>
+    </div>
+    <div class="graph-detail">
+      <div class="gd-type gd-type--decision">decision</div>
+      <div class="gd-title">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div>
+      <div class="gd-row"><span class="gd-label">salience</span><span class="gd-val">0.44</span></div>
+      <div class="gd-row"><span class="gd-label">source</span><span class="gd-val">mcp</span></div>
+      <div class="gd-row"><span class="gd-label">connections</span><span class="gd-val">15</span></div>
+      <div class="gd-row"><span class="gd-label">created</span><span class="gd-val">Mar 21, 2026</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TIMELINE ═══ -->
+<div class="view" id="v-timeline">
+  <div class="timeline-container">
+    <div class="timeline-inner">
+      <div class="tl-date-marker">today &middot; march 21</div>
+
+      <div class="tl-moment tl-moment--insight">
+        <div class="tl-time">10:05 AM</div>
+        <div class="tl-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+        <div class="tl-concepts">agent &middot; config &middot; performance &middot; 85%</div>
+      </div>
+
+      <div class="tl-moment tl-moment--decision">
+        <div class="tl-time">9:42 AM</div>
+        <div class="tl-text">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div>
+        <div class="tl-concepts">python &middot; api &middot; planning &middot; 79%</div>
+      </div>
+
+      <div class="tl-moment tl-moment--insight">
+        <div class="tl-time">9:18 AM</div>
+        <div class="tl-text">Back button fails to appear due to missing history push in neighbor click handler</div>
+        <div class="tl-concepts">javascript &middot; ui &middot; debugging &middot; 76%</div>
+      </div>
+
+      <div class="tl-moment tl-moment--learning">
+        <div class="tl-time">8:55 AM</div>
+        <div class="tl-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</div>
+        <div class="tl-concepts">go &middot; retrieval &middot; performance &middot; 66%</div>
+      </div>
+
+      <div class="tl-moment tl-moment--decision">
+        <div class="tl-time">8:31 AM</div>
+        <div class="tl-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div>
+        <div class="tl-concepts">refactoring &middot; configuration &middot; go &middot; 44%</div>
+      </div>
+
+      <div class="tl-date-marker" style="margin-top:20px">yesterday &middot; march 20</div>
+
+      <div class="tl-moment tl-moment--insight">
+        <div class="tl-time">4:22 PM</div>
+        <div class="tl-text">Mnemonic v0.30.0 release adds pattern scoping, bulk forget, and handoff tools across PRs #310-#314</div>
+        <div class="tl-concepts">deployment &middot; documentation &middot; cli &middot; 52%</div>
+      </div>
+
+      <div class="tl-moment tl-moment--learning">
+        <div class="tl-time">3:10 PM</div>
+        <div class="tl-text">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml</div>
+        <div class="tl-concepts">ci &middot; deployment &middot; github &middot; 51%</div>
+      </div>
+
+      <div class="tl-moment tl-moment--decision">
+        <div class="tl-time">1:45 PM</div>
+        <div class="tl-text">Committed JSON repair and benchmark tools; Qwen3.5-0.8B parse rate rose from 78.3% to 98.1%</div>
+        <div class="tl-concepts">python &middot; llm &middot; benchmarking &middot; 38%</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RECALL ═══ -->
+<div class="view" id="v-recall">
+  <div class="recall-container">
+    <div class="recall-inner">
+      <div class="recall-prompt">
+        <input type="text" placeholder="what do you remember about..." value="hardcoded agent weights">
+        <div class="recall-info">4 results &middot; 12ms &middot; 3 hops spread activation</div>
+      </div>
+
+      <div class="recall-result" data-relevance="high">
+        <div class="rr-score rr-score--high">.92</div>
+        <div class="rr-type rr-type--insight">insight</div>
+        <div class="rr-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div>
+        <div class="rr-meta">agent &middot; config &middot; performance &middot; Mar 21</div>
+      </div>
+
+      <div class="recall-result" data-relevance="mid">
+        <div class="rr-score rr-score--mid">.78</div>
+        <div class="rr-type rr-type--decision">decision</div>
+        <div class="rr-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability and maintainability</div>
+        <div class="rr-meta">refactoring &middot; configuration &middot; go &middot; Mar 21</div>
+      </div>
+
+      <div class="recall-result" data-relevance="mid">
+        <div class="rr-score rr-score--mid">.61</div>
+        <div class="rr-type rr-type--learning">learning</div>
+        <div class="rr-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval scoring</div>
+        <div class="rr-meta">go &middot; retrieval &middot; performance &middot; Mar 21</div>
+      </div>
+
+      <div class="recall-result" data-relevance="low">
+        <div class="rr-score rr-score--low">.43</div>
+        <div class="rr-type rr-type--insight">insight</div>
+        <div class="rr-text">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</div>
+        <div class="rr-meta">llm &middot; benchmarking &middot; performance &middot; Mar 21</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══ Particle background ═══
+(function() {
+  var canvas = document.getElementById('particles');
+  var ctx = canvas.getContext('2d');
+  var particles = [];
+  var W, H;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  for (var i = 0; i < 80; i++) {
+    particles.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 1.2 + 0.3,
+      dx: (Math.random() - 0.5) * 0.15,
+      dy: (Math.random() - 0.5) * 0.15,
+      o: Math.random() * 0.3 + 0.05,
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    particles.forEach(function(p) {
+      p.x += p.dx;
+      p.y += p.dy;
+      if (p.x < 0) p.x = W;
+      if (p.x > W) p.x = 0;
+      if (p.y < 0) p.y = H;
+      if (p.y > H) p.y = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(200,195,190,' + p.o + ')';
+      ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ═══ Mind orbs — positioned by salience ═══
+var memories = [
+  { text: 'Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems', type: 'insight', sal: 0.85, concepts: 'agent \u00b7 config \u00b7 performance' },
+  { text: 'Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI', type: 'decision', sal: 0.79, concepts: 'python \u00b7 api \u00b7 planning' },
+  { text: 'Back button fails to appear due to missing history push in neighbor click handler', type: 'insight', sal: 0.76, concepts: 'javascript \u00b7 ui \u00b7 debugging' },
+  { text: 'Verified context_boost 30-minute decay window and distinguished it from activity_bonus', type: 'learning', sal: 0.66, concepts: 'go \u00b7 retrieval \u00b7 performance' },
+  { text: 'Mnemonic v0.30.0 release adds pattern scoping, bulk forget, and handoff tools', type: 'insight', sal: 0.52, concepts: 'deployment \u00b7 documentation \u00b7 cli' },
+  { text: 'Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml', type: 'learning', sal: 0.51, concepts: 'ci \u00b7 deployment \u00b7 github' },
+  { text: 'Centralized 40+ hardcoded values into config.yaml to improve system configurability', type: 'decision', sal: 0.44, concepts: 'refactoring \u00b7 configuration \u00b7 go' },
+  { text: 'Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans', type: 'insight', sal: 0.39, concepts: 'llm \u00b7 benchmarking \u00b7 performance' },
+];
+
+var typeColors = { decision: '#e8b15e', insight: '#b07fd4', learning: '#5ea4d4', error: '#d46b5e' };
+var typeGlows = { decision: 'var(--glow-decision)', insight: 'var(--glow-insight)', learning: 'var(--glow-learning)', error: 'var(--glow-error)' };
+var typeAbbr = { decision: 'DEC', insight: 'INS', learning: 'LRN', error: 'ERR' };
+
+function buildOrbs() {
+  var field = document.getElementById('mindField');
+  // Remove existing orbs
+  field.querySelectorAll('.orb').forEach(function(o) { o.remove(); });
+
+  var W = window.innerWidth;
+  var H = window.innerHeight;
+  var cx = W / 2;
+  var cy = H / 2 + 20;
+
+  memories.forEach(function(m, i) {
+    var size = 40 + m.sal * 70; // 40-110px based on salience
+    // Spread orbs in a loose ellipse, high salience near center
+    var dist = (1 - m.sal) * Math.min(W, H) * 0.38 + 60;
+    var angle = (i / memories.length) * Math.PI * 2 + Math.random() * 0.4 - 0.2;
+    var x = cx + Math.cos(angle) * dist - size / 2;
+    var y = cy + Math.sin(angle) * dist * 0.7 - size / 2;
+
+    var color = typeColors[m.type];
+    var orb = document.createElement('div');
+    orb.className = 'orb';
+    orb.style.cssText = 'left:' + x + 'px;top:' + y + 'px;width:' + size + 'px;height:' + size + 'px;';
+
+    var glowSize = size * 1.5;
+    orb.innerHTML =
+      '<div class="orb-glow" style="background:radial-gradient(circle,' + color.replace(')', ',0.12)').replace('rgb', 'rgba').replace('#', '') + ',transparent 70%);background:radial-gradient(circle,rgba(' + hexToRgb(color) + ',0.12),transparent 70%)"></div>' +
+      '<div class="orb-core" style="width:100%;height:100%;background:radial-gradient(circle at 40% 40%,rgba(' + hexToRgb(color) + ',0.15),rgba(' + hexToRgb(color) + ',0.03))">' +
+        '<span style="font-family:var(--mono);font-size:' + (size > 60 ? '0.5rem' : '0.4rem') + ';color:' + color + ';letter-spacing:0.1em;opacity:0.6">' + typeAbbr[m.type] + '</span>' +
+      '</div>' +
+      '<div class="orb-ring" style="--orbit-speed:' + (12 - m.sal * 8) + 's;--orbit-r:' + (size/2 + 6) + 'px"></div>' +
+      '<div class="orb-text">' +
+        '<span class="orb-type" style="color:' + color + '">' + m.type + '</span>' +
+        m.text +
+        '<span class="orb-meta">' + m.concepts + ' \u00b7 ' + Math.round(m.sal * 100) + '%</span>' +
+      '</div>';
+
+    field.appendChild(orb);
+  });
+}
+
+function hexToRgb(hex) {
+  hex = hex.replace('#', '');
+  var r = parseInt(hex.substring(0, 2), 16);
+  var g = parseInt(hex.substring(2, 4), 16);
+  var b = parseInt(hex.substring(4, 6), 16);
+  return r + ',' + g + ',' + b;
+}
+
+buildOrbs();
+window.addEventListener('resize', buildOrbs);
+
+// ═══ Ego graph satellites ═══
+(function() {
+  var container = document.querySelector('.graph-canvas');
+  if (!container) return;
+  var sats = [
+    { label: 'cleverness debt audit', type: 'insight', angle: 30 },
+    { label: 'retrieval decay tuning', type: 'learning', angle: 80 },
+    { label: 'perception scoring', type: 'decision', angle: 140 },
+    { label: 'reactor cooldowns', type: 'decision', angle: 200 },
+    { label: 'encoding failures', type: 'error', angle: 260 },
+    { label: 'config.yaml schema', type: 'learning', angle: 320 },
+  ];
+
+  function placeSatellites() {
+    var el = document.getElementById('satellites');
+    var svg = document.getElementById('egoLines');
+    el.innerHTML = '';
+    svg.innerHTML = '';
+    var W = container.clientWidth;
+    var H = container.clientHeight;
+    var cx = W / 2;
+    var cy = H / 2;
+    var radius = Math.min(W, H) * 0.3;
+
+    sats.forEach(function(s) {
+      var rad = s.angle * Math.PI / 180;
+      var x = cx + Math.cos(rad) * radius;
+      var y = cy + Math.sin(rad) * radius;
+      var color = typeColors[s.type];
+
+      // Line
+      var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', cx); line.setAttribute('y1', cy);
+      line.setAttribute('x2', x); line.setAttribute('y2', y);
+      line.setAttribute('stroke', 'rgba(255,255,255,0.04)');
+      line.setAttribute('stroke-width', '1');
+      svg.appendChild(line);
+
+      // Node
+      var node = document.createElement('div');
+      node.className = 'satellite';
+      node.style.cssText = 'left:' + (x - 12) + 'px;top:' + (y - 12) + 'px;';
+      node.innerHTML =
+        '<div class="sat-dot" style="background:radial-gradient(circle at 40% 40%,rgba(' + hexToRgb(color) + ',0.3),rgba(' + hexToRgb(color) + ',0.05));border-color:rgba(' + hexToRgb(color) + ',0.3)"></div>' +
+        '<div class="sat-label">' + s.label + '</div>';
+      el.appendChild(node);
+    });
+  }
+  placeSatellites();
+  window.addEventListener('resize', placeSatellites);
+})();
+
+// ═══ View switching ═══
+function switchView(name, btn) {
+  document.querySelectorAll('.view').forEach(function(v) { v.classList.remove('active'); });
+  document.querySelectorAll('.shell-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('v-' + name).classList.add('active');
+  btn.classList.add('active');
+
+  // Re-trigger animations
+  var view = document.getElementById('v-' + name);
+  view.querySelectorAll('.orb, .tl-moment, .recall-result').forEach(function(el) {
+    el.style.animation = 'none';
+    el.offsetHeight;
+    el.style.animation = '';
+  });
+
+  if (name === 'mind') buildOrbs();
+}
+</script>
+</body>
+</html>

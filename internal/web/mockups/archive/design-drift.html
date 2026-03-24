@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Spline+Sans+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: #06060a;
+  font-family: 'Spline Sans Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* grain overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 128px;
+}
+
+svg { display: block; }
+
+/* navigation - floating, minimal */
+.chrome {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  padding: 18px 28px;
+  z-index: 100;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(6,6,10,0.9) 0%, rgba(6,6,10,0) 100%);
+}
+.chrome > * { pointer-events: auto; }
+.brand {
+  font-family: 'EB Garamond', serif;
+  font-style: italic;
+  font-size: 1.05rem;
+  color: rgba(220, 215, 206, 0.2);
+  letter-spacing: 0.01em;
+  margin-right: 48px;
+  user-select: none;
+}
+.modes { display: flex; gap: 6px; }
+.mode {
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: rgba(220, 215, 206, 0.15);
+  cursor: pointer;
+  border: 1px solid rgba(220, 215, 206, 0.06);
+  background: rgba(220, 215, 206, 0.02);
+  font-family: 'Spline Sans Mono', monospace;
+  letter-spacing: 0.06em;
+  padding: 4px 12px;
+  border-radius: 3px;
+  transition: all 0.4s;
+  user-select: none;
+}
+.mode:hover { color: rgba(220, 215, 206, 0.35); border-color: rgba(220, 215, 206, 0.12); }
+.mode.active {
+  color: rgba(220, 215, 206, 0.5);
+  border-color: rgba(220, 215, 206, 0.15);
+  background: rgba(220, 215, 206, 0.04);
+}
+.status {
+  margin-left: auto;
+  font-size: 0.55rem;
+  color: rgba(220, 215, 206, 0.1);
+  font-feature-settings: 'tnum' 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pulse {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: rgba(110, 180, 110, 0.5);
+  box-shadow: 0 0 4px rgba(110, 180, 110, 0.3);
+}
+
+/* search */
+.search-wrap {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  pointer-events: auto;
+}
+.search-input {
+  background: rgba(220, 215, 206, 0.03);
+  border: 1px solid rgba(220, 215, 206, 0.06);
+  border-radius: 3px;
+  color: rgba(220, 215, 206, 0.6);
+  font-family: 'EB Garamond', serif;
+  font-style: italic;
+  font-size: 0.85rem;
+  padding: 6px 16px;
+  width: 220px;
+  outline: none;
+  transition: all 0.4s;
+}
+.search-input::placeholder { color: rgba(220, 215, 206, 0.12); }
+.search-input:focus {
+  width: 320px;
+  background: rgba(220, 215, 206, 0.05);
+  border-color: rgba(220, 215, 206, 0.12);
+  color: rgba(220, 215, 206, 0.8);
+}
+
+/* detail panel — emerges when a memory is clicked */
+.detail {
+  position: fixed;
+  bottom: 28px;
+  left: 28px;
+  z-index: 100;
+  max-width: 380px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.5s, transform 0.5s;
+  pointer-events: none;
+}
+.detail.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.detail-type {
+  font-size: 0.5rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.detail-text {
+  font-family: 'EB Garamond', serif;
+  font-size: 1.15rem;
+  line-height: 1.5;
+  color: rgba(220, 215, 206, 0.85);
+  margin-bottom: 12px;
+  text-wrap: balance;
+}
+.detail-meta {
+  font-size: 0.55rem;
+  color: rgba(220, 215, 206, 0.2);
+  font-feature-settings: 'tnum' 1;
+  display: flex;
+  gap: 16px;
+}
+.detail-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.detail-meta-label {
+  font-size: 0.42rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+.detail-close {
+  position: absolute;
+  top: 0; right: 0;
+  font-size: 0.6rem;
+  color: rgba(220, 215, 206, 0.2);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: 'Spline Sans Mono', monospace;
+  padding: 4px;
+}
+.detail-close:hover { color: rgba(220, 215, 206, 0.4); }
+
+/* hint */
+.hint {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.48rem;
+  color: rgba(220, 215, 206, 0.08);
+  letter-spacing: 0.1em;
+  z-index: 50;
+  transition: opacity 2s;
+}
+</style>
+</head>
+<body>
+
+<div class="chrome">
+  <div class="brand">mnemonic</div>
+  <div class="modes">
+    <div class="mode active" data-mode="drift">drift</div>
+    <div class="mode" data-mode="timeline">timeline</div>
+    <div class="mode" data-mode="cluster">cluster</div>
+  </div>
+  <div class="status"><span class="pulse"></span> 77 memories</div>
+</div>
+
+<div class="search-wrap">
+  <input class="search-input" type="text" placeholder="search...">
+</div>
+
+<div class="detail" id="detail">
+  <button class="detail-close" onclick="closeDetail()">&times;</button>
+  <div class="detail-type" id="detail-type"></div>
+  <div class="detail-text" id="detail-text"></div>
+  <div class="detail-meta" id="detail-meta"></div>
+</div>
+
+<div class="hint" id="hint">move your mouse to explore</div>
+
+<svg id="canvas"></svg>
+
+<script>
+// ─── Data ───
+var memories = [
+  { id: 0, text: "Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems", type: "insight", salience: 0.85, concepts: ["agent","config","performance"], date: "Mar 21, 10:05" },
+  { id: 1, text: "Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI", type: "decision", salience: 0.79, concepts: ["python","api","planning"], date: "Mar 21, 9:42" },
+  { id: 2, text: "Back button fails to appear due to missing history push in neighbor click handler", type: "insight", salience: 0.76, concepts: ["javascript","ui","debugging"], date: "Mar 21, 9:18" },
+  { id: 3, text: "Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval", type: "learning", salience: 0.66, concepts: ["go","retrieval","performance"], date: "Mar 21, 8:55" },
+  { id: 4, text: "Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml", type: "learning", salience: 0.51, concepts: ["ci","deployment","github"], date: "Mar 20, 3:10 PM" },
+  { id: 5, text: "Centralized 40+ hardcoded values into config.yaml to improve system configurability", type: "decision", salience: 0.44, concepts: ["refactoring","configuration","go"], date: "Mar 21, 8:31" },
+  { id: 6, text: "Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors", type: "insight", salience: 0.39, concepts: ["llm","benchmarking","performance"], date: "Mar 21, 1:45 PM" },
+  { id: 7, text: "Committed JSON repair and benchmark tools; Qwen3.5-0.8B parse rate rose from 78.3% to 98.1%", type: "decision", salience: 0.38, concepts: ["python","llm","benchmarking"], date: "Mar 20, 1:12 PM" }
+];
+
+// Associations (shared concepts create links)
+var links = [];
+for (var i = 0; i < memories.length; i++) {
+  for (var j = i + 1; j < memories.length; j++) {
+    var shared = memories[i].concepts.filter(function(c) { return memories[j].concepts.indexOf(c) >= 0; });
+    if (shared.length > 0) {
+      links.push({ source: i, target: j, strength: shared.length / 3 });
+    }
+  }
+}
+
+var TC = {
+  decision: { h: '#d4a24e', m: 'rgba(212,162,78,', glow: '212,162,78' },
+  insight:  { h: '#a87fc4', m: 'rgba(168,127,196,', glow: '168,127,196' },
+  learning: { h: '#5ea0c4', m: 'rgba(94,160,196,',  glow: '94,160,196' },
+  error:    { h: '#c46e5e', m: 'rgba(196,110,94,',  glow: '196,110,94' }
+};
+
+// ─── SVG setup ───
+var W = window.innerWidth;
+var H = window.innerHeight;
+var svg = d3.select('#canvas').attr('width', W).attr('height', H);
+var mouse = { x: W / 2, y: H / 2 };
+var activeMemory = null;
+var currentMode = 'drift';
+
+// Ambient background glow
+var defs = svg.append('defs');
+memories.forEach(function(m) {
+  var grad = defs.append('radialGradient')
+    .attr('id', 'glow-' + m.id)
+    .attr('cx', '50%').attr('cy', '50%').attr('r', '50%');
+  grad.append('stop').attr('offset', '0%').attr('stop-color', TC[m.type].h).attr('stop-opacity', 0.08 * m.salience);
+  grad.append('stop').attr('offset', '100%').attr('stop-color', TC[m.type].h).attr('stop-opacity', 0);
+});
+
+// Link lines (barely visible)
+var linkGroup = svg.append('g');
+var linkEls = linkGroup.selectAll('line')
+  .data(links)
+  .enter().append('line')
+  .attr('stroke', 'rgba(220,215,206,0.02)')
+  .attr('stroke-width', 0.5);
+
+// Glow circles behind text
+var glowGroup = svg.append('g');
+var glowEls = glowGroup.selectAll('circle')
+  .data(memories)
+  .enter().append('circle')
+  .attr('r', function(d) { return 60 + d.salience * 80; })
+  .attr('fill', function(d) { return 'url(#glow-' + d.id + ')'; });
+
+// Memory text labels
+var textGroup = svg.append('g');
+var textEls = textGroup.selectAll('text')
+  .data(memories)
+  .enter().append('text')
+  .attr('font-family', "'EB Garamond', serif")
+  .attr('font-size', function(d) { return (12 + d.salience * 16) + 'px'; })
+  .attr('fill', function(d) { return TC[d.type].m + (0.15 + d.salience * 0.35) + ')'; })
+  .attr('text-anchor', 'middle')
+  .attr('dominant-baseline', 'middle')
+  .attr('cursor', 'pointer')
+  .style('transition', 'fill 0.6s, font-size 0.6s')
+  .each(function(d) {
+    // Wrap text into ~40 char lines
+    var words = d.text.split(' ');
+    var lines = []; var line = '';
+    words.forEach(function(w) {
+      if ((line + ' ' + w).length > 42 && line.length > 0) {
+        lines.push(line); line = w;
+      } else {
+        line = line ? line + ' ' + w : w;
+      }
+    });
+    if (line) lines.push(line);
+    var el = d3.select(this);
+    el.selectAll('tspan')
+      .data(lines)
+      .enter().append('tspan')
+      .attr('x', 0)
+      .attr('dy', function(_, i) { return i === 0 ? (-lines.length / 2 + 0.5) * 1.35 + 'em' : '1.35em'; })
+      .text(function(t) { return t; });
+  })
+  .on('click', function(ev, d) {
+    ev.stopPropagation();
+    focusMemory(d);
+  });
+
+// ─── Force simulation ───
+var sim = d3.forceSimulation(memories)
+  .force('charge', d3.forceManyBody().strength(function(d) { return -100 - d.salience * 200; }))
+  .force('center', d3.forceCenter(W / 2, H / 2))
+  .force('link', d3.forceLink(links).id(function(d) { return d.id; }).distance(180).strength(function(d) { return d.strength * 0.3; }))
+  .force('collision', d3.forceCollide().radius(function(d) { return 50 + d.salience * 40; }))
+  .force('x', d3.forceX(W / 2).strength(0.02))
+  .force('y', d3.forceY(H / 2).strength(0.02))
+  .alphaDecay(0.008)
+  .velocityDecay(0.4)
+  .on('tick', ticked);
+
+function ticked() {
+  textEls.attr('transform', function(d) { return 'translate(' + d.x + ',' + d.y + ')'; });
+  glowEls.attr('cx', function(d) { return d.x; }).attr('cy', function(d) { return d.y; });
+  linkEls
+    .attr('x1', function(d) { return d.source.x; }).attr('y1', function(d) { return d.source.y; })
+    .attr('x2', function(d) { return d.target.x; }).attr('y2', function(d) { return d.target.y; });
+}
+
+// ─── Mouse proximity ───
+svg.on('mousemove', function(ev) {
+  mouse.x = ev.clientX;
+  mouse.y = ev.clientY;
+
+  // Fade hint
+  var hint = document.getElementById('hint');
+  if (hint.style.opacity !== '0') hint.style.opacity = '0';
+
+  textEls.attr('fill', function(d) {
+    var dx = d.x - mouse.x;
+    var dy = d.y - mouse.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var prox = Math.max(0, 1 - dist / 300);
+    var base = 0.15 + d.salience * 0.35;
+    var alpha = base + prox * (0.85 - base);
+    return TC[d.type].m + alpha + ')';
+  });
+
+  glowEls.attr('opacity', function(d) {
+    var dx = d.x - mouse.x;
+    var dy = d.y - mouse.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var prox = Math.max(0, 1 - dist / 300);
+    return 0.3 + prox * 0.7;
+  });
+
+  linkEls.attr('stroke-opacity', function(d) {
+    var mx = (d.source.x + d.target.x) / 2;
+    var my = (d.source.y + d.target.y) / 2;
+    var dx = mx - mouse.x;
+    var dy = my - mouse.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var prox = Math.max(0, 1 - dist / 250);
+    return 0.02 + prox * 0.12;
+  });
+});
+
+// ─── Click to focus ───
+function focusMemory(d) {
+  activeMemory = d;
+
+  // Show detail panel
+  var detail = document.getElementById('detail');
+  document.getElementById('detail-type').textContent = d.type;
+  document.getElementById('detail-type').style.color = TC[d.type].h;
+  document.getElementById('detail-text').textContent = d.text;
+
+  var meta = document.getElementById('detail-meta');
+  meta.innerHTML = '';
+  [
+    ['salience', (d.salience * 100).toFixed(0) + '%'],
+    ['when', d.date],
+    ['concepts', d.concepts.join(', ')]
+  ].forEach(function(pair) {
+    var item = document.createElement('div');
+    item.className = 'detail-meta-item';
+    item.innerHTML = '<span class="detail-meta-label">' + pair[0] + '</span><span>' + pair[1] + '</span>';
+    meta.appendChild(item);
+  });
+  detail.classList.add('visible');
+
+  // Find connected memory IDs
+  var connected = new Set();
+  links.forEach(function(l) {
+    var sid = typeof l.source === 'object' ? l.source.id : l.source;
+    var tid = typeof l.target === 'object' ? l.target.id : l.target;
+    if (sid === d.id) connected.add(tid);
+    if (tid === d.id) connected.add(sid);
+  });
+
+  // Dim unrelated, brighten connected
+  textEls.transition().duration(800)
+    .attr('fill', function(m) {
+      if (m.id === d.id) return TC[m.type].m + '0.95)';
+      if (connected.has(m.id)) return TC[m.type].m + '0.55)';
+      return TC[m.type].m + '0.06)';
+    })
+    .attr('font-size', function(m) {
+      if (m.id === d.id) return (16 + d.salience * 20) + 'px';
+      return (12 + m.salience * 16) + 'px';
+    });
+
+  linkEls.transition().duration(800)
+    .attr('stroke-opacity', function(l) {
+      var sid = typeof l.source === 'object' ? l.source.id : l.source;
+      var tid = typeof l.target === 'object' ? l.target.id : l.target;
+      if (sid === d.id || tid === d.id) return 0.2;
+      return 0.005;
+    })
+    .attr('stroke', function(l) {
+      var sid = typeof l.source === 'object' ? l.source.id : l.source;
+      var tid = typeof l.target === 'object' ? l.target.id : l.target;
+      if (sid === d.id || tid === d.id) return TC[d.type].m + '0.3)';
+      return 'rgba(220,215,206,0.02)';
+    });
+
+  glowEls.transition().duration(800)
+    .attr('opacity', function(m) {
+      if (m.id === d.id) return 1;
+      if (connected.has(m.id)) return 0.5;
+      return 0.05;
+    });
+
+  // Pull connected memories closer
+  sim.force('focus', d3.forceRadial(0, d.x, d.y).strength(function(m) {
+    if (m.id === d.id) return 0.3;
+    if (connected.has(m.id)) return 0.08;
+    return -0.01;
+  }));
+  sim.alpha(0.3).restart();
+}
+
+function closeDetail() {
+  activeMemory = null;
+  document.getElementById('detail').classList.remove('visible');
+
+  textEls.transition().duration(600)
+    .attr('fill', function(d) { return TC[d.type].m + (0.15 + d.salience * 0.35) + ')'; })
+    .attr('font-size', function(d) { return (12 + d.salience * 16) + 'px'; });
+
+  linkEls.transition().duration(600)
+    .attr('stroke-opacity', 0.02)
+    .attr('stroke', 'rgba(220,215,206,0.02)');
+
+  glowEls.transition().duration(600)
+    .attr('opacity', 0.3);
+
+  sim.force('focus', null);
+  sim.force('center', d3.forceCenter(W / 2, H / 2));
+  sim.alpha(0.2).restart();
+}
+
+svg.on('click', function() {
+  if (activeMemory) closeDetail();
+});
+
+// ─── Mode switching ───
+document.querySelectorAll('.mode').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.mode').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    var mode = btn.dataset.mode;
+    currentMode = mode;
+    switchMode(mode);
+  });
+});
+
+function switchMode(mode) {
+  if (activeMemory) closeDetail();
+
+  if (mode === 'drift') {
+    sim.force('x', d3.forceX(W / 2).strength(0.02));
+    sim.force('y', d3.forceY(H / 2).strength(0.02));
+    sim.force('timeline', null);
+    sim.force('clusterX', null);
+    sim.force('clusterY', null);
+    sim.alpha(0.5).restart();
+  }
+  else if (mode === 'timeline') {
+    // Arrange by date — x axis is time, y is salience
+    var sorted = memories.slice().sort(function(a, b) { return a.salience - b.salience; });
+    sorted.forEach(function(m, i) { m._timeX = 120 + (i / (sorted.length - 1)) * (W - 240); });
+
+    sim.force('timeline', null);
+    sim.force('x', d3.forceX(function(d) { return d._timeX; }).strength(0.12));
+    sim.force('y', d3.forceY(function(d) { return H / 2 + (0.5 - d.salience) * (H * 0.5); }).strength(0.12));
+    sim.force('clusterX', null);
+    sim.force('clusterY', null);
+    sim.alpha(0.6).restart();
+  }
+  else if (mode === 'cluster') {
+    // Group by type
+    var typePositions = {
+      insight: { x: W * 0.3, y: H * 0.35 },
+      decision: { x: W * 0.7, y: H * 0.35 },
+      learning: { x: W * 0.5, y: H * 0.65 },
+      error: { x: W * 0.5, y: H * 0.85 }
+    };
+    sim.force('x', null);
+    sim.force('y', null);
+    sim.force('clusterX', d3.forceX(function(d) { return typePositions[d.type].x; }).strength(0.1));
+    sim.force('clusterY', d3.forceY(function(d) { return typePositions[d.type].y; }).strength(0.1));
+    sim.alpha(0.6).restart();
+  }
+}
+
+// ─── Search ───
+document.querySelector('.search-input').addEventListener('input', function(ev) {
+  var q = ev.target.value.toLowerCase();
+  textEls.transition().duration(400)
+    .attr('fill', function(d) {
+      if (!q) return TC[d.type].m + (0.15 + d.salience * 0.35) + ')';
+      var match = d.text.toLowerCase().indexOf(q) >= 0 ||
+                  d.concepts.some(function(c) { return c.indexOf(q) >= 0; }) ||
+                  d.type.indexOf(q) >= 0;
+      return TC[d.type].m + (match ? '0.9)' : '0.04)');
+    });
+  glowEls.transition().duration(400)
+    .attr('opacity', function(d) {
+      if (!q) return 0.3;
+      var match = d.text.toLowerCase().indexOf(q) >= 0 ||
+                  d.concepts.some(function(c) { return c.indexOf(q) >= 0; }) ||
+                  d.type.indexOf(q) >= 0;
+      return match ? 0.8 : 0.02;
+    });
+});
+
+// ─── Resize ───
+window.addEventListener('resize', function() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  svg.attr('width', W).attr('height', H);
+  sim.force('center', d3.forceCenter(W / 2, H / 2));
+  sim.alpha(0.3).restart();
+});
+
+// Gentle continuous drift
+setInterval(function() {
+  if (!activeMemory && sim.alpha() < 0.05) {
+    sim.alpha(0.03).restart();
+  }
+}, 3000);
+</script>
+</body>
+</html>

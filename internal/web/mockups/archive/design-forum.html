@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #101014;
+  --bg-row: #141418;
+  --bg-row-alt: #121216;
+  --bg-row-hover: #1a1a20;
+  --bg-sticky: #101014;
+  --bg-input: #0c0c10;
+  --border: #1e1e26;
+  --border-light: #28283a;
+  --text: #d4d4dc;
+  --text-bright: #ededf0;
+  --text-dim: #7a7a8e;
+  --text-faint: #44445a;
+  --accent: #8b9cf7;
+  --accent-dim: rgba(139,156,247,0.08);
+  --decision: #e8b15e;
+  --insight: #b07fd4;
+  --learning: #5ea4d4;
+  --error: #d46b5e;
+  --general: #7a7a8e;
+  --green: #5eb88a;
+  --font: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+}
+
+html { font-size: 13px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.4;
+}
+
+/* ── Header bar ── */
+.header {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  height: 42px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.logo {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--accent);
+  margin-right: 32px;
+  letter-spacing: -0.03em;
+}
+.nav { display: flex; gap: 0; height: 42px; }
+.nav-item {
+  padding: 0 14px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font);
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s;
+}
+.nav-item:hover { color: var(--text); }
+.nav-item.active { color: var(--text-bright); border-bottom-color: var(--accent); }
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  font-family: var(--mono);
+}
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(94,184,138,0.4);
+}
+
+/* ── Search bar ── */
+.search-bar {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.search-bar input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.85rem;
+  padding: 5px 10px;
+  outline: none;
+}
+.search-bar input:focus { border-color: var(--accent); }
+.search-bar input::placeholder { color: var(--text-faint); }
+.filter-btn {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  background: var(--bg-row);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.filter-btn:hover { border-color: var(--border-light); color: var(--text); }
+.filter-btn.active { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+
+/* ── Pages ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Forum-style table layout ── */
+.forum-section {
+  border-bottom: 1px solid var(--border);
+}
+.section-header {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 140px;
+  gap: 8px;
+  padding: 8px 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 42px;
+  z-index: 50;
+}
+.section-header--recall {
+  grid-template-columns: 48px 1fr 80px 80px 140px;
+}
+
+/* ── Category row (project/concept grouping) ── */
+.category-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 140px;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--bg-row);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  align-items: center;
+}
+.category-row:hover { background: var(--bg-row-hover); }
+.cat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+.cat-icon--project { background: rgba(139,156,247,0.12); color: var(--accent); }
+.cat-icon--concept { background: rgba(94,184,138,0.12); color: var(--green); }
+.cat-title {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--text-bright);
+}
+.cat-desc {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+.cat-stat {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-feature-settings: 'tnum' 1;
+  text-align: center;
+}
+.cat-last {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: right;
+}
+.cat-last-title {
+  color: var(--text);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Thread/memory rows ── */
+.thread-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 140px;
+  gap: 8px;
+  padding: 8px 20px 8px 58px;
+  border-bottom: 1px solid rgba(30,30,38,0.5);
+  cursor: pointer;
+  transition: background 0.1s;
+  align-items: start;
+}
+.thread-row:hover { background: var(--bg-row-hover); }
+.thread-row:nth-child(even) { background: var(--bg-row-alt); }
+.thread-row:nth-child(even):hover { background: var(--bg-row-hover); }
+.thread-type {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  flex-shrink: 0;
+  position: relative;
+  top: 4px;
+}
+.thread-title {
+  font-size: 0.88rem;
+  color: var(--text-bright);
+  line-height: 1.4;
+}
+.thread-title:hover { color: var(--accent); }
+.thread-tags {
+  margin-top: 3px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.thread-tag {
+  font-size: 0.68rem;
+  color: var(--text-faint);
+  background: rgba(255,255,255,0.03);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--mono);
+}
+.thread-stat {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-feature-settings: 'tnum' 1;
+  text-align: center;
+  padding-top: 2px;
+}
+.thread-last {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  text-align: right;
+  padding-top: 2px;
+  font-family: var(--mono);
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Salience as a visual weight */
+.sal-high .thread-title { color: var(--text-bright); font-weight: 500; }
+.sal-mid .thread-title { color: var(--text); font-weight: 400; }
+.sal-low .thread-title { color: var(--text-dim); font-weight: 400; }
+.sal-low .thread-stat { color: var(--text-faint); }
+
+/* ── Episode (expanded thread) ── */
+.episode-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 140px;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--bg-row);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  align-items: start;
+}
+.episode-row:hover { background: var(--bg-row-hover); }
+.ep-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 2px 8px;
+  border-radius: 3px;
+  margin-right: 8px;
+}
+.ep-title {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--text-bright);
+}
+.ep-summary {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+.ep-mood {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+  font-weight: 500;
+}
+.ep-mood--satisfying { background: rgba(94,184,138,0.12); color: var(--green); }
+.ep-mood--neutral { background: rgba(122,122,142,0.12); color: var(--text-dim); }
+
+/* ── Timeline view ── */
+.tl-date-row {
+  padding: 8px 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 42px;
+  z-index: 50;
+  display: flex;
+  justify-content: space-between;
+}
+.tl-date-count { font-weight: 400; color: var(--text-faint); }
+.tl-row {
+  display: grid;
+  grid-template-columns: 60px 8px 1fr 60px;
+  gap: 12px;
+  padding: 7px 20px;
+  border-bottom: 1px solid rgba(30,30,38,0.5);
+  cursor: pointer;
+  transition: background 0.1s;
+  align-items: start;
+  font-size: 0.85rem;
+}
+.tl-row:hover { background: var(--bg-row-hover); }
+.tl-row:nth-child(even) { background: var(--bg-row-alt); }
+.tl-row:nth-child(even):hover { background: var(--bg-row-hover); }
+.tl-time {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  font-feature-settings: 'tnum' 1;
+  text-align: right;
+  padding-top: 1px;
+}
+.tl-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-top: 4px;
+}
+.tl-text { color: var(--text); }
+.tl-sal {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  font-feature-settings: 'tnum' 1;
+  text-align: right;
+  padding-top: 1px;
+}
+
+/* ── Recall view ── */
+.recall-row {
+  display: grid;
+  grid-template-columns: 48px 1fr 80px 80px 140px;
+  gap: 8px;
+  padding: 8px 20px;
+  border-bottom: 1px solid rgba(30,30,38,0.5);
+  cursor: pointer;
+  transition: background 0.1s;
+  align-items: start;
+}
+.recall-row:hover { background: var(--bg-row-hover); }
+.recall-row:nth-child(even) { background: var(--bg-row-alt); }
+.recall-row:nth-child(even):hover { background: var(--bg-row-hover); }
+.recall-score {
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+  text-align: center;
+  padding-top: 1px;
+}
+.recall-score--high { color: var(--accent); }
+.recall-score--mid { color: var(--text-dim); }
+.recall-score--low { color: var(--text-faint); }
+.recall-stats-bar {
+  padding: 6px 20px;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 16px;
+}
+
+/* ── Graph view ── */
+.graph-top {
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.graph-back {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  background: var(--bg-row);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.graph-back:hover { border-color: var(--border-light); color: var(--text); }
+.graph-trail {
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+.graph-trail b { color: var(--text); font-weight: 400; }
+.graph-canvas {
+  height: calc(100vh - 100px);
+  background: var(--bg-row);
+  position: relative;
+}
+.graph-canvas-text {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-faint);
+  font-size: 0.85rem;
+}
+.graph-detail {
+  position: absolute;
+  bottom: 16px; right: 16px;
+  width: 280px;
+  background: rgba(16,16,20,0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+.gd-type {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gd-type::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+.gd-text {
+  font-size: 0.88rem;
+  color: var(--text-bright);
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+.gd-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 0.78rem;
+  border-top: 1px solid var(--border);
+}
+.gd-label { color: var(--text-faint); }
+.gd-val { color: var(--text-dim); font-family: var(--mono); font-feature-settings: 'tnum' 1; }
+
+/* ── Footer stats ── */
+.footer-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 24px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  gap: 16px;
+  z-index: 100;
+}
+.footer-bar span + span { border-left: 1px solid var(--border); padding-left: 16px; }
+
+/* ── Breadcrumb ── */
+.breadcrumb {
+  padding: 6px 20px;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+}
+.breadcrumb a { color: var(--text-dim); text-decoration: none; }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.4; }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<div class="header">
+  <div class="logo">mnemonic</div>
+  <div class="nav">
+    <button class="nav-item active" onclick="go('mind',this)">Mind</button>
+    <button class="nav-item" onclick="go('timeline',this)">Timeline</button>
+    <button class="nav-item" onclick="go('recall',this)">Recall</button>
+    <button class="nav-item" onclick="go('graph',this)">Graph</button>
+  </div>
+  <div class="header-right">
+    <span class="status-dot"></span>
+    <span>77 memories</span>
+    <span>3.6 MB</span>
+    <span>v0.33.0</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MIND — forum-style memory browser
+     ═══════════════════════════════════════ -->
+<div class="page active" id="p-mind">
+  <div class="search-bar">
+    <input type="text" placeholder="Search memories, concepts, episodes...">
+    <button class="filter-btn">All types</button>
+    <button class="filter-btn active">MCP only</button>
+    <button class="filter-btn">Active</button>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="#">Home</a><span class="sep">&rsaquo;</span><a href="#">mnemonic</a>
+  </div>
+
+  <!-- Section: Episodes (threads) -->
+  <div class="forum-section">
+    <div class="section-header">
+      <span>Episodes</span>
+      <span style="text-align:center">Memories</span>
+      <span style="text-align:center">Files</span>
+      <span style="text-align:right">Last Activity</span>
+    </div>
+
+    <div class="episode-row">
+      <div>
+        <span class="ep-indicator">EPISODE</span>
+        <span class="ep-title">Mnemonic v0.31.0 Release and the Linux Watcher Race Condition</span>
+        <span class="ep-mood ep-mood--satisfying">satisfying</span>
+        <div class="ep-summary">Shipped PRs #296-#309. Hit a wall when the Linux filesystem watcher failed to deliver events after daemon restarts. Root cause: synchronization failure in watcher_other.go.</div>
+      </div>
+      <div class="cat-stat">6</div>
+      <div class="cat-stat">3</div>
+      <div class="cat-last" style="font-family:var(--mono);font-feature-settings:'tnum' 1">08:55 AM</div>
+    </div>
+
+    <div class="episode-row">
+      <div>
+        <span class="ep-indicator">EPISODE</span>
+        <span class="ep-title">System Audit and Recursive Self-Correction</span>
+        <span class="ep-mood ep-mood--satisfying">satisfying</span>
+        <div class="ep-summary">Comprehensive health audit identified 50% encoding failure rate. AI realized it stopped at speculation instead of investigating root cause in logs.</div>
+      </div>
+      <div class="cat-stat">6</div>
+      <div class="cat-stat">3</div>
+      <div class="cat-last" style="font-family:var(--mono);font-feature-settings:'tnum' 1">10:05 AM</div>
+    </div>
+
+    <div class="episode-row">
+      <div>
+        <span class="ep-indicator">EPISODE</span>
+        <span class="ep-title">Mnemonic Version Management and Upgrade</span>
+        <span class="ep-mood ep-mood--neutral">neutral</span>
+        <div class="ep-summary">System downgraded to v0.29.1, likely a rollback to stable state. Resolved training script conflicts.</div>
+      </div>
+      <div class="cat-stat">3</div>
+      <div class="cat-stat">2</div>
+      <div class="cat-last" style="font-family:var(--mono);font-feature-settings:'tnum' 1">02:02 AM</div>
+    </div>
+  </div>
+
+  <!-- Section: Recent memories (individual posts) -->
+  <div class="forum-section">
+    <div class="section-header">
+      <span>Recent Memories</span>
+      <span style="text-align:center">Salience</span>
+      <span style="text-align:center">Links</span>
+      <span style="text-align:right">Created</span>
+    </div>
+
+    <div class="thread-row sal-high">
+      <div>
+        <span class="thread-type" style="background:var(--insight)"></span>
+        <span class="thread-title">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</span>
+        <div class="thread-tags"><span class="thread-tag">agent</span><span class="thread-tag">config</span><span class="thread-tag">performance</span></div>
+      </div>
+      <div class="thread-stat">85%</div>
+      <div class="thread-stat">15</div>
+      <div class="thread-last">10:05 AM</div>
+    </div>
+
+    <div class="thread-row sal-high">
+      <div>
+        <span class="thread-type" style="background:var(--decision)"></span>
+        <span class="thread-title">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</span>
+        <div class="thread-tags"><span class="thread-tag">python</span><span class="thread-tag">api</span><span class="thread-tag">planning</span></div>
+      </div>
+      <div class="thread-stat">79%</div>
+      <div class="thread-stat">8</div>
+      <div class="thread-last">9:42 AM</div>
+    </div>
+
+    <div class="thread-row sal-high">
+      <div>
+        <span class="thread-type" style="background:var(--insight)"></span>
+        <span class="thread-title">Back button fails to appear due to missing history push in neighbor click handler</span>
+        <div class="thread-tags"><span class="thread-tag">javascript</span><span class="thread-tag">ui</span><span class="thread-tag">debugging</span></div>
+      </div>
+      <div class="thread-stat">76%</div>
+      <div class="thread-stat">4</div>
+      <div class="thread-last">9:18 AM</div>
+    </div>
+
+    <div class="thread-row sal-mid">
+      <div>
+        <span class="thread-type" style="background:var(--learning)"></span>
+        <span class="thread-title">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</span>
+        <div class="thread-tags"><span class="thread-tag">go</span><span class="thread-tag">retrieval</span><span class="thread-tag">performance</span></div>
+      </div>
+      <div class="thread-stat">66%</div>
+      <div class="thread-stat">6</div>
+      <div class="thread-last">8:55 AM</div>
+    </div>
+
+    <div class="thread-row sal-mid">
+      <div>
+        <span class="thread-type" style="background:var(--learning)"></span>
+        <span class="thread-title">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml</span>
+        <div class="thread-tags"><span class="thread-tag">ci</span><span class="thread-tag">deployment</span><span class="thread-tag">github</span></div>
+      </div>
+      <div class="thread-stat">51%</div>
+      <div class="thread-stat">3</div>
+      <div class="thread-last">3:10 PM</div>
+    </div>
+
+    <div class="thread-row sal-low">
+      <div>
+        <span class="thread-type" style="background:var(--decision)"></span>
+        <span class="thread-title">Centralized 40+ hardcoded values into config.yaml to improve system configurability</span>
+        <div class="thread-tags"><span class="thread-tag">refactoring</span><span class="thread-tag">configuration</span><span class="thread-tag">go</span></div>
+      </div>
+      <div class="thread-stat">44%</div>
+      <div class="thread-stat">12</div>
+      <div class="thread-last">8:31 AM</div>
+    </div>
+
+    <div class="thread-row sal-low">
+      <div>
+        <span class="thread-type" style="background:var(--insight)"></span>
+        <span class="thread-title">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</span>
+        <div class="thread-tags"><span class="thread-tag">llm</span><span class="thread-tag">benchmarking</span><span class="thread-tag">performance</span></div>
+      </div>
+      <div class="thread-stat">39%</div>
+      <div class="thread-stat">5</div>
+      <div class="thread-last">1:45 PM</div>
+    </div>
+
+    <div class="thread-row sal-low">
+      <div>
+        <span class="thread-type" style="background:var(--decision)"></span>
+        <span class="thread-title">Committed JSON repair and benchmark tools; Qwen3.5-0.8B parse rate rose from 78.3% to 98.1%</span>
+        <div class="thread-tags"><span class="thread-tag">python</span><span class="thread-tag">llm</span><span class="thread-tag">benchmarking</span></div>
+      </div>
+      <div class="thread-stat">38%</div>
+      <div class="thread-stat">7</div>
+      <div class="thread-last">1:12 PM</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     TIMELINE — chronological feed
+     ═══════════════════════════════════════ -->
+<div class="page" id="p-timeline">
+  <div class="search-bar">
+    <input type="text" placeholder="Filter timeline...">
+    <button class="filter-btn active">Today</button>
+    <button class="filter-btn">Week</button>
+    <button class="filter-btn">Month</button>
+  </div>
+
+  <div class="tl-date-row"><span>Friday, March 21</span><span class="tl-date-count">6 memories</span></div>
+
+  <div class="tl-row"><div class="tl-time">10:05</div><div class="tl-dot" style="background:var(--insight)"></div><div class="tl-text">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</div><div class="tl-sal">85%</div></div>
+  <div class="tl-row"><div class="tl-time">9:42</div><div class="tl-dot" style="background:var(--decision)"></div><div class="tl-text">Evaluated 3 options for RLE write endpoints; recommended contributing to upstream RIMAPI</div><div class="tl-sal">79%</div></div>
+  <div class="tl-row"><div class="tl-time">9:18</div><div class="tl-dot" style="background:var(--insight)"></div><div class="tl-text">Back button fails to appear due to missing history push in neighbor click handler</div><div class="tl-sal">76%</div></div>
+  <div class="tl-row"><div class="tl-time">8:55</div><div class="tl-dot" style="background:var(--learning)"></div><div class="tl-text">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</div><div class="tl-sal">66%</div></div>
+  <div class="tl-row"><div class="tl-time">8:31</div><div class="tl-dot" style="background:var(--decision)"></div><div class="tl-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div><div class="tl-sal">44%</div></div>
+
+  <div class="tl-date-row"><span>Thursday, March 20</span><span class="tl-date-count">2 memories</span></div>
+
+  <div class="tl-row"><div class="tl-time">3:10 PM</div><div class="tl-dot" style="background:var(--learning)"></div><div class="tl-text">Re-enabled public repo GitHub Actions and added workflow_dispatch to release.yml</div><div class="tl-sal">51%</div></div>
+  <div class="tl-row"><div class="tl-time">1:12 PM</div><div class="tl-dot" style="background:var(--decision)"></div><div class="tl-text">Committed JSON repair and benchmark tools; parse rate rose from 78.3% to 98.1%</div><div class="tl-sal">38%</div></div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     RECALL — search results
+     ═══════════════════════════════════════ -->
+<div class="page" id="p-recall">
+  <div class="search-bar">
+    <input type="text" placeholder="What do you remember about..." value="hardcoded agent weights">
+    <button class="filter-btn" style="background:var(--accent);color:var(--bg);border-color:var(--accent)">Recall</button>
+  </div>
+  <div class="recall-stats-bar">
+    <span>4 results</span>
+    <span>12ms</span>
+    <span>3 hops</span>
+  </div>
+
+  <div class="section-header section-header--recall">
+    <span style="text-align:center">Score</span>
+    <span>Memory</span>
+    <span style="text-align:center">Salience</span>
+    <span style="text-align:center">Links</span>
+    <span style="text-align:right">Created</span>
+  </div>
+
+  <div class="recall-row">
+    <div class="recall-score recall-score--high">.92</div>
+    <div><span class="thread-type" style="background:var(--insight)"></span><span class="thread-title">Critical audit found significant cleverness debt and hardcoded agent weights across 6+ subsystems</span><div class="thread-tags"><span class="thread-tag">agent</span><span class="thread-tag">config</span><span class="thread-tag">performance</span></div></div>
+    <div class="thread-stat">85%</div>
+    <div class="thread-stat">15</div>
+    <div class="thread-last">10:05 AM</div>
+  </div>
+
+  <div class="recall-row">
+    <div class="recall-score recall-score--mid">.78</div>
+    <div><span class="thread-type" style="background:var(--decision)"></span><span class="thread-title">Centralized 40+ hardcoded values into config.yaml to improve system configurability</span><div class="thread-tags"><span class="thread-tag">refactoring</span><span class="thread-tag">configuration</span><span class="thread-tag">go</span></div></div>
+    <div class="thread-stat">44%</div>
+    <div class="thread-stat">12</div>
+    <div class="thread-last">8:31 AM</div>
+  </div>
+
+  <div class="recall-row">
+    <div class="recall-score recall-score--mid">.61</div>
+    <div><span class="thread-type" style="background:var(--learning)"></span><span class="thread-title">Verified context_boost 30-minute decay window and distinguished it from activity_bonus in retrieval</span><div class="thread-tags"><span class="thread-tag">go</span><span class="thread-tag">retrieval</span><span class="thread-tag">performance</span></div></div>
+    <div class="thread-stat">66%</div>
+    <div class="thread-stat">6</div>
+    <div class="thread-last">8:55 AM</div>
+  </div>
+
+  <div class="recall-row">
+    <div class="recall-score recall-score--low">.43</div>
+    <div><span class="thread-type" style="background:var(--insight)"></span><span class="thread-title">Qwen3.5-0.8B Q8_0 identified as top small model for JSON ActionPlans; 2B failed on syntax errors</span><div class="thread-tags"><span class="thread-tag">llm</span><span class="thread-tag">benchmarking</span><span class="thread-tag">performance</span></div></div>
+    <div class="thread-stat">39%</div>
+    <div class="thread-stat">5</div>
+    <div class="thread-last">1:45 PM</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     GRAPH — ego graph
+     ═══════════════════════════════════════ -->
+<div class="page" id="p-graph">
+  <div class="graph-top">
+    <button class="graph-back">&larr; Back</button>
+    <div class="graph-trail">cleverness debt &rsaquo; <b>Centralized 40+ hardcoded values...</b></div>
+  </div>
+  <div class="graph-canvas">
+    <div class="graph-canvas-text">ego graph</div>
+    <div class="graph-detail">
+      <div class="gd-type" style="color:var(--decision)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--decision);margin-right:6px"></span>DECISION</div>
+      <div class="gd-text">Centralized 40+ hardcoded values into config.yaml to improve system configurability</div>
+      <div class="gd-row"><span class="gd-label">salience</span><span class="gd-val">0.44</span></div>
+      <div class="gd-row"><span class="gd-label">source</span><span class="gd-val">mcp</span></div>
+      <div class="gd-row"><span class="gd-label">connections</span><span class="gd-val">15</span></div>
+      <div class="gd-row"><span class="gd-label">created</span><span class="gd-val">Mar 21, 2026</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<div class="footer-bar">
+  <span>mnemonic v0.33.0</span>
+  <span>77 active</span>
+  <span>8 fading</span>
+  <span>27 archived</span>
+  <span>encoding: idle</span>
+  <span>last consolidation: 16:31</span>
+</div>
+
+<script>
+function go(name, btn) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.nav-item').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('p-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>
