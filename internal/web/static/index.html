@@ -1280,7 +1280,7 @@
     <div id="app">
         <!-- Nav -->
         <div class="top" id="forumTop">
-                <div class="top-brand">mnemonic <small id="navVersion"></small></div>
+                <div class="top-brand"><img src="/logo.png" alt="" style="height:20px;vertical-align:middle;margin-right:6px">mnemonic <small id="navVersion"></small></div>
                 <div class="top-right">
                     <select class="nav-theme-select" id="themeSelect" onchange="setTheme(this.value)">
                         <option value="midnight">Midnight</option>
@@ -1900,29 +1900,35 @@
             results.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128269;</div><div class="empty-state-text">No memories found</div><div class="empty-state-sub">Try a different search term</div></div>';
             return;
         }
-        var html = '<div class="results-header"><h3>' + memories.length + ' Result' + (memories.length !== 1 ? 's' : '') + '</h3><span class="results-meta">' + (data.took_ms || 0) + 'ms</span></div>';
+        var hops = data.hops || 0;
+        var html = '<div class="recall-info">' + memories.length + ' result' + (memories.length !== 1 ? 's' : '') + ' &middot; ' + (data.took_ms || 0) + 'ms' + (hops ? ' &middot; spread activation: ' + hops + ' hops' : '') + '</div>';
+        html += '<div class="rcolh"><span>Score</span><span></span><span>Memory</span><span>Sal</span><span>Links</span><span>Created</span></div>';
         memories.forEach(function(mem) {
             var score = mem.score || 0;
-            var scoreClass = score > 0.7 ? 'score-high' : score > 0.4 ? 'score-mid' : 'score-low';
-            var concepts = (mem.memory.concepts || []).slice(0, 5);
-            var date = mem.memory.created_at ? relativeTime(new Date(mem.memory.created_at)) : '';
-            var content = mem.memory.content || '';
-            html += '<div class="result-card" onclick="toggleExpand(this)">';
-            html += '<div class="result-card-header">';
-            html += '<span class="result-score ' + scoreClass + '">' + score.toFixed(2) + '</span>';
-            html += '<div class="result-summary">' + escapeHtml(mem.memory.summary || content.slice(0, 150)) + '</div>';
-            html += '</div>';
-            html += '<div class="result-meta">';
-            concepts.forEach(function(c) { html += '<span class="concept-tag">' + escapeHtml(c) + '</span>'; });
-            html += '<span class="result-date">' + date + '</span></div>';
-            html += '<div class="result-expanded"><div class="result-content">' + escapeHtml(content) + '</div></div>';
+            var scoreClass = score > 0.7 ? 'rr-score-hi' : score > 0.4 ? 'rr-score-mid' : 'rr-score-lo';
+            var m = mem.memory;
+            var type = (m.type || 'general').toLowerCase();
+            var typeAbbr = type === 'insight' ? 'IN' : type === 'decision' ? 'DE' : type === 'learning' ? 'LE' : type === 'error' ? 'ER' : 'GN';
+            var iconClass = type === 'insight' ? 'icon-in' : type === 'decision' ? 'icon-de' : type === 'learning' ? 'icon-le' : type === 'error' ? 'icon-er' : 'icon-ep';
+            var salPct = Math.round((m.salience || 0) * 100);
+            var linkCount = m.association_count || 0;
+            var dateStr = m.created_at ? new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+            var summary = m.summary || (m.content || '').slice(0, 150);
+
+            html += '<div class="rr" onclick="toggleExpand(this)">';
+            html += '<div class="rr-score ' + scoreClass + '">' + score.toFixed(2) + '</div>';
+            html += '<div class="frow-icon icon-sm ' + iconClass + '">' + typeAbbr + '</div>';
+            html += '<div class="rr-title">' + escapeHtml(summary) + '</div>';
+            html += '<div class="frow-stat">' + salPct + '%</div>';
+            html += '<div class="frow-stat">' + linkCount + '</div>';
+            html += '<div class="frow-last"><div class="frow-last-time">' + dateStr + '</div></div>';
             html += '</div>';
         });
         html += '<div class="feedback-bar">';
         html += '<span class="feedback-label">Rate these results:</span>';
-        html += '<button class="feedback-btn helpful" onclick="submitFeedback(\'helpful\', event)">&#128077; Helpful</button>';
-        html += '<button class="feedback-btn partial" onclick="submitFeedback(\'partial\', event)">&#8212; Partial</button>';
-        html += '<button class="feedback-btn irrelevant" onclick="submitFeedback(\'irrelevant\', event)">&#128078; Irrelevant</button>';
+        html += '<button class="feedback-btn helpful" onclick="submitFeedback(\'helpful\', event)">Helpful</button>';
+        html += '<button class="feedback-btn partial" onclick="submitFeedback(\'partial\', event)">Partial</button>';
+        html += '<button class="feedback-btn irrelevant" onclick="submitFeedback(\'irrelevant\', event)">Irrelevant</button>';
         html += '</div>';
         if (data.synthesis) {
             html += '<div class="synthesis-block"><div class="synthesis-label">Synthesis</div><div class="synthesis-text">' + escapeHtml(data.synthesis) + '</div></div>';
@@ -1931,8 +1937,13 @@
     }
 
     function toggleExpand(card) {
-        var expanded = card.querySelector('.result-expanded, .episode-expanded, .memory-expanded');
+        var expanded = card.querySelector('.result-expanded, .episode-expanded, .memory-expanded, .expand-zone');
         if (expanded) expanded.classList.toggle('open');
+    }
+
+    function toggle(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.toggle('open');
     }
 
     async function submitFeedback(quality, event) {
@@ -2004,132 +2015,82 @@
         var data = await fetchJSON('/episodes?limit=50');
         var episodes = data.episodes || [];
         if (episodes.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128218;</div><div class="empty-state-text">No episodes yet</div><div class="empty-state-sub">Episodes are created as memories accumulate</div></div>'; return; }
-        section.innerHTML = episodes.map(function(ep) {
-            var outcomeBadge = ep.outcome === 'success' ? 'badge-success' : ep.outcome === 'failure' ? 'badge-failure' : ep.outcome === 'blocked' ? 'badge-blocked' : 'badge-ongoing';
-            var stateBadge = ep.state === 'open' ? 'badge-open' : ep.state === 'closed' ? 'badge-closed' : 'badge-paused';
-            var concepts = (ep.concepts || []).slice(0, 6);
-            var dateStr = ep.start_time ? relativeTime(new Date(ep.start_time)) : '';
-            var html = '<div class="episode-card" onclick="toggleExpand(this)">';
+        var html = '<div class="colh colh-ep"><span></span><span>Episode</span><span>Mem</span><span>Files</span><span>Last Activity</span></div>';
+        html += episodes.map(function(ep, idx) {
+            var concepts = (ep.concepts || []).slice(0, 4);
+            var memCount = (ep.raw_memory_ids || []).length;
+            var fileCount = (ep.files_modified || []).length;
+            var dateStr = ep.start_time ? new Date(ep.start_time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
             var epTitle = ep.title || (ep.state === 'open' ? 'Episode in progress\u2026' : 'Untitled Episode');
-            html += '<div class="episode-header"><span class="episode-title">' + escapeHtml(epTitle) + '</span>';
-            if (ep.outcome) {
-                html += '<span class="badge ' + outcomeBadge + '">' + escapeHtml(ep.outcome) + '</span>';
-            } else {
-                html += '<span class="badge ' + stateBadge + '">' + escapeHtml(ep.state || 'open') + '</span>';
+            var isNew = ep.state === 'open';
+            var tone = ep.emotional_tone || ep.outcome || '';
+            var tags = concepts.map(function(c) { return '<span class="frow-tag">' + escapeHtml(c) + '</span>'; }).join('');
+            var sub = ep.summary ? escapeHtml(ep.summary).substring(0, 80) : '';
+            if (tags) sub += ' ' + tags;
+            var expandId = 'exp-ep-' + idx;
+
+            var row = '<div class="frow frow-ep" onclick="toggle(\'' + expandId + '\')">';
+            row += '<div class="frow-icon icon-ep' + (isNew ? ' icon-new' : '') + '">EP</div>';
+            row += '<div class="frow-content"><span class="frow-title">' + escapeHtml(epTitle) + '</span><div class="frow-sub">' + sub + '</div></div>';
+            row += '<div class="frow-stat">' + memCount + '</div>';
+            row += '<div class="frow-stat">' + fileCount + '</div>';
+            row += '<div class="frow-last"><div class="frow-last-time">' + dateStr + '</div><div class="frow-last-via">' + escapeHtml(tone) + '</div></div>';
+            row += '</div>';
+
+            // Expandable zone with nested memories
+            row += '<div class="expand-zone" id="' + expandId + '">';
+            row += '<div class="expand-header"><span>' + memCount + ' memories in this episode</span></div>';
+            if (ep.narrative) {
+                row += '<div style="padding:6px 10px 6px 46px;font-size:0.85rem;color:var(--text-secondary);border-bottom:1px solid var(--border-subtle)">' + escapeHtml(ep.narrative) + '</div>';
             }
-            html += '</div>';
-            if (ep.summary) {
-                html += '<div class="episode-summary">' + escapeHtml(ep.summary) + '</div>';
-            } else if (ep.state === 'open') {
-                var evtCount = (ep.raw_memory_ids || []).length;
-                html += '<div class="episode-summary" style="font-style:italic">' + evtCount + ' event' + (evtCount !== 1 ? 's' : '') + ' so far &mdash; still accumulating</div>';
-            }
-            html += '<div class="episode-meta"><div class="episode-concepts">';
-            concepts.forEach(function(c) { html += '<span class="concept-tag">' + escapeHtml(c) + '</span>'; });
-            html += '</div><span class="episode-date">' + dateStr + '</span></div>';
-            html += '<div class="episode-expanded">';
-            if (ep.narrative) html += '<div class="episode-narrative">' + escapeHtml(ep.narrative) + '</div>';
-            if (ep.files_modified && ep.files_modified.length > 0) {
-                html += '<div>';
-                ep.files_modified.slice(0, 8).forEach(function(f) { html += '<div class="episode-file">&#8594; ' + escapeHtml(f) + '</div>'; });
-                html += '</div>';
-            }
-            html += '</div></div>';
-            return html;
+            row += '</div>';
+            return row;
         }).join('');
+        section.innerHTML = html;
     }
 
     async function loadMemories(section) {
         var data = await fetchJSON('/memories?limit=50&state=active');
         var memories = data.memories || [];
         if (memories.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#129504;</div><div class="empty-state-text">No memories yet</div><div class="empty-state-sub">Use the Remember panel to add your first memory</div></div>'; return; }
-        section.innerHTML = memories.map(function(m) {
-            var typeClass = 'type-' + (m.type || 'general');
-            var stateClass = 'state-' + (m.state || 'active');
-            var concepts = m.concepts || [];
+        var html = '<div class="colh colh-mem"><span></span><span>Memory</span><span>Sal</span><span>Links</span><span>Created</span></div>';
+        html += memories.map(function(m) {
+            var type = (m.type || 'general').toLowerCase();
+            var typeAbbr = type === 'insight' ? 'IN' : type === 'decision' ? 'DE' : type === 'learning' ? 'LE' : type === 'error' ? 'ER' : 'GN';
+            var iconClass = type === 'insight' ? 'icon-in' : type === 'decision' ? 'icon-de' : type === 'learning' ? 'icon-le' : type === 'error' ? 'icon-er' : 'icon-ep';
             var salPct = Math.round((m.salience || 0) * 100);
-            var dateStr = m.created_at ? relativeTime(new Date(m.created_at)) : '';
-            var content = m.content || '';
-            var summary = m.summary || '';
+            var salClass = salPct >= 60 ? 'sal-hi' : salPct >= 30 ? 'sal-mid' : 'sal-lo';
+            var linkCount = m.association_count || 0;
+            var dateStr = m.created_at ? new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+            var dateDay = m.created_at ? relativeTime(new Date(m.created_at)) : '';
+            var summary = m.summary || m.content || '';
+            var concepts = (m.concepts || []).slice(0, 4);
+            var tags = concepts.map(function(c) { return '<span class="frow-tag">' + escapeHtml(c) + '</span>'; }).join('');
+            var source = m.source || 'mcp';
 
-            // Content preview: show first ~200 chars if content differs from summary
-            var contentPreview = '';
-            if (content && content !== summary && content.length > 0) {
-                contentPreview = content.length > 200 ? content.substring(0, 200) + '...' : content;
-            }
+            var row = '<div class="frow frow-mem ' + salClass + '" onclick="toggleExpand(this)">';
+            row += '<div class="frow-icon ' + iconClass + '">' + typeAbbr + '</div>';
+            row += '<div class="frow-content"><span class="frow-title">' + escapeHtml(summary) + '</span>';
+            row += '<div class="frow-sub">' + tags + '</div></div>';
+            row += '<div class="frow-stat">' + salPct + '%</div>';
+            row += '<div class="frow-stat">' + linkCount + '</div>';
+            row += '<div class="frow-last"><div class="frow-last-time">' + dateStr + '</div><div class="frow-last-via">' + escapeHtml(source) + '</div></div>';
+            row += '</div>';
 
-            var html = '<div class="memory-card" onclick="toggleExpand(this)">';
-
-            // Header row: type badge, project, spacer, date
-            html += '<div class="memory-header">';
-            html += '<span class="memory-type-badge ' + typeClass + '">' + escapeHtml(m.type || 'general') + '</span>';
-            if (m.project) {
-                html += '<span class="memory-project">' + escapeHtml(m.project) + '</span>';
+            // Expandable detail
+            row += '<div class="expand-zone">';
+            if (m.content && m.content !== summary) {
+                row += '<div style="padding:6px 10px 6px 46px;font-size:0.85rem;color:var(--text-secondary);border-bottom:1px solid var(--border-subtle)">' + escapeHtml(m.content) + '</div>';
             }
-            html += '<span class="memory-header-spacer"></span>';
-            html += '<span class="memory-date">' + dateStr + '</span>';
-            html += '</div>';
-
-            // Summary
-            html += '<div class="memory-summary">' + escapeHtml(summary) + '</div>';
-
-            // Content preview (if differs from summary)
-            if (contentPreview) {
-                html += '<div class="memory-content-preview">' + escapeHtml(contentPreview) + '</div>';
-            }
-
-            // Stats row: salience bar + %, access count, state, gist badge, episode link
-            html += '<div class="memory-stats-row">';
-            html += '<div class="memory-salience">';
-            html += '<div class="salience-bar"><div class="salience-fill" style="width:' + salPct + '%"></div></div>';
-            html += '<span class="salience-label">' + salPct + '%</span>';
-            html += '</div>';
-            if (m.access_count > 0) {
-                html += '<span class="memory-stat-sep">&#183;</span>';
-                html += '<span class="memory-access-count">Recalled ' + m.access_count + '&#215;</span>';
-            }
-            html += '<span class="memory-stat-sep">&#183;</span>';
-            html += '<span class="memory-state ' + stateClass + '">' + (m.state || 'active') + '</span>';
-            if (m.gist_of && m.gist_of.length > 0) {
-                html += '<span class="memory-stat-sep">&#183;</span>';
-                html += '<span class="memory-gist-badge">Summarizes ' + m.gist_of.length + ' memories</span>';
-            }
-            if (m.episode_id) {
-                html += '<span class="memory-stat-sep">&#183;</span>';
-                html += '<span class="memory-episode-link">Part of episode</span>';
-            }
-            html += '</div>';
-
-            // Concept tags (all of them)
-            if (concepts.length > 0) {
-                html += '<div class="memory-meta-row">';
-                concepts.forEach(function(c) { html += '<span class="concept-tag">' + escapeHtml(c) + '</span>'; });
-                html += '</div>';
-            }
-
-            // Expanded section: full content + detailed metadata
-            html += '<div class="memory-expanded">';
-            html += '<div class="result-content">' + escapeHtml(content) + '</div>';
-            html += '<div class="memory-expanded-detail">';
-            html += '<span class="memory-id-label" onclick="event.stopPropagation();navigator.clipboard.writeText(\'' + escapeHtml(m.id || '') + '\');showToast(\'ID copied\')" title="Click to copy ID">ID: ' + escapeHtml((m.id || '').substring(0, 8)) + '...</span>';
-            if (m.last_accessed && m.access_count > 0) {
-                html += '<span>Last recalled: ' + relativeTime(new Date(m.last_accessed)) + '</span>';
-            }
-            if (m.session_id) {
-                html += '<span>Session: ' + escapeHtml((m.session_id || '').substring(0, 8)) + '...</span>';
-            }
-            if (m.episode_id) {
-                html += '<span style="color:var(--accent-cyan);cursor:pointer" onclick="event.stopPropagation()" title="Episode ' + escapeHtml(m.episode_id) + '">Episode: ' + escapeHtml((m.episode_id || '').substring(0, 8)) + '...</span>';
-            }
-            if (m.created_at) {
-                html += '<span>Created: ' + new Date(m.created_at).toLocaleString() + '</span>';
-            }
-            html += '</div>';
-            html += '</div>';
-
-            html += '</div>';
-            return html;
+            row += '<div style="padding:4px 10px 4px 46px;font-size:0.75rem;color:var(--text-dim)">';
+            row += 'ID: <span style="cursor:pointer" onclick="event.stopPropagation();navigator.clipboard.writeText(\'' + escapeHtml(m.id || '') + '\');showToast(\'ID copied\')">' + escapeHtml((m.id || '').substring(0, 8)) + '...</span>';
+            if (m.project) row += ' · Project: ' + escapeHtml(m.project);
+            if (m.access_count > 0) row += ' · Recalled ' + m.access_count + 'x';
+            row += ' · ' + escapeHtml(m.state || 'active');
+            row += '</div></div>';
+            return row;
         }).join('');
+        section.innerHTML = html;
     }
 
     async function loadPatterns(section) {
@@ -2959,8 +2920,7 @@
             dot.title = health.status === 'ok' ? 'System healthy' : 'System degraded';
             if (health.version) {
                 var vEl = document.getElementById('navVersion');
-                vEl.textContent = 'v' + health.version;
-                vEl.href = 'https://github.com/AppSprout-dev/mnemonic/releases/tag/v' + health.version;
+                if (vEl) vEl.textContent = 'v' + health.version;
             }
             if (health.tool_count) {
                 document.getElementById('toolHeaderSub').textContent = 'recall \u00b7 remember \u00b7 get_context \u00b7 ' + health.tool_count + ' tools';
