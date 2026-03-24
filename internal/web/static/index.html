@@ -1973,7 +1973,8 @@
         container.innerHTML = '<div style="padding:16px;color:var(--text-dim)">Loading thread...</div>';
 
         try {
-            var ep = await fetchJSON('/episodes/' + episodeId);
+            var epResp = await fetchJSON('/episodes/' + episodeId);
+            var ep = epResp.episode || epResp; // endpoint wraps in {episode: {...}}
             // Fetch memories belonging to this episode
             var memData = await fetchJSON('/memories?episode_id=' + episodeId + '&limit=50');
             var memories = memData.memories || [];
