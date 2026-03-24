@@ -75,9 +75,27 @@ ul.topiclist dd dfn {
 /* ── Row styling ── */
 li.row {
     border-top: 1px solid var(--border-subtle);
-    overflow: hidden;
+    overflow: hidden;  /* Critical: contains the floated dt/dd elements */
     cursor: pointer;
     transition: background 0.08s;
+}
+li.row::after {
+    content: '';
+    display: table;
+    clear: both;
+}
+ul.topiclist::after {
+    content: '';
+    display: table;
+    clear: both;
+}
+dl.row-item {
+    overflow: hidden;  /* Contains floated dt/dd */
+}
+dl.row-item::after {
+    content: '';
+    display: table;
+    clear: both;
 }
 li.row:first-child { border-top: 0; }
 li.row.bg1 { background: var(--bg-row, var(--bg-secondary)); }
@@ -140,6 +158,9 @@ li.header dt .list-inner { padding: 4px 10px; }
     color: var(--link, var(--accent-cyan));
     text-decoration: none;
     display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 li.row:hover .forumtitle { color: var(--link-hover, var(--accent-blue)); text-decoration: underline; }
 .forum-desc {
