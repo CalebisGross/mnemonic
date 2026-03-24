@@ -3436,7 +3436,6 @@
             var _y1 = function(d) { return d[1]; };
             var _curve = null;
             function a(data) {
-                // Build SVG path for the area
                 var pts = data.map(function(d, i) { return { x: _x(d, i), y0: _y0(d, i), y1: _y1(d, i) }; });
                 if (pts.length === 0) return '';
                 var path = 'M' + pts[0].x + ',' + pts[0].y1;
@@ -3445,9 +3444,9 @@
                 path += 'Z';
                 return path;
             }
-            a.x = function(fn) { _x = fn; return a; };
-            a.y0 = function(fn) { _y0 = fn; return a; };
-            a.y1 = function(fn) { _y1 = fn; return a; };
+            a.x = function(fn) { _x = typeof fn === 'function' ? fn : function() { return fn; }; return a; };
+            a.y0 = function(fn) { _y0 = typeof fn === 'function' ? fn : function() { return fn; }; return a; };
+            a.y1 = function(fn) { _y1 = typeof fn === 'function' ? fn : function() { return fn; }; return a; };
             a.curve = function(c) { _curve = c; return a; };
             return a;
         }
@@ -3459,8 +3458,8 @@
                 var pts = data.map(function(d, i) { return _x(d, i) + ',' + _y(d, i); });
                 return 'M' + pts.join('L');
             }
-            l.x = function(fn) { _x = fn; return l; };
-            l.y = function(fn) { _y = fn; return l; };
+            l.x = function(fn) { _x = typeof fn === 'function' ? fn : function() { return fn; }; return l; };
+            l.y = function(fn) { _y = typeof fn === 'function' ? fn : function() { return fn; }; return l; };
             l.curve = function() { return l; };
             return l;
         }
