@@ -18,7 +18,7 @@
             overflow: hidden;
         }
 
-        #app { display: flex; flex-direction: column; height: 100vh; }
+        #app { display: flex; flex-direction: column; height: 100vh; padding-bottom: 22px; }
 
         /* ── Nav ── */
         .nav {
@@ -1177,60 +1177,140 @@
             .llm-cards { grid-template-columns: repeat(3, 1fr); }
             .llm-grid { grid-template-columns: 1fr; }
         }
+
+        /* ── Forum Footer ── */
+        .foot {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 22px;
+            background: linear-gradient(to bottom, var(--bg-secondary), var(--bg-primary));
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            font-family: var(--mono, 'SF Mono', Monaco, monospace);
+            gap: 10px;
+            z-index: 100;
+        }
+        .foot span + span::before { content: '·'; margin-right: 10px; color: var(--border-color); }
+
+        /* ── Forum Top Bar ── */
+        .top {
+            background: linear-gradient(to bottom, var(--bg-tertiary), var(--bg-secondary));
+            border-bottom: 2px solid var(--accent-cyan);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .top-brand {
+            font-size: 1.15rem;
+            font-weight: bold;
+            color: var(--accent-cyan);
+            letter-spacing: -0.03em;
+        }
+        .top-brand small {
+            font-size: 0.7rem;
+            font-weight: normal;
+            color: var(--text-dim);
+            margin-left: 8px;
+        }
+        .top-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ── Forum Navbar ── */
+        .navbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            height: 30px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .navbar-tabs { display: flex; gap: 0; height: 30px; }
+        .ntab {
+            padding: 0 14px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: var(--text-dim);
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-family: inherit;
+            transition: color 0.1s, background 0.1s;
+        }
+        .ntab:hover { color: var(--text-primary); background: rgba(255,255,255,0.03); }
+        .ntab.active { color: var(--accent-cyan); background: color-mix(in srgb, var(--accent-cyan) 8%, transparent); }
+        .navbar-right {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-family: var(--mono, 'SF Mono', Monaco, monospace);
+        }
+
+        /* ── Breadcrumbs ── */
+        .crumbs {
+            padding: 4px 16px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            border-bottom: 1px solid var(--border-subtle);
+            background: var(--bg-secondary);
+        }
+        .crumbs a { color: var(--accent-cyan); text-decoration: none; }
+        .crumbs a:hover { text-decoration: underline; }
+        .crumbs .sep { margin: 0 5px; color: var(--text-dim); }
+
     </style>
 </head>
 <body>
     <div id="app">
         <!-- Nav -->
-        <nav class="nav">
-            <div class="nav-brand"><img src="/logo.png" alt="mnemonic" style="height:22px;width:22px;vertical-align:middle;margin-right:6px"> mnemonic <a id="navVersion" href="https://github.com/AppSprout-dev/mnemonic/releases" target="_blank" rel="noopener" style="font-size:0.7rem;color:var(--text-dim);font-weight:400;text-decoration:none" title="View changelog"></a><span id="navUpdateBadge" class="update-badge" style="display:none" onclick="triggerUpdate()" title="Click to update"></span><a id="navChangelogLink" class="update-changelog" style="display:none" target="_blank" rel="noopener">What's new?</a></div>
-            <div class="nav-tabs">
-                <button class="nav-tab active" data-view="recall" onclick="switchView('recall')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <span>Recall</span>
-                </button>
-                <button class="nav-tab" data-view="explore" onclick="switchView('explore')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 002-2V8a2 2 0 00-2-2h-7.93a2 2 0 01-1.66-.9l-.82-1.2A2 2 0 007.93 3H4a2 2 0 00-2 2v13c0 1.1.9 2 2 2z"/></svg>
-                    <span>Explore</span>
-                </button>
-                <button class="nav-tab" data-view="timeline" onclick="switchView('timeline')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><circle cx="12" cy="6" r="2.5"/><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="18" r="2.5"/><line x1="14.5" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="9.5" y2="12"/><line x1="14.5" y1="18" x2="20" y2="18"/></svg>
-                    <span>Timeline</span>
-                </button>
-                <button class="nav-tab" data-view="agent" onclick="switchView('agent')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="4"/><circle cx="9" cy="16" r="1.5"/><circle cx="15" cy="16" r="1.5"/></svg>
-                    <span>SDK</span>
-                </button>
-                <button class="nav-tab" data-view="llm" onclick="switchView('llm')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-                    <span>LLM</span>
-                </button>
-                <button class="nav-tab" data-view="tools" onclick="switchView('tools')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-                    <span>Tools</span>
-                </button>
+        <div class="top" id="forumTop">
+                <div class="top-brand">mnemonic <small id="navVersion"></small></div>
+                <div class="top-right">
+                    <select class="nav-theme-select" id="themeSelect" onchange="setTheme(this.value)">
+                        <option value="midnight">Midnight</option>
+                        <option value="ember">Ember</option>
+                        <option value="nord">Nord</option>
+                        <option value="slate">Slate</option>
+                        <option value="parchment">Parchment</option>
+                    </select>
+                    <button class="nav-activity-btn" onclick="toggleDrawer()" title="Activity">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                        <span class="nav-badge" id="activityBadge"></span>
+                    </button>
+                </div>
             </div>
-            <div class="nav-spacer"></div>
-            <div class="nav-stats">
-                <span style="cursor:pointer" onclick="switchView('explore');switchExploreTab('memories')"><span class="stat-val" id="navMemoryCount">-</span> memories</span>
-                <span><span class="stat-val" id="navTokenCount">-</span> tokens</span>
-                <div class="nav-health" id="navHealth" title="System healthy"></div>
+            <div class="navbar" id="forumNav">
+                <div class="navbar-tabs">
+                    <button class="ntab active" data-view="recall" onclick="switchView('recall')">Search</button>
+                    <button class="ntab" data-view="explore" onclick="switchView('explore')">Forum</button>
+                    <button class="ntab" data-view="timeline" onclick="switchView('timeline')">Timeline</button>
+                    <button class="ntab" data-view="agent" onclick="switchView('agent')">SDK</button>
+                    <button class="ntab" data-view="llm" onclick="switchView('llm')">LLM</button>
+                    <button class="ntab" data-view="tools" onclick="switchView('tools')">Tools</button>
+                </div>
+                <div class="navbar-right">
+                    <span class="nav-health" id="healthDot"></span>
+                    <span id="navMemoryCount"></span> memories
+                </div>
             </div>
-            <select class="nav-theme-select" id="themeSelect" onchange="setTheme(this.value)">
-                <option value="midnight">Midnight</option>
-                <option value="ember">Ember</option>
-                <option value="nord">Nord</option>
-                <option value="slate">Slate</option>
-                <option value="parchment">Parchment</option>
-            </select>
-            <button class="nav-activity-btn" onclick="toggleDrawer()" title="Activity & Events">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-                <div class="nav-badge" id="activityBadge">0</div>
-            </button>
-        </nav>
-
-        <!-- View Container -->
-        <div class="view-container">
+            <div class="crumbs" id="breadcrumbs"><a href="#" onclick="switchView('recall')">mnemonic</a></div>
+<div class="view-container">
             <!-- Recall View -->
             <section class="view active" id="view-recall">
                 <div class="recall-hero">
@@ -2886,6 +2966,29 @@
                 document.getElementById('toolHeaderSub').textContent = 'recall \u00b7 remember \u00b7 get_context \u00b7 ' + health.tool_count + ' tools';
             }
             state.previousStats = stats;
+            // Update forum footer
+            var total = (stats.store && stats.store.active_memories) || health.memory_count || 0;
+            var fa = document.getElementById('footActive');
+            var ff = document.getElementById('footFading');
+            var far = document.getElementById('footArchived');
+            var fv = document.getElementById('footVersion');
+            var fe = document.getElementById('footEncoding');
+            var fc = document.getElementById('footConsolidation');
+            if (fa) fa.textContent = (stats.store ? stats.store.active_memories : total) + ' active';
+            if (ff) ff.textContent = (stats.store ? stats.store.fading_memories : 0) + ' fading';
+            if (far) far.textContent = (stats.store ? stats.store.archived_memories : 0) + ' archived';
+            if (fv) fv.textContent = 'mnemonic ' + (health.version ? 'v' + health.version : '');
+            if (fe) fe.textContent = 'encoding: ' + (health.encoding_pending > 0 ? health.encoding_pending + ' pending' : 'idle');
+            if (fc && stats.last_consolidation) {
+                var d = new Date(stats.last_consolidation);
+                fc.textContent = 'consolidation: ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+            }
+            // Update healthDot (forum nav uses different ID)
+            var hd = document.getElementById('healthDot');
+            if (hd) {
+                hd.className = health.status === 'ok' ? 'nav-health' : 'nav-health degraded';
+                hd.title = health.status === 'ok' ? 'daemon online' : 'degraded';
+            }
         } catch (e) {
             document.getElementById('navHealth').className = 'nav-health down';
             document.getElementById('navHealth').title = 'Cannot reach server';
@@ -4997,5 +5100,14 @@
 
     initializeApp();
     </script>
+
+    <div class="foot" id="forumFooter">
+        <span id="footVersion">mnemonic</span>
+        <span id="footActive">– active</span>
+        <span id="footFading">– fading</span>
+        <span id="footArchived">– archived</span>
+        <span id="footEncoding">encoding: idle</span>
+        <span id="footConsolidation">consolidation: –</span>
+    </div>
 </body>
 </html>
