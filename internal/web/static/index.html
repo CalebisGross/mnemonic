@@ -2308,13 +2308,10 @@
         var groups = groupByDate(filtered);
         var html = '';
         groups.forEach(function(group) {
-            html += '<div class="timeline-date-group"><div class="timeline-date-label">' + escapeHtml(group.label);
-            html += ' <span class="timeline-date-count">' + group.items.length + '</span></div>';
-            html += '<div style="position:relative;padding-left:4px"><div class="timeline-rail"></div>';
+            html += '<div class="tl-head"><span>' + escapeHtml(group.label) + '</span><span class="tl-head-count">' + group.items.length + ' memories</span></div>';
             group.items.forEach(function(item) {
                 html += renderTimelineCard(item);
             });
-            html += '</div></div>';
         });
         if (!_timelineState.allLoaded) {
             html += '<div class="timeline-loading" id="timelineLoadMore">Loading more...</div>';
@@ -2326,97 +2323,66 @@
     function renderTimelineCard(item) {
         var kind = item._kind;
         var salPct = Math.round((item._salience || 0) * 100);
-        var time = relativeTime(item._date);
         var absTime = item._date.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' });
         var concepts = item._concepts || [];
         var source = item._source || '';
         var project = item._project || '';
 
+        // Type → color mapping for the dot
+        var dotColor = kind === 'insight' ? 'var(--insight)' : kind === 'decision' ? 'var(--decision)' : kind === 'learning' ? 'var(--learning)' : kind === 'error' ? 'var(--error)' : 'var(--text-dim)';
+
         // Include source and project in data-concepts so hover-highlight works across tags
         var allTags = concepts.slice();
         if (source) allTags.unshift(source);
         if (project) allTags.unshift(project);
-        var html = '<div class="tl-card tl-' + kind + '" data-id="' + escapeHtml(item._id) + '" onclick="expandTimelineCard(this)" ';
+
+        // Forum-style timeline row
+        var html = '<div class="tlr tl-card tl-' + kind + '" data-id="' + escapeHtml(item._id) + '" onclick="expandTimelineCard(this)" ';
         html += 'data-concepts="' + escapeHtml(allTags.join(',')) + '">';
-        html += '<div class="tl-card-head">';
-        html += '<span class="tl-card-type ct-' + kind + '">' + escapeHtml(kind) + '</span>';
-        if (project) {
-            html += '<span class="tl-card-project" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(project) + '</span>';
+        html += '<div class="tlr-time" title="' + escapeHtml(item._date.toLocaleString()) + '">' + absTime + '</div>';
+        html += '<div class="tlr-dot" style="background:' + dotColor + '"></div>';
+        html += '<div class="tlr-text">' + escapeHtml(item._title);
+
+        // Inline concept tags for hover/click filtering
+        if (concepts.length > 0 || source) {
+            html += ' <span class="tl-card-concepts" style="display:inline">';
+            if (source) {
+                html += '<span class="tl-source frow-tag" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(source) + '</span>';
+            }
+            concepts.slice(0, 5).forEach(function(c) {
+                html += '<span class="tl-concept frow-tag" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(c) + '</span>';
+            });
+            html += '</span>';
         }
-        html += '<span class="tl-card-title">' + escapeHtml(item._title) + '</span>';
-        if (item._tone) {
-            html += '<span class="tl-card-tone">' + escapeHtml(item._tone) + '</span>';
-        }
-        html += '<span class="tl-card-time" title="' + escapeHtml(item._date.toLocaleString()) + '">' + absTime + ' &middot; ' + time + '</span>';
+        html += '</div>';
+        html += '<div class="tlr-sal">' + salPct + '%</div>';
         html += '</div>';
 
-        var hasMeta = item._fileCount > 0 || item._eventCount > 0 || item._salience > 0;
-        if (hasMeta) {
-            html += '<div class="tl-card-meta">';
-            if (item._fileCount > 0) {
-                html += '<span class="tl-card-files">' + item._fileCount + ' file' + (item._fileCount !== 1 ? 's' : '') + '</span>';
-            }
-            if (item._eventCount > 0) {
-                html += '<span class="tl-card-events">' + item._eventCount + ' event' + (item._eventCount !== 1 ? 's' : '') + '</span>';
-            }
-            if (item._salience > 0) {
-                html += '<span class="tl-card-salience"><span class="tl-sal-bar"><span class="tl-sal-fill" style="width:' + salPct + '%"></span></span> ' + salPct + '%</span>';
-            }
-            html += '</div>';
-        }
-
-        if (source || concepts.length > 0) {
-            html += '<div class="tl-card-concepts">';
-            if (source) {
-                html += '<span class="tl-source" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(source) + '</span>';
-            }
-            concepts.slice(0, 8).forEach(function(c) {
-                html += '<span class="tl-concept" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(c) + '</span>';
-            });
-            html += '</div>';
-        }
-
-        html += '<div class="tl-card-detail">';
+        // Expandable detail (hidden until clicked)
+        html += '<div class="tl-card-detail" style="padding:6px 16px 6px 78px;font-size:0.85rem;color:var(--text-secondary);border-bottom:1px solid var(--border-subtle)">';
         if (item._type === 'episode') {
-            if (item._raw.outcome) {
-                var oc = item._raw.outcome;
-                var outcomeClass = oc === 'success' ? 'tl-outcome-success' : oc === 'failure' ? 'tl-outcome-failure' : 'tl-outcome-blocked';
-                html += '<div class="tl-detail-row"><span class="tl-detail-outcome ' + outcomeClass + '">' + escapeHtml(oc) + '</span></div>';
-            }
-            if (item._raw.summary) {
-                html += '<div class="tl-detail-row"><div class="tl-detail-label">Summary</div>' + escapeHtml(item._raw.summary) + '</div>';
-            }
-            if (item._raw.narrative) {
-                html += '<div class="tl-detail-row"><div class="tl-detail-label">Narrative</div>' + escapeHtml(item._raw.narrative) + '</div>';
-            }
+            if (item._raw.summary) html += '<div>' + escapeHtml(item._raw.summary) + '</div>';
+            if (item._raw.narrative) html += '<div style="margin-top:4px;color:var(--text-dim)">' + escapeHtml(item._raw.narrative) + '</div>';
             if (item._raw.files_modified && item._raw.files_modified.length > 0) {
-                html += '<div class="tl-detail-row"><div class="tl-detail-label">Files Modified</div><div class="tl-detail-files">';
-                item._raw.files_modified.forEach(function(f) { html += escapeHtml(f) + '<br>'; });
-                html += '</div></div>';
-            }
-            var start = item._raw.start_time ? new Date(item._raw.start_time).toLocaleString() : '';
-            var end = item._raw.end_time ? new Date(item._raw.end_time).toLocaleString() : '';
-            if (start || end) {
-                html += '<div class="tl-detail-row"><div class="tl-detail-label">Duration</div>' + escapeHtml(start) + ' &mdash; ' + escapeHtml(end) + '</div>';
+                html += '<div style="margin-top:4px;font-size:0.78rem;color:var(--text-dim)">';
+                item._raw.files_modified.slice(0, 5).forEach(function(f) { html += escapeHtml(f) + ' '; });
+                html += '</div>';
             }
         } else {
             if (item._raw.content && item._raw.content !== item._raw.summary) {
-                html += '<div class="tl-detail-row"><div class="tl-detail-label">Content</div>' + escapeHtml(item._raw.content) + '</div>';
-            }
-            if (item._raw.source) {
-                html += '<div class="tl-detail-row"><div class="tl-detail-label">Source</div>' + escapeHtml(item._raw.source) + '</div>';
-            }
-            if (item._raw.episode_id) {
-                html += '<div class="tl-detail-row" style="font-size:0.72rem;color:var(--accent-cyan)">Part of an episode</div>';
+                html += '<div>' + escapeHtml(item._raw.content) + '</div>';
             }
         }
-        html += '</div></div>';
+        html += '</div>';
         return html;
     }
 
     function expandTimelineCard(card) {
-        var detail = card.querySelector('.tl-card-detail');
-        if (detail) detail.classList.toggle('open');
+        var detail = card.nextElementSibling;
+        if (detail && detail.classList.contains('tl-card-detail')) detail.classList.toggle('open');
+        // Also check for child detail (backward compat)
+        var childDetail = card.querySelector('.tl-card-detail');
+        if (childDetail) childDetail.classList.toggle('open');
     }
 
     var _selectedTimelineTags = new Set();
