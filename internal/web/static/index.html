@@ -1377,6 +1377,11 @@
                 </div>
             </section>
 
+            <!-- Thread View (episode detail) -->
+            <section class="view" id="view-thread">
+                <div id="threadContent"><div style="padding:16px;color:var(--text-dim)">Loading thread...</div></div>
+            </section>
+
             <!-- Timeline View -->
             <section class="view timeline-view" id="view-timeline">
                 <div class="timeline-header">
@@ -1410,10 +1415,10 @@
 
             <!-- Agent View -->
             <section class="view" id="view-agent">
-                <div class="agent-view">
-                    <div class="agent-header">
-                        <div class="agent-header-title">SDK Agent Sessions</div>
-                        <div class="llm-header-sub">Claude.ai &middot; OAuth &middot; self-evolving</div>
+                <div class="agent-view" style="padding:0">
+                    <div class="fblock-head" style="margin:0">
+                        <div class="fblock-title">SDK Agent Sessions</div>
+                        <div style="font-size:0.85rem;color:var(--text-dim)">Claude.ai &middot; OAuth &middot; self-evolving</div>
                         <div class="agent-header-meta">
                             <span class="agent-updated" id="agentUpdated"></span>
                             <button class="agent-refresh-btn" id="agentRefreshBtn" onclick="refreshAgentData()">
@@ -1521,10 +1526,10 @@
 
             <!-- LLM Usage View -->
             <section class="view" id="view-llm">
-                <div class="llm-view">
+                <div class="llm-view" style="padding-top:0">
                     <div class="llm-header">
-                        <div class="llm-header-title">LLM Usage</div>
-                        <div class="llm-header-sub">Memory engine &middot; local model</div>
+                        <div class="fblock-title">LLM Usage</div>
+                        <div style="font-size:0.85rem;color:var(--text-dim)">Memory engine &middot; local model</div>
                         <div class="llm-header-meta">
                             <div class="llm-range-tabs" id="llmRangeTabs">
                                 <button class="llm-range-tab" data-range="1h" onclick="setLLMRange('1h')">1h</button>
@@ -1590,10 +1595,10 @@
 
             <!-- Tool Usage View -->
             <section class="view" id="view-tools">
-                <div class="llm-view">
+                <div class="llm-view" style="padding-top:0">
                     <div class="llm-header">
-                        <div class="llm-header-title">MCP Tool Usage</div>
-                        <div class="llm-header-sub" id="toolHeaderSub">recall &middot; remember &middot; get_context &middot; &hellip; tools</div>
+                        <div class="fblock-title">MCP Tool Usage</div>
+                        <div class="llm-header-sub" id="toolHeaderSub" style="font-size:0.85rem;color:var(--text-dim)">recall &middot; remember &middot; get_context &middot; &hellip; tools</div>
                         <div class="llm-header-meta">
                             <div class="llm-range-tabs" id="toolRangeTabs">
                                 <button class="llm-range-tab" data-range="1h" onclick="setToolRange('1h')">1h</button>
@@ -1861,7 +1866,12 @@
 
     function handleHash() {
         var hash = window.location.hash.replace('#', '');
-        if (['recall', 'explore', 'timeline', 'mind', 'agent', 'llm', 'tools'].includes(hash)) switchView(hash);
+        if (hash.startsWith('thread/')) {
+            var epId = hash.substring(7);
+            if (epId) loadThread(epId);
+            return;
+        }
+        if (['recall', 'explore', 'timeline', 'agent', 'llm', 'tools'].includes(hash)) switchView(hash);
     }
     window.addEventListener('hashchange', handleHash);
 
@@ -1945,6 +1955,101 @@
     function toggle(id) {
         var el = document.getElementById(id);
         if (el) el.classList.toggle('open');
+    }
+
+    // ── Thread View (episode detail as forum posts) ──
+    async function loadThread(episodeId) {
+        state.currentView = 'thread';
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.ntab').forEach(t => t.classList.remove('active'));
+        document.getElementById('view-thread').classList.add('active');
+        window.location.hash = 'thread/' + episodeId;
+
+        // Update breadcrumbs
+        var crumbs = document.getElementById('breadcrumbs');
+        if (crumbs) crumbs.innerHTML = '<a href="#" onclick="switchView(\'explore\')">mnemonic</a><span class="sep">›</span> <a href="#" onclick="switchView(\'explore\')">Forum</a><span class="sep">›</span> Episode';
+
+        var container = document.getElementById('threadContent');
+        container.innerHTML = '<div style="padding:16px;color:var(--text-dim)">Loading thread...</div>';
+
+        try {
+            var ep = await fetchJSON('/episodes/' + episodeId);
+            var memIds = ep.raw_memory_ids || ep.memory_ids || [];
+
+            // Build thread header
+            var html = '<div class="thread-wrap">';
+            html += '<div class="thread-top">';
+            html += '<div class="thread-title-big">' + escapeHtml(ep.title || 'Untitled Episode') + '</div>';
+            html += '<div class="thread-meta">';
+            if (ep.emotional_tone) html += '<span><b>Mood:</b> ' + escapeHtml(ep.emotional_tone) + '</span>';
+            if (ep.start_time && ep.end_time) {
+                html += '<span><b>Duration:</b> ' + new Date(ep.start_time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + ' – ' + new Date(ep.end_time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + '</span>';
+            }
+            html += '<span><b>Memories:</b> ' + memIds.length + '</span>';
+            if (ep.files_modified && ep.files_modified.length > 0) {
+                html += '<span><b>Files:</b> ' + ep.files_modified.slice(0, 5).map(function(f) { return escapeHtml(f.split('/').pop()); }).join(', ') + '</span>';
+            }
+            html += '</div></div>';
+
+            // Load each memory as a post
+            if (memIds.length > 0) {
+                var memPromises = memIds.slice(0, 20).map(function(id) {
+                    return fetchJSON('/memories/' + id).catch(function() { return null; });
+                });
+                var memories = await Promise.all(memPromises);
+                memories = memories.filter(function(m) { return m; });
+
+                memories.forEach(function(m, idx) {
+                    var type = (m.type || m.memory_type || 'general').toLowerCase();
+                    var typeBadgeClass = 'post-type-badge--' + type;
+                    var salPct = Math.round((m.salience || 0) * 100);
+                    var linkCount = m.association_count || 0;
+                    var source = m.source || 'mcp';
+                    var time = m.created_at ? new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+                    var concepts = m.concepts || [];
+
+                    html += '<div class="post">';
+                    // Left sidebar
+                    html += '<div class="post-left">';
+                    html += '<div class="post-type-badge ' + typeBadgeClass + '">' + escapeHtml(type) + '</div>';
+                    html += '<div class="post-stat-row">Salience: <b>' + salPct + '%</b></div>';
+                    html += '<div class="post-stat-row">Links: <b>' + linkCount + '</b></div>';
+                    html += '<div class="post-stat-row">Source: <b>' + escapeHtml(source) + '</b></div>';
+                    html += '<div class="post-stat-row" style="margin-top:6px;color:var(--text-faint)">' + time + '</div>';
+                    html += '</div>';
+                    // Right content
+                    html += '<div class="post-right">';
+                    html += '<div class="post-head"><span>Memory #' + (idx + 1) + ' of ' + memories.length + '</span><span style="cursor:pointer;color:var(--link)" onclick="navigator.clipboard.writeText(\'' + escapeHtml(m.id || '') + '\');showToast(\'ID copied\')">Copy ID</span></div>';
+                    html += '<div class="post-body-text">' + escapeHtml(m.summary || m.content || '') + '</div>';
+                    if (m.content && m.content !== m.summary) {
+                        html += '<div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:8px">' + escapeHtml(m.content) + '</div>';
+                    }
+                    if (concepts.length > 0) {
+                        html += '<div class="post-tags">';
+                        concepts.forEach(function(c) { html += '<span class="post-tag">' + escapeHtml(c) + '</span>'; });
+                        html += '</div>';
+                    }
+                    html += '</div></div>';
+                });
+            }
+
+            // Episode narrative at bottom
+            if (ep.narrative) {
+                html += '<div style="padding:10px 12px;font-size:0.92rem;color:var(--text-dim);border-top:1px solid var(--border-color);background:var(--bg-secondary)">';
+                html += '<div style="font-size:0.75rem;font-weight:bold;color:var(--text-faint);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.04em">Episode Narrative</div>';
+                html += escapeHtml(ep.narrative);
+                html += '</div>';
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+
+            // Update breadcrumbs with title
+            if (crumbs) crumbs.innerHTML = '<a href="#" onclick="switchView(\'explore\')">mnemonic</a><span class="sep">›</span> <a href="#" onclick="switchView(\'explore\')">Forum</a><span class="sep">›</span> ' + escapeHtml((ep.title || 'Episode').substring(0, 50));
+        } catch (e) {
+            console.error('loadThread error:', e);
+            container.innerHTML = '<div style="padding:16px;color:var(--accent-red)">Failed to load episode: ' + escapeHtml(e.message || String(e)) + '</div>';
+        }
     }
 
     async function submitFeedback(quality, event) {
@@ -2040,7 +2145,7 @@
 
             // Expandable zone with nested memories
             row += '<div class="expand-zone" id="' + expandId + '">';
-            row += '<div class="expand-header"><span>' + memCount + ' memories in this episode</span></div>';
+            row += '<div class="expand-header"><span>' + memCount + ' memories in this episode</span><a href="#" onclick="event.preventDefault();event.stopPropagation();loadThread(\'' + escapeHtml(ep.id) + '\')">View full thread &rarr;</a></div>';
             if (ep.narrative) {
                 row += '<div style="padding:6px 10px 6px 46px;font-size:0.85rem;color:var(--text-secondary);border-bottom:1px solid var(--border-subtle)">' + escapeHtml(ep.narrative) + '</div>';
             }
