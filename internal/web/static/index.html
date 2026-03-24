@@ -1356,25 +1356,48 @@
                 </div>
             </section>
 
-            <!-- Explore View -->
+            <!-- Forum View (replaces Explore) -->
             <section class="view" id="view-explore">
-                <div class="explore-view">
-                    <div class="explore-header">
-                        <div class="explore-tabs">
-                            <button class="explore-tab active" data-tab="episodes" onclick="switchExploreTab('episodes')">Episodes</button>
-                            <button class="explore-tab" data-tab="memories" onclick="switchExploreTab('memories')">Memories</button>
-                            <button class="explore-tab" data-tab="patterns" onclick="switchExploreTab('patterns')">Patterns</button>
-                            <button class="explore-tab" data-tab="abstractions" onclick="switchExploreTab('abstractions')">Abstractions</button>
+                <div id="forumWelcome" class="welcome-panel" style="display:none">
+                    <div class="welcome-bar">Welcome Back</div>
+                    <div class="welcome-body">
+                        <span id="welcomeVisit"></span>
+                        <div class="stats">
+                            <span><span class="stat-val" id="welcomeActive">0</span> active</span>
+                            <span><span class="stat-val" id="welcomeFading">0</span> fading</span>
+                            <span><span class="stat-val" id="welcomeArchived">0</span> archived</span>
                         </div>
-                        <input type="text" class="explore-search" id="exploreSearch" placeholder="Filter..." oninput="filterExplore()">
-                    </div>
-                    <div class="explore-content">
-                        <div class="explore-section active" id="section-episodes"></div>
-                        <div class="explore-section" id="section-memories"></div>
-                        <div class="explore-section" id="section-patterns"></div>
-                        <div class="explore-section" id="section-abstractions"></div>
                     </div>
                 </div>
+                <div class="forabg">
+                    <div class="forabg-head" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+                        <span class="forabg-title">Episodes</span>
+                        <span class="forabg-meta" id="epCount"></span>
+                    </div>
+                    <div class="inner" id="section-episodes"><div style="padding:10px;color:var(--text-dim)">Loading...</div></div>
+                </div>
+                <div class="forabg">
+                    <div class="forabg-head" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+                        <span class="forabg-title">Recent Memories</span>
+                        <span class="forabg-meta" id="memCount"></span>
+                    </div>
+                    <div class="inner" id="section-memories"><div style="padding:10px;color:var(--text-dim)">Loading...</div></div>
+                </div>
+                <div class="forabg">
+                    <div class="forabg-head" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+                        <span class="forabg-title">Discovered Patterns</span>
+                        <span class="forabg-meta" id="patCount"></span>
+                    </div>
+                    <div class="inner" id="section-patterns"><div style="padding:10px;color:var(--text-dim)">Loading...</div></div>
+                </div>
+                <div class="forabg">
+                    <div class="forabg-head" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+                        <span class="forabg-title">Abstractions &amp; Principles</span>
+                        <span class="forabg-meta" id="absCount"></span>
+                    </div>
+                    <div class="inner" id="section-abstractions"><div style="padding:10px;color:var(--text-dim)">Loading...</div></div>
+                </div>
+                <input type="text" class="explore-search" id="exploreSearch" placeholder="Filter..." oninput="filterExplore()" style="margin:8px 16px;padding:4px 8px;background:var(--bg-primary);border:1px solid var(--border-subtle);color:var(--text-primary);font-size:0.85rem;border-radius:3px;width:calc(100% - 32px)">
             </section>
 
             <!-- Thread View (episode detail) -->
@@ -1847,7 +1870,16 @@
         var tab = document.querySelector('.ntab[data-view="' + name + '"]') || document.querySelector('.nav-tab[data-view="' + name + '"]');
         if (tab) tab.classList.add('active');
         window.location.hash = name;
-        if (name === 'explore' && !state.exploreLoaded[state.currentExploreTab]) loadExploreTab(state.currentExploreTab);
+        if (name === 'explore' && !state.exploreLoaded.episodes) {
+            // Load all forum blocks in parallel
+            loadExploreTab('episodes');
+            loadExploreTab('memories');
+            loadExploreTab('patterns');
+            loadExploreTab('abstractions');
+            // Populate welcome panel
+            var wp = document.getElementById('forumWelcome');
+            if (wp) wp.style.display = '';
+        }
         if (name === 'timeline' && !state.timelineInitialized) { populateTimelineProjects(); loadTimelineData(false); }
         if (name === 'agent' && !state.agentLoaded) loadAgentData();
         if (name === 'llm' && !state.llmLoaded) loadLLMUsage();
@@ -2231,26 +2263,31 @@
         var data = await fetchJSON('/patterns?limit=20');
         var patterns = data.patterns || [];
         if (patterns.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128200;</div><div class="empty-state-text">No patterns discovered yet</div><div class="empty-state-sub">Patterns emerge after consolidation cycles</div></div>'; return; }
-        section.innerHTML = patterns.map(function(p) {
+        var html = '<ul class="topiclist"><li class="header"><dl class="row-item"><dt><div class="list-inner">Pattern</div></dt><dd>Str</dd><dd>Evidence</dd><dd class="lastpost">Discovered</dd></dl></li></ul>';
+        html += '<ul class="topiclist forums">';
+        html += patterns.map(function(p, idx) {
             var strengthPct = Math.round((p.strength || 0) * 100);
-            var concepts = (p.concepts || []).slice(0, 5);
+            var concepts = (p.concepts || []).slice(0, 4);
             var evidenceCount = (p.evidence_ids || []).length;
             var age = p.created_at ? relativeTime(p.created_at) : '';
-            var html = '<div class="pattern-card" data-pattern-id="' + escapeHtml(p.id) + '"><div class="pattern-title">' + escapeHtml(p.title || 'Untitled');
-            html += '<button class="pattern-archive-btn" onclick="archivePattern(\'' + escapeHtml(p.id) + '\', this)">Archive</button>';
-            if (p.project) html += ' <span style="color:var(--accent-blue);font-size:0.8rem">[' + escapeHtml(p.project) + ']</span>';
-            html += '</div><span class="badge badge-type">' + escapeHtml(p.pattern_type || 'pattern') + '</span>';
-            if (p.state && p.state !== 'active') html += ' <span class="badge" style="background:var(--warning-bg);color:var(--warning-text)">' + escapeHtml(p.state) + '</span>';
-            html += '<div class="pattern-desc">' + escapeHtml(p.description || '') + '</div>';
-            html += '<div class="memory-meta-row"><div class="strength-bar"><div class="strength-fill" style="width:' + strengthPct + '%"></div></div>';
-            html += '<span style="font-size:0.75rem;color:var(--text-dim)">Strength ' + strengthPct + '%</span>';
-            if (evidenceCount > 0) html += '<span style="font-size:0.7rem;color:var(--text-muted)">' + evidenceCount + ' evidence</span>';
-            if (p.access_count > 0) html += '<span style="font-size:0.7rem;color:var(--text-muted)">' + p.access_count + ' accesses</span>';
-            if (age) html += '<span style="font-size:0.7rem;color:var(--text-muted)">' + age + '</span>';
-            concepts.forEach(function(c) { html += '<span class="concept-tag">' + escapeHtml(c) + '</span>'; });
-            html += '</div></div>';
-            return html;
+            var tags = concepts.map(function(c) { return '<span class="forum-tag">' + escapeHtml(c) + '</span>'; }).join('');
+            var bgClass = idx % 2 === 0 ? 'bg1' : 'bg2';
+
+            var row = '<li class="row ' + bgClass + ' sticky pattern-card" data-pattern-id="' + escapeHtml(p.id) + '">';
+            row += '<dl class="row-item"><dt>';
+            row += '<a class="row-item-link"><span class="status-icon icon-ep" style="background:rgba(208,152,46,0.12);color:var(--decision);border-color:rgba(208,152,46,0.2)">PT</span></a>';
+            row += '<div class="list-inner">';
+            row += '<a class="forumtitle">' + escapeHtml(p.title || 'Untitled') + '</a>';
+            row += '<span class="forum-desc">' + escapeHtml((p.description || '').substring(0, 100)) + ' ' + tags + '</span>';
+            row += '</div></dt>';
+            row += '<dd>' + strengthPct + '%</dd>';
+            row += '<dd>' + evidenceCount + '</dd>';
+            row += '<dd class="lastpost"><span class="lastpost-time">' + age + '</span><br><button class="btn-forum" style="font-size:0.68rem;padding:1px 6px" onclick="event.stopPropagation();archivePattern(\'' + escapeHtml(p.id) + '\', this)">Archive</button></dd>';
+            row += '</dl></li>';
+            return row;
         }).join('');
+        html += '</ul>';
+        section.innerHTML = html;
     }
 
     async function archivePattern(id, btn) {
@@ -2271,33 +2308,40 @@
         var data = await fetchJSON('/abstractions?limit=20');
         var abstractions = data.abstractions || [];
         if (abstractions.length === 0) { section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128161;</div><div class="empty-state-text">No abstractions yet</div><div class="empty-state-sub">Abstractions form from patterns during dream cycles</div></div>'; return; }
-        section.innerHTML = abstractions.map(function(a) {
+        var html = '<ul class="topiclist"><li class="header"><dl class="row-item"><dt><div class="list-inner">Abstraction</div></dt><dd>Conf</dd><dd>Sources</dd><dd class="lastpost">Discovered</dd></dl></li></ul>';
+        html += '<ul class="topiclist forums">';
+        html += abstractions.map(function(a, idx) {
             var levelLabel = a.level === 3 ? 'Axiom' : a.level === 2 ? 'Principle' : 'L' + a.level;
             var confPct = Math.round((a.confidence || 0) * 100);
-            var concepts = (a.concepts || []).slice(0, 5);
+            var concepts = (a.concepts || []).slice(0, 4);
             var sourceCount = (a.source_pattern_ids || []).length;
             var age = a.created_at ? relativeTime(a.created_at) : '';
-            var html = '<div class="abstraction-card"><div class="abstraction-title">' + escapeHtml(a.title || 'Untitled');
-            html += ' <span class="badge badge-level">' + levelLabel + '</span>';
-            if (a.state && a.state !== 'active') html += ' <span class="badge" style="background:var(--warning-bg);color:var(--warning-text)">' + escapeHtml(a.state) + '</span>';
-            html += '</div>';
-            html += '<div class="abstraction-desc">' + escapeHtml(a.description || '') + '</div>';
-            html += '<div class="memory-meta-row"><div class="strength-bar"><div class="strength-fill" style="width:' + confPct + '%;background:linear-gradient(90deg,var(--accent-violet),var(--accent-pink))"></div></div>';
-            html += '<span style="font-size:0.75rem;color:var(--text-dim)">Confidence ' + confPct + '%</span>';
-            if (sourceCount > 0) html += '<span style="font-size:0.7rem;color:var(--text-muted)">' + sourceCount + ' sources</span>';
-            if (a.access_count > 0) html += '<span style="font-size:0.7rem;color:var(--text-muted)">' + a.access_count + ' accesses</span>';
-            if (age) html += '<span style="font-size:0.7rem;color:var(--text-muted)">' + age + '</span>';
-            concepts.forEach(function(c) { html += '<span class="concept-tag">' + escapeHtml(c) + '</span>'; });
-            html += '</div></div>';
-            return html;
+            var tags = concepts.map(function(c) { return '<span class="forum-tag">' + escapeHtml(c) + '</span>'; }).join('');
+            var bgClass = idx % 2 === 0 ? 'bg1' : 'bg2';
+            var iconLabel = a.level === 3 ? 'AX' : a.level === 2 ? 'PR' : 'AB';
+
+            var row = '<li class="row ' + bgClass + ' announce abstraction-card">';
+            row += '<dl class="row-item"><dt>';
+            row += '<a class="row-item-link"><span class="status-icon" style="background:rgba(154,114,184,0.12);color:var(--insight);border:1px solid rgba(154,114,184,0.2)">' + iconLabel + '</span></a>';
+            row += '<div class="list-inner">';
+            row += '<a class="forumtitle">' + escapeHtml(a.title || 'Untitled') + ' <span style="font-size:0.72rem;color:var(--insight);font-weight:normal">[' + levelLabel + ']</span></a>';
+            row += '<span class="forum-desc">' + escapeHtml((a.description || '').substring(0, 120)) + ' ' + tags + '</span>';
+            row += '</div></dt>';
+            row += '<dd>' + confPct + '%</dd>';
+            row += '<dd>' + sourceCount + '</dd>';
+            row += '<dd class="lastpost"><span class="lastpost-time">' + age + '</span></dd>';
+            row += '</dl></li>';
+            return row;
         }).join('');
+        html += '</ul>';
+        section.innerHTML = html;
     }
 
     function filterExplore() {
         var query = document.getElementById('exploreSearch').value.toLowerCase();
         var section = document.getElementById('section-' + state.currentExploreTab);
-        var cards = section.querySelectorAll('.episode-card, .memory-card, .pattern-card, .abstraction-card');
-        cards.forEach(function(card) { card.style.display = card.textContent.toLowerCase().includes(query) ? '' : 'none'; });
+        var rows = section.querySelectorAll('li.row, .pattern-card, .abstraction-card');
+        rows.forEach(function(row) { row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none'; });
     }
 
     // ── Timeline ──
@@ -2442,10 +2486,13 @@
         var groups = groupByDate(filtered);
         var html = '';
         groups.forEach(function(group) {
-            html += '<div class="tl-head"><span>' + escapeHtml(group.label) + '</span><span class="tl-head-count">' + group.items.length + ' memories</span></div>';
-            group.items.forEach(function(item) {
-                html += renderTimelineCard(item);
+            html += '<div class="forabg" style="margin:4px 16px"><div class="inner">';
+            html += '<ul class="topiclist"><li class="header"><dl class="row-item"><dt><div class="list-inner">' + escapeHtml(group.label) + '</div></dt><dd></dd><dd class="lastpost"><span class="tl-head-count">' + group.items.length + ' memories</span></dd></dl></li></ul>';
+            html += '<ul class="topiclist forums">';
+            group.items.forEach(function(item, idx) {
+                html += renderTimelineCard(item, idx);
             });
+            html += '</ul></div></div>';
         });
         if (!_timelineState.allLoaded) {
             html += '<div class="timeline-loading" id="timelineLoadMore">Loading more...</div>';
@@ -2454,69 +2501,67 @@
         setupTimelineScroll();
     }
 
-    function renderTimelineCard(item) {
+    function renderTimelineCard(item, idx) {
         var kind = item._kind;
-        var salPct = Math.round((item._salience || 0) * 100);
+        var salPct = Math.min(100, Math.round((item._salience || 0) * 100));
         var absTime = item._date.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' });
         var concepts = item._concepts || [];
         var source = item._source || '';
         var project = item._project || '';
+        var typeAbbr = kind === 'insight' ? 'IN' : kind === 'decision' ? 'DE' : kind === 'learning' ? 'LE' : kind === 'error' ? 'ER' : kind === 'episode' ? 'EP' : 'GN';
+        var iconClass = kind === 'insight' ? 'icon-in' : kind === 'decision' ? 'icon-de' : kind === 'learning' ? 'icon-le' : kind === 'error' ? 'icon-er' : kind === 'episode' ? 'icon-ep' : 'icon-gn';
 
-        // Type → color mapping for the dot
-        var dotColor = kind === 'insight' ? 'var(--insight)' : kind === 'decision' ? 'var(--decision)' : kind === 'learning' ? 'var(--learning)' : kind === 'error' ? 'var(--error)' : 'var(--text-dim)';
-
-        // Include source and project in data-concepts so hover-highlight works across tags
+        // Include source and project in data-concepts so hover-highlight works
         var allTags = concepts.slice();
         if (source) allTags.unshift(source);
         if (project) allTags.unshift(project);
+        var bgClass = (idx || 0) % 2 === 0 ? 'bg1' : 'bg2';
 
-        // Forum-style timeline row
-        var html = '<div class="tlr tl-card tl-' + kind + '" data-id="' + escapeHtml(item._id) + '" onclick="expandTimelineCard(this)" ';
+        // Forum-style row using dl/dt/dd
+        var html = '<li class="row ' + bgClass + ' tl-card tl-' + kind + '" data-id="' + escapeHtml(item._id) + '" onclick="expandTimelineCard(this)" ';
         html += 'data-concepts="' + escapeHtml(allTags.join(',')) + '">';
-        html += '<div class="tlr-time" title="' + escapeHtml(item._date.toLocaleString()) + '">' + absTime + '</div>';
-        html += '<div class="tlr-dot" style="background:' + dotColor + '"></div>';
-        html += '<div class="tlr-text">' + escapeHtml(item._title);
+        html += '<dl class="row-item"><dt>';
+        html += '<a class="row-item-link"><span class="status-icon ' + iconClass + '" style="width:20px;height:20px;font-size:0.6rem">' + typeAbbr + '</span></a>';
+        html += '<div class="list-inner">';
+        html += '<a class="forumtitle">' + escapeHtml(item._title) + '</a>';
 
-        // Inline concept tags for hover/click filtering
+        // Concept tags (keep tl-source/tl-concept classes for tag filtering)
         if (concepts.length > 0 || source) {
-            html += ' <span class="tl-card-concepts" style="display:inline">';
+            html += '<span class="forum-desc tl-card-concepts">';
             if (source) {
-                html += '<span class="tl-source frow-tag" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(source) + '</span>';
+                html += '<span class="tl-source forum-tag" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(source) + '</span>';
             }
             concepts.slice(0, 5).forEach(function(c) {
-                html += '<span class="tl-concept frow-tag" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(c) + '</span>';
+                html += '<span class="tl-concept forum-tag" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(c) + '</span>';
             });
             html += '</span>';
         }
-        html += '</div>';
-        html += '<div class="tlr-sal">' + salPct + '%</div>';
-        html += '</div>';
+        html += '</div></dt>';
+        html += '<dd class="tlr-time">' + absTime + '</dd>';
+        html += '<dd class="lastpost"><span class="lastpost-time">' + salPct + '%</span></dd>';
+        html += '</dl></li>';
 
-        // Expandable detail (hidden until clicked)
-        html += '<div class="tl-card-detail" style="padding:6px 16px 6px 78px;font-size:0.85rem;color:var(--text-secondary);border-bottom:1px solid var(--border-subtle)">';
+        // Expandable detail
+        html += '<div class="tl-card-detail expand-zone">';
+        html += '<div style="padding:6px 10px 6px 42px;font-size:0.82rem;color:var(--text-secondary)">';
         if (item._type === 'episode') {
             if (item._raw.summary) html += '<div>' + escapeHtml(item._raw.summary) + '</div>';
             if (item._raw.narrative) html += '<div style="margin-top:4px;color:var(--text-dim)">' + escapeHtml(item._raw.narrative) + '</div>';
-            if (item._raw.files_modified && item._raw.files_modified.length > 0) {
-                html += '<div style="margin-top:4px;font-size:0.78rem;color:var(--text-dim)">';
-                item._raw.files_modified.slice(0, 5).forEach(function(f) { html += escapeHtml(f) + ' '; });
-                html += '</div>';
-            }
         } else {
             if (item._raw.content && item._raw.content !== item._raw.summary) {
                 html += '<div>' + escapeHtml(item._raw.content) + '</div>';
             }
         }
-        html += '</div>';
+        html += '</div></div>';
         return html;
     }
 
-    function expandTimelineCard(card) {
-        var detail = card.nextElementSibling;
-        if (detail && detail.classList.contains('tl-card-detail')) detail.classList.toggle('open');
-        // Also check for child detail (backward compat)
-        var childDetail = card.querySelector('.tl-card-detail');
-        if (childDetail) childDetail.classList.toggle('open');
+    function expandTimelineCard(el) {
+        // Find the expand-zone that follows this li.row
+        var next = el.nextElementSibling;
+        if (next && next.classList.contains('expand-zone')) next.classList.toggle('open');
+        // Also try tl-card-detail class
+        if (next && next.classList.contains('tl-card-detail')) next.classList.toggle('open');
     }
 
     var _selectedTimelineTags = new Set();

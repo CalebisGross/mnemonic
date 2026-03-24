@@ -12,6 +12,7 @@
     overflow: hidden;
 }
 .forabg .inner { overflow: hidden; }
+.forabg .inner.collapsed { display: none; }
 
 /* ── Topic/forum lists (definition list columns) ── */
 ul.topiclist {
