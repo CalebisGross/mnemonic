@@ -2490,13 +2490,10 @@
         var groups = groupByDate(filtered);
         var html = '';
         groups.forEach(function(group) {
-            html += '<div class="forabg" style="margin:4px 16px"><div class="inner">';
-            html += '<ul class="topiclist"><li class="header"><dl class="row-item"><dt><div class="list-inner">' + escapeHtml(group.label) + '</div></dt><dd></dd><dd class="lastpost"><span class="tl-head-count">' + group.items.length + ' memories</span></dd></dl></li></ul>';
-            html += '<ul class="topiclist forums">';
+            html += '<div class="tl-head"><span>' + escapeHtml(group.label) + '</span><span class="tl-head-count">' + group.items.length + ' memories</span></div>';
             group.items.forEach(function(item, idx) {
                 html += renderTimelineCard(item, idx);
             });
-            html += '</ul></div></div>';
         });
         if (!_timelineState.allLoaded) {
             html += '<div class="timeline-loading" id="timelineLoadMore">Loading more...</div>';
@@ -2515,57 +2512,51 @@
         var typeAbbr = kind === 'insight' ? 'IN' : kind === 'decision' ? 'DE' : kind === 'learning' ? 'LE' : kind === 'error' ? 'ER' : kind === 'episode' ? 'EP' : 'GN';
         var iconClass = kind === 'insight' ? 'icon-in' : kind === 'decision' ? 'icon-de' : kind === 'learning' ? 'icon-le' : kind === 'error' ? 'icon-er' : kind === 'episode' ? 'icon-ep' : 'icon-gn';
 
-        // Include source and project in data-concepts so hover-highlight works
         var allTags = concepts.slice();
         if (source) allTags.unshift(source);
         if (project) allTags.unshift(project);
         var bgClass = (idx || 0) % 2 === 0 ? 'bg1' : 'bg2';
 
-        // Forum-style row using dl/dt/dd
-        var html = '<li class="row ' + bgClass + ' tl-card tl-' + kind + '" data-id="' + escapeHtml(item._id) + '" onclick="expandTimelineCard(this)" ';
+        // Simple grid row — timeline doesn't need the forum dl/dt/dd pattern
+        var html = '<div class="tl-row tl-card tl-' + kind + ' ' + bgClass + '" data-id="' + escapeHtml(item._id) + '" onclick="expandTimelineCard(this)" ';
         html += 'data-concepts="' + escapeHtml(allTags.join(',')) + '">';
-        html += '<dl class="row-item"><dt>';
-        html += '<a class="row-item-link"><span class="status-icon ' + iconClass + '" style="width:20px;height:20px;font-size:0.6rem">' + typeAbbr + '</span></a>';
-        html += '<div class="list-inner">';
-        html += '<a class="forumtitle">' + escapeHtml(item._title) + '</a>';
+        html += '<span class="status-icon ' + iconClass + '" style="width:20px;height:20px;font-size:0.6rem;flex-shrink:0">' + typeAbbr + '</span>';
+        html += '<span class="tl-row-title">' + escapeHtml(item._title) + '</span>';
 
-        // Concept tags (keep tl-source/tl-concept classes for tag filtering)
+        // Concept tags inline
         if (concepts.length > 0 || source) {
-            html += '<span class="forum-desc tl-card-concepts">';
+            html += '<span class="tl-card-concepts tl-row-tags">';
             if (source) {
                 html += '<span class="tl-source forum-tag" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(source) + '</span>';
             }
-            concepts.slice(0, 5).forEach(function(c) {
+            concepts.slice(0, 4).forEach(function(c) {
                 html += '<span class="tl-concept forum-tag" onclick="toggleTimelineTag(event, this.textContent)" onmouseenter="hoverTimelineTag(this.textContent)" onmouseleave="unhoverTimelineTag()">' + escapeHtml(c) + '</span>';
             });
             html += '</span>';
         }
-        html += '</div></dt>';
-        html += '<dd class="tlr-time">' + absTime + '</dd>';
-        html += '<dd class="lastpost"><span class="lastpost-time">' + salPct + '%</span></dd>';
-        html += '</dl></li>';
+        html += '<span class="tl-row-time">' + absTime + '</span>';
+        html += '<span class="tl-row-sal">' + salPct + '%</span>';
+        html += '</div>';
 
-        // Expandable detail
+        // Expandable detail inside the same flow
         html += '<div class="tl-card-detail expand-zone">';
-        html += '<div style="padding:6px 10px 6px 42px;font-size:0.82rem;color:var(--text-secondary)">';
         if (item._type === 'episode') {
-            if (item._raw.summary) html += '<div>' + escapeHtml(item._raw.summary) + '</div>';
-            if (item._raw.narrative) html += '<div style="margin-top:4px;color:var(--text-dim)">' + escapeHtml(item._raw.narrative) + '</div>';
+            if (item._raw.summary) html += '<div style="padding:6px 16px;font-size:0.82rem;color:var(--text-secondary)">' + escapeHtml(item._raw.summary) + '</div>';
+            if (item._raw.narrative) html += '<div style="padding:4px 16px;font-size:0.82rem;color:var(--text-dim)">' + escapeHtml(item._raw.narrative) + '</div>';
         } else {
             if (item._raw.content && item._raw.content !== item._raw.summary) {
-                html += '<div>' + escapeHtml(item._raw.content) + '</div>';
+                html += '<div style="padding:6px 16px;font-size:0.82rem;color:var(--text-secondary)">' + escapeHtml(item._raw.content) + '</div>';
             }
         }
-        html += '</div></div>';
+        html += '</div>';
         return html;
     }
 
     function expandTimelineCard(el) {
-        // Find the expand-zone that follows this li.row
         var next = el.nextElementSibling;
-        if (next && next.classList.contains('expand-zone')) next.classList.toggle('open');
-        // Also try tl-card-detail class
-        if (next && next.classList.contains('tl-card-detail')) next.classList.toggle('open');
+        if (next && (next.classList.contains('expand-zone') || next.classList.contains('tl-card-detail'))) {
+            next.classList.toggle('open');
+        }
     }
 
     var _selectedTimelineTags = new Set();

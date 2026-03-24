@@ -235,6 +235,33 @@ li.row:hover .forumtitle { color: var(--link-hover, var(--accent-blue)); text-de
    POST LAYOUT (Thread view — phpBB postbit)
    ══════════════════════════════════════════════ */
 
+/* Thread wrapper */
+.thread-wrap {
+    margin: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.thread-top {
+    padding: 10px 12px;
+    background: linear-gradient(to bottom, rgba(92,114,184,0.1), rgba(92,114,184,0.03));
+    border-bottom: 1px solid var(--border-color);
+}
+.thread-title-big {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+.thread-meta {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+.thread-meta b { color: var(--text-secondary); font-weight: bold; }
+
 .post {
     overflow: hidden;
     border-bottom: 1px solid var(--border-color);
@@ -431,10 +458,54 @@ blockquote.quote .quote-body {
 }
 .tl-head-count { font-weight: normal; color: var(--text-dim); font-size: 0.82rem; }
 
-/* Timeline uses same topiclist structure */
-.tlr-dot { width: 8px; height: 8px; border-radius: 2px; margin: 0 auto; }
-.tlr-time { font-family: var(--mono, monospace); font-size: 0.82rem; color: var(--text-dim); text-align: right; font-feature-settings: 'tnum' 1; }
-.tlr-sal { font-family: var(--mono, monospace); font-size: 0.78rem; color: var(--text-dim); text-align: right; }
+/* ── Timeline rows (flexbox, not dl/dt/dd) ── */
+.tl-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    cursor: pointer;
+    transition: background 0.06s;
+}
+.tl-row.bg1 { background: var(--bg-row, var(--bg-secondary)); }
+.tl-row.bg2 { background: var(--bg-row-alt, var(--bg-card)); }
+.tl-row:hover { background: var(--bg-row-hover, var(--bg-tertiary)); }
+.tl-row-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.88rem;
+    color: var(--link, var(--accent-cyan));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tl-row:hover .tl-row-title { color: var(--link-hover, var(--accent-blue)); text-decoration: underline; }
+.tl-row-tags {
+    display: flex;
+    gap: 3px;
+    flex-shrink: 0;
+    max-width: 300px;
+    overflow: hidden;
+}
+.tl-row-time {
+    font-family: var(--mono, monospace);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    width: 60px;
+    text-align: right;
+    font-feature-settings: 'tnum' 1;
+}
+.tl-row-sal {
+    font-family: var(--mono, monospace);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    width: 36px;
+    text-align: right;
+    font-feature-settings: 'tnum' 1;
+}
 
 /* ══════════════════════════════════════════════
    BUTTONS
