@@ -188,11 +188,7 @@
         
         
         
-        .concept-tag {
-            padding: 2px 8px; border-radius: 10px;
-            font-size: 0.7rem; font-weight: 500;
-            background: color-mix(in srgb, var(--accent-violet) 12%, transparent); color: var(--accent-violet);
-        }
+        /* concept-tag removed — now uses .forum-tag in components.css */
         
         
         
@@ -1298,8 +1294,8 @@
             <!-- Agent View -->
             <section class="view" id="view-agent">
                 <div class="agent-view" style="padding:0">
-                    <div class="fblock-head" style="margin:0">
-                        <div class="fblock-title">SDK Agent Sessions</div>
+                    <div class="forabg-head" style="margin:0">
+                        <div class="forabg-title">SDK Agent Sessions</div>
                         <div style="font-size:0.85rem;color:var(--text-dim)">Claude.ai &middot; OAuth &middot; self-evolving</div>
                         <div class="agent-header-meta">
                             <span class="agent-updated" id="agentUpdated"></span>
@@ -1410,7 +1406,7 @@
             <section class="view" id="view-llm">
                 <div class="llm-view" style="padding-top:0">
                     <div class="llm-header">
-                        <div class="fblock-title">LLM Usage</div>
+                        <div class="forabg-title">LLM Usage</div>
                         <div style="font-size:0.85rem;color:var(--text-dim)">Memory engine &middot; local model</div>
                         <div class="llm-header-meta">
                             <div class="llm-range-tabs" id="llmRangeTabs">
@@ -1479,7 +1475,7 @@
             <section class="view" id="view-tools">
                 <div class="llm-view" style="padding-top:0">
                     <div class="llm-header">
-                        <div class="fblock-title">MCP Tool Usage</div>
+                        <div class="forabg-title">MCP Tool Usage</div>
                         <div class="llm-header-sub" id="toolHeaderSub" style="font-size:0.85rem;color:var(--text-dim)">recall &middot; remember &middot; get_context &middot; &hellip; tools</div>
                         <div class="llm-header-meta">
                             <div class="llm-range-tabs" id="toolRangeTabs">
@@ -1725,7 +1721,8 @@
         state.currentView = name;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.querySelectorAll('.nav-tab, .ntab').forEach(t => t.classList.remove('active'));
-        document.getElementById('view-' + name).classList.add('active');
+        var viewEl = document.getElementById('view-' + name);
+        if (viewEl) viewEl.classList.add('active');
         var tab = document.querySelector('.ntab[data-view="' + name + '"]') || document.querySelector('.nav-tab[data-view="' + name + '"]');
         if (tab) tab.classList.add('active');
         window.location.hash = name;
