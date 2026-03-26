@@ -100,6 +100,8 @@ func (b *Backend) Complete(_ context.Context, req llm.BackendCompletionRequest) 
 		Text:             text,
 		PromptTokens:     int(result.prompt_tokens),
 		CompletionTokens: int(result.completion_tokens),
+		MeanProb:         float32(result.mean_prob),
+		MinProb:          float32(result.min_prob),
 	}, nil
 }
 

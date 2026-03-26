@@ -22,6 +22,8 @@ typedef struct {
     char *text;           // generated text (caller must free with mnm_free_string)
     int   prompt_tokens;
     int   completion_tokens;
+    float mean_prob;      // mean probability of chosen tokens (0-1, higher = more confident)
+    float min_prob;       // minimum probability of any chosen token (0-1, lowest confidence point)
 } mnm_completion_result;
 
 typedef struct {

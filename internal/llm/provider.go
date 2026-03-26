@@ -48,6 +48,8 @@ type CompletionResponse struct {
 	PromptTokens     int        `json:"prompt_tokens"`
 	CompletionTokens int        `json:"completion_tokens"`
 	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
+	MeanProb         float32    `json:"mean_prob,omitempty"` // mean token probability (embedded provider only)
+	MinProb          float32    `json:"min_prob,omitempty"`  // min token probability (embedded provider only)
 }
 
 // Tool defines a function the LLM can call during completion.

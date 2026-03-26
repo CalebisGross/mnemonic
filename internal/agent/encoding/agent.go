@@ -1361,6 +1361,17 @@ func (ea *EncodingAgent) compressAndExtractConcepts(ctx context.Context, raw sto
 		return nil, fmt.Errorf("LLM completion failed: %w", err)
 	}
 
+	// Logit validation: reject low-confidence completions from embedded models
+	if resp.MeanProb > 0 && resp.MeanProb < 0.10 {
+		slog.Warn("LLM completion has very low confidence, falling back to heuristic",
+			"mean_prob", resp.MeanProb, "min_prob", resp.MinProb,
+			"tokens", resp.CompletionTokens)
+		return nil, fmt.Errorf("LLM completion confidence too low (mean_prob=%.3f)", resp.MeanProb)
+	}
+	if resp.MeanProb > 0 {
+		slog.Debug("LLM completion confidence", "mean_prob", resp.MeanProb, "min_prob", resp.MinProb)
+	}
+
 	// Extract and parse JSON from LLM response
 	jsonStr := agentutil.ExtractJSON(resp.Content)
 	var result compressionResponse

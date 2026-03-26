@@ -65,6 +65,7 @@ func TestBackendLoadAndComplete(t *testing.T) {
 
 	t.Logf("Completion: %q", resp.Text)
 	t.Logf("Prompt tokens: %d, Completion tokens: %d", resp.PromptTokens, resp.CompletionTokens)
+	t.Logf("Mean prob: %.4f, Min prob: %.4f", resp.MeanProb, resp.MinProb)
 
 	if resp.PromptTokens == 0 {
 		t.Error("expected non-zero prompt tokens")
@@ -74,6 +75,9 @@ func TestBackendLoadAndComplete(t *testing.T) {
 	}
 	if resp.Text == "" {
 		t.Error("expected non-empty completion text")
+	}
+	if resp.MeanProb == 0 {
+		t.Error("expected non-zero mean probability")
 	}
 }
 
@@ -120,6 +124,7 @@ CONTENT: User decided to use SQLite instead of Postgres for the mnemonic daemon 
 	}
 
 	t.Logf("Grammar-constrained output (%d tokens): %s", resp.CompletionTokens, resp.Text)
+	t.Logf("Grammar completion confidence — Mean prob: %.4f, Min prob: %.6f", resp.MeanProb, resp.MinProb)
 
 	// Verify the output is valid JSON with expected fields
 	if resp.Text == "" {

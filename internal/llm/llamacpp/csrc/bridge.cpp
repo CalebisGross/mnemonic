@@ -151,12 +151,33 @@ mnm_completion_result mnm_complete(
     std::string output;
     int n_generated = 0;
     int n_pos = n_tokens;
+    int n_vocab = llama_vocab_n_tokens(vocab);
+    float sum_prob = 0.0f;
+    float min_prob_val = 1.0f;
 
     for (int i = 0; i < max_tokens; i++) {
+        // Get logits BEFORE sampling (sampler may modify them)
+        float *logits = llama_get_logits_ith(m->ctx, -1);
+
         llama_token new_token = llama_sampler_sample(smpl, m->ctx, -1);
 
         if (llama_vocab_is_eog(vocab, new_token)) {
             break;
+        }
+
+        // Compute probability of chosen token via log-softmax
+        if (logits && new_token >= 0 && new_token < n_vocab) {
+            float max_logit = logits[0];
+            for (int v = 1; v < n_vocab; v++) {
+                if (logits[v] > max_logit) max_logit = logits[v];
+            }
+            float sum_exp = 0.0f;
+            for (int v = 0; v < n_vocab; v++) {
+                sum_exp += expf(logits[v] - max_logit);
+            }
+            float prob = expf(logits[new_token] - max_logit) / sum_exp;
+            sum_prob += prob;
+            if (prob < min_prob_val) min_prob_val = prob;
         }
 
         // Decode token to text
@@ -192,6 +213,8 @@ mnm_completion_result mnm_complete(
 
     result.text = strdup(output.c_str());
     result.completion_tokens = n_generated;
+    result.mean_prob = n_generated > 0 ? sum_prob / n_generated : 0.0f;
+    result.min_prob  = n_generated > 0 ? min_prob_val : 0.0f;
     return result;
 }
 

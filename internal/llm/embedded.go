@@ -49,9 +49,11 @@ type BackendCompletionRequest struct {
 
 // BackendCompletionResponse is the output of a backend completion call.
 type BackendCompletionResponse struct {
-	Text             string // generated text
-	PromptTokens     int    // tokens in the prompt
-	CompletionTokens int    // tokens generated
+	Text             string  // generated text
+	PromptTokens     int     // tokens in the prompt
+	CompletionTokens int     // tokens generated
+	MeanProb         float32 // mean probability of chosen tokens (0-1)
+	MinProb          float32 // minimum probability of any chosen token (0-1)
 }
 
 // EmbeddedProvider implements the Provider interface using in-process inference
@@ -251,6 +253,8 @@ func (p *EmbeddedProvider) Complete(ctx context.Context, req CompletionRequest) 
 		TokensUsed:       backendResp.PromptTokens + backendResp.CompletionTokens,
 		PromptTokens:     backendResp.PromptTokens,
 		CompletionTokens: backendResp.CompletionTokens,
+		MeanProb:         backendResp.MeanProb,
+		MinProb:          backendResp.MinProb,
 	}, nil
 }
 
