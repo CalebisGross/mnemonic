@@ -77,8 +77,43 @@ func TestBackendLoadAndComplete(t *testing.T) {
 }
 
 func TestBackendEmbed(t *testing.T) {
-	// Felix-LM is a causal (decoder-only) model — embedding extraction
-	// requires encoder/pooling setup which this model doesn't have.
-	// Embeddings will use a separate model (e.g., Gemini embedding).
-	t.Skip("causal model does not support direct embedding extraction")
+	modelPath := findModel()
+	if modelPath == "" {
+		t.Skip("no GGUF model found in models/")
+	}
+
+	backend := NewBackend()
+	defer func() { _ = backend.Close() }()
+
+	err := backend.LoadModel(modelPath, llm.BackendOptions{
+		ContextSize: 512,
+		GPULayers:   0,
+		Threads:     4,
+		BatchSize:   256,
+	})
+	if err != nil {
+		t.Fatalf("LoadModel: %v", err)
+	}
+
+	ctx := context.Background()
+	embedding, err := backend.Embed(ctx, "Hello world")
+	if err != nil {
+		t.Fatalf("Embed: %v", err)
+	}
+
+	t.Logf("Embedding dimensions: %d", len(embedding))
+
+	if len(embedding) != 512 {
+		t.Errorf("expected 512 dimensions, got %d", len(embedding))
+	}
+
+	// Check L2 norm is ~1.0 (we normalize in the bridge)
+	var norm float32
+	for _, v := range embedding {
+		norm += v * v
+	}
+	t.Logf("L2 norm: %.4f", norm)
+	if norm < 0.99 || norm > 1.01 {
+		t.Errorf("expected L2 norm ~1.0, got %.4f", norm)
+	}
 }

@@ -267,11 +267,12 @@ func (p *EmbeddedProvider) BatchEmbed(ctx context.Context, texts []string) ([][]
 
 	p.mu.RLock()
 	backend := p.embedBackend
+	// Fall back to chat backend for embeddings if no dedicated embedding model.
+	// The llama.cpp bridge creates a separate embedding context with mean pooling.
+	if backend == nil {
+		backend = p.chatBackend
+	}
 	p.mu.RUnlock()
-
-	// Do NOT fall back to chat backend for embeddings — causal (decoder-only) models
-	// like Felix-LM don't support embedding extraction via llama.cpp.
-	// Embeddings require a dedicated embedding model or an external API provider.
 
 	if backend == nil {
 		return nil, &ErrProviderUnavailable{

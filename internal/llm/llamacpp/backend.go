@@ -103,11 +103,29 @@ func (b *Backend) Complete(_ context.Context, req llm.BackendCompletionRequest) 
 	}, nil
 }
 
-func (b *Backend) Embed(_ context.Context, _ string) ([]float32, error) {
-	// Felix-LM is a causal (decoder-only) model — it does not support
-	// embedding extraction via llama.cpp. Embeddings require a dedicated
-	// embedding model or an external API provider (e.g., Gemini embedding).
-	return nil, fmt.Errorf("causal model does not support embedding extraction")
+func (b *Backend) Embed(_ context.Context, text string) ([]float32, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.model == nil {
+		return nil, fmt.Errorf("model not loaded")
+	}
+
+	ctext := C.CString(text)
+	defer C.free(unsafe.Pointer(ctext))
+
+	result := C.mnm_embed(b.model, ctext)
+	if result.data == nil {
+		return nil, fmt.Errorf("embedding extraction failed (model may not support embeddings)")
+	}
+	defer C.mnm_free_floats(result.data)
+
+	dims := int(result.dims)
+	embedding := make([]float32, dims)
+	cSlice := unsafe.Slice((*float32)(unsafe.Pointer(result.data)), dims)
+	copy(embedding, cSlice)
+
+	return embedding, nil
 }
 
 func (b *Backend) BatchEmbed(ctx context.Context, texts []string) ([][]float32, error) {

@@ -9,7 +9,8 @@
 
 struct mnm_model {
     struct llama_model   *model;
-    struct llama_context *ctx;
+    struct llama_context *ctx;       // completion context
+    struct llama_context *ctx_embd;  // embedding context (mean pooling)
     int                   n_ctx;
     int                   n_threads;
 };
@@ -54,9 +55,18 @@ mnm_model *mnm_load_model(const char *path, mnm_model_params params) {
         return NULL;
     }
 
+    // Create a separate context for embedding extraction (mean pooling)
+    auto eparams = cparams;
+    eparams.embeddings  = true;
+    eparams.pooling_type = LLAMA_POOLING_TYPE_MEAN;
+
+    struct llama_context *ctx_embd = llama_init_from_model(model, eparams);
+    // ctx_embd may be NULL if the model doesn't support embeddings — that's OK
+
     auto *m = new mnm_model;
     m->model     = model;
     m->ctx       = ctx;
+    m->ctx_embd  = ctx_embd;
     m->n_ctx     = cparams.n_ctx;
     m->n_threads = cparams.n_threads;
     return m;
@@ -64,8 +74,9 @@ mnm_model *mnm_load_model(const char *path, mnm_model_params params) {
 
 void mnm_free_model(mnm_model *m) {
     if (!m) return;
-    if (m->ctx)   llama_free(m->ctx);
-    if (m->model) llama_model_free(m->model);
+    if (m->ctx_embd) llama_free(m->ctx_embd);
+    if (m->ctx)      llama_free(m->ctx);
+    if (m->model)    llama_model_free(m->model);
     delete m;
 }
 
@@ -173,7 +184,7 @@ mnm_completion_result mnm_complete(
 
 mnm_embedding_result mnm_embed(mnm_model *m, const char *text) {
     mnm_embedding_result result = {NULL, 0};
-    if (!m || !text) return result;
+    if (!m || !text || !m->ctx_embd) return result;
 
     const struct llama_vocab *vocab = llama_model_get_vocab(m->model);
     int n_embd = llama_model_n_embd(m->model);
@@ -192,22 +203,22 @@ mnm_embedding_result mnm_embed(mnm_model *m, const char *text) {
     }
     tokens.resize(n_tokens);
 
-    // Clear memory
-    llama_memory_clear(llama_get_memory(m->ctx), true);
+    // Use the dedicated embedding context (mean pooling enabled)
+    llama_memory_clear(llama_get_memory(m->ctx_embd), true);
 
-    // Decode all tokens
     llama_batch batch = llama_batch_init(tokens.size(), 0, 1);
     for (int i = 0; i < n_tokens; i++) {
         batch_add(batch, tokens[i], i, 0, true);
     }
-    llama_decode(m->ctx, batch);
+
+    if (llama_decode(m->ctx_embd, batch) != 0) {
+        llama_batch_free(batch);
+        return result;
+    }
     llama_batch_free(batch);
 
-    // Get embeddings from last token position
-    float *embd = llama_get_embeddings_seq(m->ctx, 0);
-    if (!embd) {
-        embd = llama_get_embeddings_ith(m->ctx, n_tokens - 1);
-    }
+    // Get mean-pooled embeddings from the embedding context
+    float *embd = llama_get_embeddings_seq(m->ctx_embd, 0);
 
     if (embd) {
         result.data = (float *)malloc(n_embd * sizeof(float));
