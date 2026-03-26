@@ -284,9 +284,12 @@ def write_gguf(tensors, config, tokenizer_path, output_path, context_length=4096
     # Tokenizer
     _write_tokenizer(writer, tokenizer_path, config)
 
-    # Tensors
+    # Tensors (preserve dtype — F32 for norms/scalars, F16 for weights)
     for name, tensor in tensors.items():
-        data = tensor.numpy().astype(np.float16)
+        if tensor.dtype == torch.float32:
+            data = tensor.numpy().astype(np.float32)
+        else:
+            data = tensor.numpy().astype(np.float16)
         writer.add_tensor(name, data)
 
     writer.write_header_to_file()
@@ -316,20 +319,24 @@ def _write_tokenizer(writer, tokenizer_path, config):
         if idx < vocab_size:
             tokens[idx] = token
 
-    # Extract merges
-    merges = tok_json.get("model", {}).get("merges", [])
+    # Extract merges (convert pairs to space-separated strings if needed)
+    raw_merges = tok_json.get("model", {}).get("merges", [])
+    merges = [" ".join(m) if isinstance(m, list) else m for m in raw_merges]
 
-    # Token types (0=normal, 1=unknown, 2=control, 3=user_defined, 4=unused, 6=byte)
-    token_types = [0] * vocab_size
+    # Token types per llama.cpp enum:
+    #   0=undefined, 1=normal, 2=unknown, 3=control, 4=user_defined, 5=unused, 6=byte
+    token_types = [1] * vocab_size  # 1 = NORMAL
 
     # Mark special tokens
-    eos_id = tok_config.get("eos_token_id", vocab_size - 1)
+    # Token 0 is <|endoftext|> (the actual EOS), token 1 is <|pad|>
     pad_id = tok_config.get("pad_token_id", 1)
-    token_types[eos_id] = 2  # control
-    token_types[pad_id] = 2  # control
+    eos_id = 0  # <|endoftext|> is at index 0
+    token_types[eos_id] = 3  # CONTROL
+    token_types[pad_id] = 3  # CONTROL
 
     # Write tokenizer
     writer.add_tokenizer_model("gpt2")
+    writer.add_tokenizer_pre("gpt-2")
     writer.add_token_list(tokens)
     writer.add_token_types(token_types)
     writer.add_token_merges(merges)
@@ -386,9 +393,14 @@ def main():
     state_dict = absorb_depth_rope(state_dict, config)
     state_dict = fuse_embed_proj(state_dict, config)
 
-    # Convert all tensors to float16 for export (after transforms in float32)
+    # Convert tensors to float16 for export, except norms and scalars which stay F32
+    # (llama.cpp requires norm weights to be F32 for element-wise multiply compatibility)
+    f32_patterns = ("norm", "gate_bias", "output_norm")
     for key in state_dict:
-        state_dict[key] = state_dict[key].half()
+        if any(p in key for p in f32_patterns):
+            state_dict[key] = state_dict[key].float()
+        else:
+            state_dict[key] = state_dict[key].half()
 
     state_dict = rename_tensors(state_dict, config)
 

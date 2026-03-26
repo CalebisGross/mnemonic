@@ -34,6 +34,7 @@ config.yaml
 
 # IDE / local config
 .claude/settings.local.json
+.vscode/
 .claude/plans/
 .claude/projects/
 sdk/agent/evolution/.decay_stamp
@@ -51,3 +52,6 @@ sweep-results.md
 lifecycle-results.md
 training/probe_results.tsv
 models/
+
+# llama.cpp build artifacts
+third_party/llama.cpp/build/
