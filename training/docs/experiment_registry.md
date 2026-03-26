@@ -297,12 +297,26 @@ Key metrics:
 ### EXP-8: Spoke Gate Specialization Analysis
 
 - **Date:** 2026-03-26
-- **Status:** REGISTERED
+- **Status:** COMPLETED
 - **Hypothesis:** After task-specific fine-tuning, spoke gate activations and inter-spoke agreement will differ across encoding subtasks (compression, concept extraction, salience, classification), indicating organic specialization. If gates are uniform, a router network is needed.
 - **Variable:** Encoding subtask type (compression vs concepts vs salience vs classification)
 - **Control:** Uniform gate values (no specialization — all subtasks produce same gate pattern)
 - **Prediction:** Gate variance across layers will be >0.01 and agreement will differ by >0.05 between subtask types if organic specialization is occurring.
-- **Config:** Felix-LM v3 100M (fine-tuned checkpoint), 200 encoding examples, CPU inference
+- **Config:** Felix-LM v3 100M (fine-tuned checkpoint last.pt), 200 encoding examples, CPU inference
 - **Data:** Encoding captures from `~/.mnemonic/training-data/`, analyzed via `training/scripts/analyze_spoke_gates.py`
-- **Result:** (pending)
-- **Verdict:** (pending)
+- **Software state:** mnemonic autoresearch/ft-mar25 (commit c43587c)
+
+- **Results:**
+
+| Metric | Value | Prediction Met? |
+|--------|-------|----------------|
+| Gate variance across layers | 0.1188 | Yes (>0.01) |
+| Gate range | 0.0815 - 0.9856 (spread 0.904) | Massive depth specialization |
+| Agreement range across subtasks | 0.0004 | No (<0.05 threshold) |
+| Mean agreement (compression, n=92) | 0.0591 | Low — spokes diverge |
+| Mean agreement (concepts, n=108) | 0.0594 | Virtually identical to compression |
+| Subtask distribution | 108 concepts, 92 compression | Only 2 subtasks detected in data |
+
+- **Verdict:** REFUTED — Spokes do NOT specialize by task. Gate variance is high across layers (depth specialization confirmed) but agreement between subtask types is indistinguishable (0.0004 delta). A router network is needed for per-task specialization.
+
+- **Analysis:** The fine-tuned model shows dramatic depth-based spoke behavior: early layers (0-7) have gates 0.08-0.21 meaning spokes barely contribute, while late layers (15-19) have gates 0.91-0.99 meaning spokes dominate the residual. This makes physical sense — early layers handle low-level token features while late layers do high-level semantic composition where spoke specialization matters most. However, this depth pattern is identical regardless of whether the model is processing a compression-heavy or concept-extraction-heavy example. The 4 spokes within each layer already diverge strongly from each other (mean agreement ~0.06, well below 1.0), meaning they ARE learning different functions — just not functions that correlate with subtask type. A gated router network (`hub_state @ W_router -> softmax -> weighted spoke mix`) would allow subtask-conditioned spoke selection, amplifying the existing within-layer diversity. Full report: `training/docs/spoke_analysis.md`.
