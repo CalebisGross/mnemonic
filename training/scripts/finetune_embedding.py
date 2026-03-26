@@ -24,6 +24,7 @@ import random
 from pathlib import Path
 
 import torch
+from datasets import Dataset as HFDataset
 from sentence_transformers import (
     SentenceTransformer,
     SentenceTransformerTrainer,
@@ -31,41 +32,27 @@ from sentence_transformers import (
     losses,
 )
 from sentence_transformers.evaluation import TripletEvaluator
-from torch.utils.data import Dataset
 
 
-class TripletDataset(Dataset):
-    """Dataset of (anchor, positive, negative) text triplets."""
-
-    def __init__(self, path: str, max_examples: int = 0, prefix: str = ""):
-        self.triplets = []
-        self.prefix = prefix
-
-        with open(path) as f:
-            for line in f:
-                d = json.loads(line)
-                self.triplets.append((
-                    d["anchor"],
-                    d["positive"],
-                    d["negative"],
-                ))
-                if max_examples and len(self.triplets) >= max_examples:
-                    break
-
-    def __len__(self):
-        return len(self.triplets)
-
-    def __getitem__(self, idx):
-        anchor, positive, negative = self.triplets[idx]
-        if self.prefix:
-            anchor = f"{self.prefix}: {anchor}"
-            positive = f"{self.prefix}: {positive}"
-            negative = f"{self.prefix}: {negative}"
-        return {
-            "anchor": anchor,
-            "positive": positive,
-            "negative": negative,
-        }
+def load_triplet_dataset(path: str, max_examples: int = 0, prefix: str = "") -> HFDataset:
+    """Load triplets from JSONL into a HuggingFace Dataset."""
+    anchors, positives, negatives = [], [], []
+    with open(path) as f:
+        for line in f:
+            d = json.loads(line)
+            a = f"{prefix}: {d['anchor']}" if prefix else d["anchor"]
+            p = f"{prefix}: {d['positive']}" if prefix else d["positive"]
+            n = f"{prefix}: {d['negative']}" if prefix else d["negative"]
+            anchors.append(a)
+            positives.append(p)
+            negatives.append(n)
+            if max_examples and len(anchors) >= max_examples:
+                break
+    return HFDataset.from_dict({
+        "anchor": anchors,
+        "positive": positives,
+        "negative": negatives,
+    })
 
 
 def split_data(data_path: str, eval_ratio: float = 0.1, seed: int = 42):
@@ -178,7 +165,7 @@ def main():
     print(f"  Max seq length: {model.max_seq_length}")
 
     # Load datasets
-    train_dataset = TripletDataset(train_path, args.max_examples, prefix)
+    train_dataset = load_triplet_dataset(train_path, args.max_examples, prefix)
     print(f"  Train dataset: {len(train_dataset)} triplets")
 
     # Build evaluator
@@ -192,13 +179,14 @@ def main():
     train_loss = losses.MatryoshkaLoss(model, inner_loss, matryoshka_dims)
 
     # Training args
+    warmup_steps_float = args.warmup_ratio  # transformers v5+ uses warmup_steps as float ratio
     training_args = SentenceTransformerTrainingArguments(
         output_dir=args.output,
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
         learning_rate=args.lr,
-        warmup_ratio=args.warmup_ratio,
-        fp16=args.fp16,
+        warmup_steps=warmup_steps_float,
+        bf16=True,
         eval_strategy="epoch",
         save_strategy="epoch",
         logging_steps=50,

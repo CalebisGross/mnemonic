@@ -12,8 +12,10 @@ import (
 )
 
 func findModel() string {
-	// Prefer Q8_0 quantized models (smaller, equivalent quality)
+	// Prefer Q8_0 quantized models (smaller, equivalent quality), latest version first
 	paths := []string{
+		"../../../models/felix-encoder-v2-q8_0.gguf",
+		"../../../models/felix-encoder-v2.gguf",
 		"../../../models/felix-encoder-v1-q8_0.gguf",
 		"../../../models/felix-encoder-v1.gguf",
 		"../../../models/felix-base-test-q8_0.gguf",
