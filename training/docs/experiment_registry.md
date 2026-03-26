@@ -320,3 +320,18 @@ Key metrics:
 - **Verdict:** REFUTED — Spokes do NOT specialize by task. Gate variance is high across layers (depth specialization confirmed) but agreement between subtask types is indistinguishable (0.0004 delta). A router network is needed for per-task specialization.
 
 - **Analysis:** The fine-tuned model shows dramatic depth-based spoke behavior: early layers (0-7) have gates 0.08-0.21 meaning spokes barely contribute, while late layers (15-19) have gates 0.91-0.99 meaning spokes dominate the residual. This makes physical sense — early layers handle low-level token features while late layers do high-level semantic composition where spoke specialization matters most. However, this depth pattern is identical regardless of whether the model is processing a compression-heavy or concept-extraction-heavy example. The 4 spokes within each layer already diverge strongly from each other (mean agreement ~0.06, well below 1.0), meaning they ARE learning different functions — just not functions that correlate with subtask type. A gated router network (`hub_state @ W_router -> softmax -> weighted spoke mix`) would allow subtask-conditioned spoke selection, amplifying the existing within-layer diversity. Full report: `training/docs/spoke_analysis.md`.
+
+### EXP-9: Mixed Encoding + Synthesis Fine-Tune
+
+- **Date:** 2026-03-26
+- **Status:** RUNNING
+- **Hypothesis:** A mixed fine-tune on encoding (3,671 examples) + synthesis (225 examples) from the pretrained base will produce a model that handles both tasks, without catastrophic forgetting of either.
+- **Variable:** Training data composition (encoding-only vs encoding + synthesis)
+- **Control:** Encoding-only fine-tune (EXP-4 checkpoint: 0.157 BPB on encoding task)
+- **Prediction:** Encoding quality within 10% of the encoding-only model. Synthesis output produces coherent 2-5 sentence summaries grounded in provided memories.
+- **Config:** Felix-LM v3 100M, full fine-tune from pretrained base (step_100000.pt), LR 3.5e-3, batch 2, accum 8, 3 epochs, bf16, torch.compile, warmup 65 steps, seq_len 4096
+- **Data:** 3,507 train (3,304 encoding + 203 synthesis), 389 eval (367 + 22)
+- **Hardware:** RX 7800 XT (16GB VRAM), ROCm 6.3, PyTorch 2.9.1
+- **Software state:** mnemonic autoresearch/ft-mar25, Felix-LM v3 venv
+- **Result:** (pending — estimated ~3.3 hours)
+- **Verdict:** (pending)
