@@ -1384,8 +1384,12 @@ func serveCommand(configPath string) {
 
 	// Instrumented provider wrapper — gives each agent its own usage tracking.
 	// If training data capture is enabled, wrap with TrainingCaptureProvider too.
+	modelLabel := cfg.LLM.ChatModel
+	if cfg.LLM.Provider == "embedded" && cfg.LLM.Embedded.ChatModelFile != "" {
+		modelLabel = cfg.LLM.Embedded.ChatModelFile
+	}
 	wrap := func(caller string) llm.Provider {
-		var p llm.Provider = llm.NewInstrumentedProvider(llmProvider, memStore, caller, cfg.LLM.ChatModel)
+		var p llm.Provider = llm.NewInstrumentedProvider(llmProvider, memStore, caller, modelLabel)
 		if cfg.Training.CaptureEnabled && cfg.Training.CaptureDir != "" {
 			p = llm.NewTrainingCaptureProvider(p, caller, cfg.Training.CaptureDir)
 		}
