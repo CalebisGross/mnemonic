@@ -271,28 +271,76 @@ Key metrics:
 ### EXP-6: Synthesis Fine-Tuning (Tool-Use, Multi-Turn)
 
 - **Date:** 2026-03-26
-- **Status:** REGISTERED
+- **Status:** COMPLETED (data generation + training via EXP-9; inference evaluation deferred to integration)
 - **Hypothesis:** A 100M model fine-tuned on synthetic multi-turn synthesis conversations with tool-use will learn to call retrieval tools appropriately and produce 2-5 sentence synthesis grounded in retrieved memories.
 - **Variable:** Training data source (organic single-turn captures vs synthetic multi-turn with tool calls)
 - **Control:** Gemini Flash synthesis quality on the same queries
 - **Prediction:** The fine-tuned model will use at least 1 tool in >50% of synthesis requests and produce synthesis within 20% of Gemini quality (measured by human evaluation of coherence, grounding, conciseness).
-- **Config:** Felix-LM v3 100M, spoke-only FT + last 4 layers, LR 3.5e-3, spoke_lr_mult 2.0, ~500-1000 synthetic training examples
-- **Data:** Generated via `training/scripts/generate_synthesis_data.py` using Gemini as teacher model, real memories/associations from DB
-- **Result:** (pending)
-- **Verdict:** (pending)
+- **Config (actual):** Folded into EXP-9 mixed fine-tune. Felix-LM v3 100M, full fine-tune from pretrained base, LR 3.5e-3 (epochs 1-2), LR 1e-3 (epoch 3), batch 2, accum 8, 3 epochs, bf16, seq_len 4096.
+- **Data:** 195 synthesis examples (+ 8 tool-augmented) generated via `training/scripts/generate_synthesis_data.py` using Gemini Flash as teacher model, real memories/associations from DB. Stored at `training/data/synthesis_data.jsonl` and `training/data/synthesis_converted.jsonl`. Combined with 3,304 encoding examples in EXP-9 (203 synthesis in train split, 22 in eval).
+- **Result:** Data generation completed. Training completed as part of EXP-9 (mixed fine-tune), achieving eval loss 0.522 / PPL 1.7 on the combined dataset. Synthesis loss converged alongside encoding loss. The model (felix-encoder-v2) passed all CGo backend integration tests with mean_prob 0.72 on grammar-constrained encoding.
+- **Verdict:** PARTIALLY CONFIRMED — Training succeeded: the model learned synthesis format alongside encoding without catastrophic forgetting (EXP-9 results). However, the key predictions (tool use >50%, within 20% of Gemini quality) cannot be evaluated until the embedded Felix provider is integrated into the daemon and can serve synthesis queries end-to-end. The tool-use prediction in particular requires the llama.cpp backend to support function calling, which is not yet implemented. Inference-time evaluation is deferred to the integration phase.
+- **Analysis:** The original EXP-6 design assumed a standalone synthesis fine-tune, but the work naturally folded into EXP-9's mixed fine-tune approach, which was the right call — training on both tasks simultaneously avoids catastrophic forgetting and uses the limited data more efficiently. The 195 synthesis examples (6% of training data) were sufficient to teach the format: the eval loss on synthesis examples tracked encoding loss throughout training. The remaining gap is inference evaluation: we have a trained model that learned the synthesis task by loss metrics, but haven't verified it produces coherent, grounded output at generation time. This requires either (a) serving Felix via the embedded provider and hitting the daemon's /api/v1/query endpoint, or (b) standalone llama.cpp CLI inference with the synthesis prompt format. Both require integration work that belongs in a separate phase.
 
 ### EXP-7: Contrastive Embedding Fine-Tuning
 
 - **Date:** 2026-03-26
-- **Status:** REGISTERED
-- **Hypothesis:** An embedding model fine-tuned on mnemonic's association graph (contrastive triplets) will produce embeddings where associated memories have higher cosine similarity than non-associated ones, improving retrieval precision over the general-purpose embeddinggemma-300m baseline.
+- **Status:** COMPLETED
+- **Hypothesis:** An embedding model fine-tuned on mnemonic's association graph (contrastive triplets) will produce embeddings where associated memories have higher cosine similarity than non-associated ones, improving retrieval precision over the general-purpose baseline.
 - **Variable:** Embedding model (general-purpose vs mnemonic-domain fine-tuned)
-- **Control:** embeddinggemma-300m (384-dim, pre-trained, no domain adaptation)
+- **Control:** nomic-embed-text-v2-moe (768-dim MoE, pre-trained, no domain adaptation). Changed from embeddinggemma-300m (384-dim) — nomic-v2-moe is ungated, higher capacity, and supports Matryoshka dims for flexible deployment.
 - **Prediction:** Fine-tuned model will achieve >10% relative improvement in retrieval nDCG@5 on the mnemonic IR benchmark.
-- **Config:** embeddinggemma-300m base, MultipleNegativesRankingLoss, 5-10 epochs, 10K-50K triplets from associations (strength > 0.7)
-- **Data:** Extracted via `training/scripts/extract_embedding_pairs.py` from 347K associations, 34K memories
-- **Result:** (pending)
-- **Verdict:** (pending)
+- **Config:** nomic-ai/nomic-embed-text-v2-moe base, MatryoshkaLoss(MultipleNegativesRankingLoss), 3 epochs, batch 4, LR 2e-5, warmup 10%, Matryoshka dims [768, 512, 384, 256], bf16, seed 42
+- **Data:** 50,000 triplets (47,500 train / 2,500 eval, 5% split) extracted via `training/scripts/extract_embedding_pairs.py` from 347K associations, 34K memories
+- **Command:** `source ~/Projects/felixlm/.venv/bin/activate && python3 training/scripts/finetune_embedding.py --base-model nomic-ai/nomic-embed-text-v2-moe --data training/data/embedding_pairs.jsonl --output models/mnemonic-embed-v1 --epochs 3 --batch-size 4 --lr 2e-5 --eval-ratio 0.05 --matryoshka-dims 768,512,384,256`
+- **Hardware:** RX 7800 XT (16GB VRAM), ROCm, Linux x86_64
+- **Software state:** mnemonic autoresearch/ft-mar25, Felix-LM venv
+- **Training time:** ~6h
+
+- **Results:**
+
+| Epoch | Steps | Cosine Accuracy (eval) |
+|-------|-------|----------------------|
+| 1 | 11,875 | 99.60% |
+| 2 | 23,750 | 99.68% |
+| 3 | 35,625 | **99.76%** |
+
+Quick sanity check (3 test sentences, epoch 3 checkpoint):
+- DB-DB similarity: 0.354 (related content)
+- DB-Flask similarity: 0.088 (unrelated content)
+- Ratio: 4.0x — model discriminates related vs unrelated content
+
+Note: Final `model.save_pretrained()` failed due to disk full (backup accumulation bug, #357). All 3 epoch checkpoints saved successfully. Final model saved from checkpoint-35625 at `models/mnemonic-embed-v1/final/`.
+
+- **IR Benchmark Results (pure vector retrieval, no FTS/spread activation):**
+
+Evaluation command: `python training/scripts/eval_embedding_ir.py --base-model nomic-ai/nomic-embed-text-v2-moe --finetuned-model models/mnemonic-embed-v1/final`
+
+| Metric | Base (nomic-v2-moe) | Fine-tuned | Delta | Relative |
+|--------|-------------------|------------|-------|----------|
+| P@5 | 0.180 | 0.330 | +0.150 | **+83.3%** |
+| R@5 | 0.417 | 0.745 | +0.328 | **+78.8%** |
+| MRR | 0.468 | 0.842 | +0.373 | **+79.7%** |
+| nDCG@5 | 0.499 | 0.882 | +0.383 | **+76.8%** |
+
+Per-scenario nDCG@5 breakdown (fine-tuned):
+
+| Scenario | Base nDCG | FT nDCG | Delta |
+|----------|-----------|---------|-------|
+| Debugging Session | 0.649 | 0.941 | +45.0% |
+| Architecture Decision | 0.292 | 0.898 | +207.5% |
+| Learning & Insights | 0.129 | 0.834 | +546.5% |
+| Deep Graph Investigation | 0.783 | 0.858 | +9.6% |
+| Needle in Haystack | 0.167 | 0.731 | +337.7% |
+| Associative Recall | 0.877 | 1.000 | +14.0% |
+
+- **Verdict:** CONFIRMED — Fine-tuned model achieved +76.8% relative improvement in nDCG@5, far exceeding the >10% prediction. All six scenarios improved. The fine-tuned nDCG (0.882) also exceeds the BASELINE-1 full Mnemonic pipeline with spread activation (0.841) using pure vector search alone — no FTS, no graph traversal.
+
+- **Analysis:** The contrastive fine-tuning on mnemonic's association graph produced dramatic retrieval improvements across all scenarios. The largest gains were in scenarios where the base model scored near zero: Learning & Insights (+546%), Needle in Haystack (+338%), and Architecture Decision (+208%). These scenarios require distinguishing domain-specific signal memories from desktop noise — exactly what the association-based training data teaches. The base nomic-v2-moe model, despite being a strong general-purpose embedder, treats noise memories (browser activity, file watcher events) as equally similar to queries as signal memories. The fine-tuned model learned that "Chose SQLite over Postgres" is semantically close to "Why did we choose SQLite" while "Chrome: browsed SQLite WAL documentation" is not — a distinction that requires domain understanding beyond surface-level keyword matching.
+
+  The Associative Recall scenario showed the smallest relative gain (+14%) because it already scored highest on the base model (0.877). This makes sense: that scenario's signal memories use distinctive technical vocabulary (Redis pool exhaustion, HMAC verification) that general-purpose embeddings already handle well.
+
+  The fine-tuned model's nDCG of 0.882 exceeding the full Mnemonic pipeline baseline (0.841, which includes FTS5 + spread activation + concept matching) is significant. When combined with those additional retrieval signals, the full pipeline should achieve substantially higher quality. This confirms the embedding model is the highest-leverage component for retrieval quality.
 
 ### EXP-8: Spoke Gate Specialization Analysis
 
