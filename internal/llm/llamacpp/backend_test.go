@@ -260,3 +260,44 @@ func TestBackendEmbed(t *testing.T) {
 		t.Errorf("expected L2 norm ~1.0, got %.4f", norm)
 	}
 }
+
+func TestNomicBertEmbed(t *testing.T) {
+	modelPath := "../../../models/mnemonic-embed-v1-q8_0.gguf"
+	if _, err := os.Stat(modelPath); err != nil {
+		t.Skip("nomic embed GGUF not found at models/mnemonic-embed-v1-q8_0.gguf")
+	}
+
+	backend := NewBackend()
+	defer func() { _ = backend.Close() }()
+
+	err := backend.LoadModel(modelPath, llm.BackendOptions{
+		ContextSize: 512,
+		GPULayers:   0,
+		Threads:     4,
+		BatchSize:   256,
+	})
+	if err != nil {
+		t.Fatalf("LoadModel: %v", err)
+	}
+
+	ctx := context.Background()
+	emb, err := backend.Embed(ctx, "search_document: SQLite FTS5 full-text search with BM25 scoring")
+	if err != nil {
+		t.Fatalf("Embed: %v", err)
+	}
+
+	t.Logf("Nomic embedding dimensions: %d", len(emb))
+	if len(emb) != 768 {
+		t.Errorf("expected 768 dimensions (nomic-bert), got %d", len(emb))
+	}
+
+	// L2 norm should be ~1.0
+	var norm float32
+	for _, v := range emb {
+		norm += v * v
+	}
+	t.Logf("L2 norm: %.4f", norm)
+	if norm < 0.99 || norm > 1.01 {
+		t.Errorf("expected L2 norm ~1.0, got %.4f", norm)
+	}
+}
