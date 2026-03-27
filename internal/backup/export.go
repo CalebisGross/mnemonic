@@ -2,14 +2,19 @@ package backup
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/appsprout-dev/mnemonic/internal/store"
+
+	_ "modernc.org/sqlite" // pure-Go SQLite driver
 )
 
 type ExportFormat string
@@ -163,6 +168,52 @@ func BackupSQLiteFile(dbPath string, backupDir string) (string, error) {
 	}
 
 	return backupPath, nil
+}
+
+// ReadSchemaVersion opens the database read-only and returns PRAGMA user_version.
+// Returns 0 for databases that have never had the version set (pre-existing DBs).
+func ReadSchemaVersion(dbPath string) (int, error) {
+	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
+	if err != nil {
+		return 0, fmt.Errorf("opening database for version check: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	var version int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		return 0, fmt.Errorf("reading user_version: %w", err)
+	}
+	return version, nil
+}
+
+// PruneOldBackups keeps the most recent `keep` pre-migration backup files in dir
+// and removes older ones. Only targets files matching the "pre_migrate_*.db" pattern.
+func PruneOldBackups(dir string, keep int) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("reading backup directory: %w", err)
+	}
+
+	var backups []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), "pre_migrate_") && strings.HasSuffix(e.Name(), ".db") {
+			backups = append(backups, e.Name())
+		}
+	}
+
+	// Filenames contain timestamps, so lexicographic sort = chronological order.
+	sort.Strings(backups)
+
+	if len(backups) <= keep {
+		return nil
+	}
+
+	for _, name := range backups[:len(backups)-keep] {
+		if err := os.Remove(filepath.Join(dir, name)); err != nil {
+			return fmt.Errorf("removing old backup %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 func EnsureBackupDir() (string, error) {

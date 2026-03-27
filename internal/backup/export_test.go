@@ -324,6 +324,115 @@ func TestEnsureBackupDir(t *testing.T) {
 	}
 }
 
+func TestReadSchemaVersion_AfterInitSchema(t *testing.T) {
+	_, dbPath, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	ver, err := ReadSchemaVersion(dbPath)
+	if err != nil {
+		t.Fatalf("ReadSchemaVersion failed: %v", err)
+	}
+	if ver != sqlite.SchemaVersion {
+		t.Errorf("expected schema version %d, got %d", sqlite.SchemaVersion, ver)
+	}
+}
+
+func TestReadSchemaVersion_FreshDB(t *testing.T) {
+	// A fresh SQLite DB with no PRAGMA user_version set returns 0.
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "fresh.db")
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to open fresh db: %v", err)
+	}
+	// Create at least one table so the file exists on disk.
+	if _, err := db.Exec("CREATE TABLE t(id INTEGER)"); err != nil {
+		t.Fatalf("failed to create table: %v", err)
+	}
+	_ = db.Close()
+
+	ver, err := ReadSchemaVersion(dbPath)
+	if err != nil {
+		t.Fatalf("ReadSchemaVersion failed: %v", err)
+	}
+	if ver != 0 {
+		t.Errorf("expected version 0 for fresh DB, got %d", ver)
+	}
+}
+
+func TestPruneOldBackups(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create 5 fake pre-migration backups with distinct timestamps.
+	names := []string{
+		"pre_migrate_2026-01-01_100000.db",
+		"pre_migrate_2026-01-02_100000.db",
+		"pre_migrate_2026-01-03_100000.db",
+		"pre_migrate_2026-01-04_100000.db",
+		"pre_migrate_2026-01-05_100000.db",
+	}
+	for _, n := range names {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("fake"), 0644); err != nil {
+			t.Fatalf("failed to create %s: %v", n, err)
+		}
+	}
+
+	// Also create a non-matching file that should NOT be pruned.
+	if err := os.WriteFile(filepath.Join(dir, "backup_2026-01-01.json"), []byte("keep"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := PruneOldBackups(dir, 3); err != nil {
+		t.Fatalf("PruneOldBackups failed: %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var remaining []string
+	for _, e := range entries {
+		remaining = append(remaining, e.Name())
+	}
+
+	// Should have 3 pre_migrate files + 1 json file = 4 total
+	if len(remaining) != 4 {
+		t.Errorf("expected 4 files remaining, got %d: %v", len(remaining), remaining)
+	}
+
+	// The oldest two should be gone.
+	for _, name := range remaining {
+		if name == names[0] || name == names[1] {
+			t.Errorf("old backup %s should have been pruned", name)
+		}
+	}
+}
+
+func TestPruneOldBackups_FewFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	// Only 2 backups, keep=3 — nothing should be deleted.
+	for _, n := range []string{"pre_migrate_2026-01-01_100000.db", "pre_migrate_2026-01-02_100000.db"} {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("fake"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := PruneOldBackups(dir, 3); err != nil {
+		t.Fatalf("PruneOldBackups failed: %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Errorf("expected 2 files, got %d", len(entries))
+	}
+}
+
 // jsonContains checks if a JSON string contains a given substring.
 func jsonContains(jsonStr, substr string) bool {
 	return len(jsonStr) > 0 && contains(jsonStr, substr)
