@@ -1230,18 +1230,30 @@ func serveCommand(configPath string) {
 		die(exitPermission, fmt.Sprintf("creating data directory: %v", err), "check permissions on ~/.mnemonic/")
 	}
 
-	// Pre-migration safety backup (only if DB already exists)
+	// Pre-migration safety backup (only if DB exists AND schema is outdated)
 	if _, statErr := os.Stat(cfg.Store.DBPath); statErr == nil {
-		backupDir, bdErr := backup.EnsureBackupDir()
-		if bdErr != nil {
-			log.Warn("could not create backup directory for pre-migration backup", "error", bdErr)
-		} else {
-			bkPath, bkErr := backup.BackupSQLiteFile(cfg.Store.DBPath, backupDir)
-			if bkErr != nil {
-				log.Warn("pre-migration backup failed", "error", bkErr)
-			} else if bkPath != "" {
-				log.Info("pre-migration backup created", "path", bkPath)
+		currentVer, verErr := backup.ReadSchemaVersion(cfg.Store.DBPath)
+		if verErr != nil {
+			log.Warn("could not read schema version, will back up defensively", "error", verErr)
+			currentVer = -1 // force backup
+		}
+		if currentVer < sqlite.SchemaVersion {
+			backupDir, bdErr := backup.EnsureBackupDir()
+			if bdErr != nil {
+				log.Warn("could not create backup directory for pre-migration backup", "error", bdErr)
+			} else {
+				bkPath, bkErr := backup.BackupSQLiteFile(cfg.Store.DBPath, backupDir)
+				if bkErr != nil {
+					log.Warn("pre-migration backup failed", "error", bkErr)
+				} else if bkPath != "" {
+					log.Info("pre-migration backup created", "path", bkPath)
+				}
+				if pruneErr := backup.PruneOldBackups(backupDir, 3); pruneErr != nil {
+					log.Warn("failed to prune old backups", "error", pruneErr)
+				}
 			}
+		} else {
+			log.Debug("schema is current, skipping pre-migration backup")
 		}
 	}
 

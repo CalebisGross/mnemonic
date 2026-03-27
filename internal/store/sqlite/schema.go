@@ -6,6 +6,12 @@ import (
 	"strings"
 )
 
+// SchemaVersion is the current target schema version. Bump this whenever a new
+// migration is added. It is written to PRAGMA user_version after InitSchema
+// completes, and read by the pre-migration backup logic to skip backups when
+// the schema is already current.
+const SchemaVersion = 15
+
 const schema = `
 -- Raw observations before encoding
 CREATE TABLE IF NOT EXISTS raw_memories (
@@ -481,6 +487,11 @@ CREATE INDEX IF NOT EXISTS idx_amendments_memory ON memory_amendments(memory_id)
 	_, err = db.Exec(`ALTER TABLE tool_usage ADD COLUMN suggested_ids TEXT NOT NULL DEFAULT ''`)
 	if err != nil && !isAlterTableDuplicateColumn(err) {
 		return fmt.Errorf("failed to add tool_usage.suggested_ids column: %w", err)
+	}
+
+	// Record the schema version so pre-migration backups can skip when current.
+	if _, err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)); err != nil {
+		return fmt.Errorf("failed to set user_version: %w", err)
 	}
 
 	return nil
