@@ -1,0 +1,4 @@
+[submodule "third_party/llama.cpp"]
+	path = third_party/llama.cpp
+	url = https://github.com/AppSprout-dev/llama.cpp.git
+	branch = felix
