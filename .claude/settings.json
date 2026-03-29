@@ -67,18 +67,13 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Edit",
         "hooks": [
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/build-check.sh",
             "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Edit",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/lint-check.sh",
@@ -89,6 +84,11 @@
       {
         "matcher": "Write",
         "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/build-check.sh",
+            "timeout": 10
+          },
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/lint-check.sh",

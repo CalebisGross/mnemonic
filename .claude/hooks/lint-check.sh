@@ -1,15 +1,9 @@
 #!/bin/bash
-# PostToolUse hook: after editing Go files, remind about lint rules.
+# PostToolUse hook (Edit/Write): remind about lint rules after Go file changes.
 # This prevents the #1 source of CI failures: unchecked error returns.
 
 INPUT=$(cat)
-TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty')
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
-
-# Only trigger for Edit/Write on Go files
-if [ "$TOOL" != "Edit" ] && [ "$TOOL" != "Write" ]; then
-  exit 0
-fi
 
 if ! echo "$FILE_PATH" | grep -qE '\.go$'; then
   exit 0

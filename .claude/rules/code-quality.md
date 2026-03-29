@@ -1,5 +1,14 @@
 # Code Quality & Scope Discipline
 
+## Finish the Work First
+
+- The goal is working, tested code — not a PR. PRs are the delivery mechanism, not the deliverable.
+- Do NOT rush to commit, push, or open a PR until the actual work is done and verified.
+- A task is not done when the code compiles. It's done when it runs correctly and is tested.
+- Stay in the problem. If something is "working," verify it properly before moving to git/PR mechanics.
+- Only create a PR when explicitly asked, or when the work is genuinely complete and tested.
+- Never treat "open a PR" as a natural next step — wait for the user to decide when the work is ready.
+
 ## Scope
 
 - Only change what was asked for — don't touch surrounding code
