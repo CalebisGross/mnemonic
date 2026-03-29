@@ -1,8 +1,9 @@
-# Compiled binaries (root-only, not cmd/ subdirs)
+# Compiled binaries and objects
 /mnemonic
 /bin/
 /benchmark
 /benchmark-quality
+*.o
 
 # Databases
 *.db
@@ -33,6 +34,7 @@ sdk/agent/evolution/conversations/
 config.yaml
 
 # IDE / local config
+.vscode/
 .claude/settings.local.json
 .claude/plans/
 .claude/projects/
@@ -40,6 +42,11 @@ sdk/agent/evolution/.decay_stamp
 
 # Training data (large downloads, not shipped)
 training/data/
+training/training/
+training/tokenizer_qwen35/
+
+# Model files (large, downloaded at runtime)
+models/
 
 # Training artifacts (generated at runtime)
 wandb/
