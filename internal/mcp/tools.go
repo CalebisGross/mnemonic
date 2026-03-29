@@ -111,6 +111,19 @@ func recallToolDef() ToolDefinition {
 					"type":        "boolean",
 					"description": "If true, include LLM-generated synthesis narrative (default: false). Adds 3-8s latency.",
 				},
+				"types": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "Filter by multiple memory types at once (e.g. [\"decision\", \"error\"]). Overrides 'type' if both are set.",
+				},
+				"include_patterns": map[string]interface{}{
+					"type":        "boolean",
+					"description": "If true, include matching patterns in results (default: true). Set to false to reduce output noise.",
+				},
+				"include_abstractions": map[string]interface{}{
+					"type":        "boolean",
+					"description": "If true, include matching principles/axioms in results (default: true). Set to false to reduce output noise.",
+				},
 				"format": map[string]interface{}{
 					"type":        "string",
 					"description": "Output format: text (default) or json (structured data)",
@@ -229,6 +242,23 @@ func dismissPatternToolDef() ToolDefinition {
 				},
 			},
 			"required": []string{"pattern_id"},
+		},
+	}
+}
+
+func dismissAbstractionToolDef() ToolDefinition {
+	return ToolDefinition{
+		Name:        "dismiss_abstraction",
+		Description: "Archive an abstraction (principle/axiom) by ID. Use this to dismiss abstract or unhelpful principles that keep surfacing in recall results.",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"abstraction_id": map[string]interface{}{
+					"type":        "string",
+					"description": "The ID of the abstraction to archive",
+				},
+			},
+			"required": []string{"abstraction_id"},
 		},
 	}
 }
@@ -665,6 +695,7 @@ func allToolDefs() []ToolDefinition {
 		amendToolDef(),
 		checkMemoryToolDef(),
 		dismissPatternToolDef(),
+		dismissAbstractionToolDef(),
 		createHandoffToolDef(),
 	}
 }

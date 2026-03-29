@@ -1,13 +1,16 @@
 # Mnemonic MCP Tool Usage — Mandatory
 
-## Session Start (MUST — before any other work)
+## Session Start
 
+For tasks involving code changes, decisions, or multi-step work:
 1. Call `recall_project` to load project context
 2. Call `recall` with keywords relevant to the user's first request
 3. If either call returns useful context, use it to inform your work
 4. If a call fails (FTS error, timeout), note it and move on — don't block the session
 
-Do NOT skip these steps. Do NOT jump straight into coding.
+Alternative: Use `batch_recall` to combine multiple queries into one round-trip.
+
+For trivial tasks (typo fix, single-line change, quick question): skip recall and just do the work.
 
 ## During Work (MUST)
 
@@ -25,6 +28,10 @@ Use judgment — remember things a future session would need. Don't remember tri
 
 Don't only recall at session start. When entering new territory (new subsystem, unfamiliar pattern, making claims about prior work), call `recall` with specific keywords first. Example: before suggesting HP ranges, recall prior training findings. Before claiming something works a certain way, check if there's a stored decision or learning about it.
 
+### Amend stale memories
+
+If a recall returns a memory that's outdated or partially wrong, use `amend` to update it in place rather than creating a new memory. This preserves associations and history.
+
 ## After Recalls (MUST)
 
 - After using `recall` and acting on the results, call `feedback`:
@@ -33,6 +40,12 @@ Don't only recall at session start. When entering new territory (new subsystem, 
   - `irrelevant` — memories didn't help
 - If recall returned 0 results, no feedback needed — but consider whether your query was too broad or too specific
 - This trains the retrieval system — skipping it degrades future recall quality
+
+## Reducing Noise
+
+- Use `include_patterns: false` and `include_abstractions: false` on `recall` when you only need memories, not patterns/principles
+- Use `types: ["decision", "error"]` to filter recall to actionable memory types
+- Use `dismiss_pattern` and `dismiss_abstraction` to archive noise that keeps surfacing
 
 ## Before Committing (SHOULD)
 

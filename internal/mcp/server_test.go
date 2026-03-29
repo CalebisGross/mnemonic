@@ -127,35 +127,36 @@ func TestHandleToolsList(t *testing.T) {
 		t.Fatalf("tools is not an array, got %T", toolsInterface)
 	}
 
-	if len(toolsArray) != 23 {
-		t.Fatalf("expected 23 tools, got %d", len(toolsArray))
+	if len(toolsArray) != 24 {
+		t.Fatalf("expected 24 tools, got %d", len(toolsArray))
 	}
 
 	// Verify tool names
 	expectedTools := map[string]bool{
-		"remember":        false,
-		"recall":          false,
-		"batch_recall":    false,
-		"get_context":     false,
-		"forget":          false,
-		"status":          false,
-		"recall_project":  false,
-		"recall_timeline": false,
-		"session_summary": false,
-		"get_patterns":    false,
-		"get_insights":    false,
-		"feedback":        false,
-		"audit_encodings": false,
-		"coach_local_llm": false,
-		"ingest_project":  false,
-		"list_sessions":   false,
-		"recall_session":  false,
-		"amend":           false,
-		"check_memory":    false,
-		"exclude_path":    false,
-		"list_exclusions": false,
-		"dismiss_pattern": false,
-		"create_handoff":  false,
+		"remember":            false,
+		"recall":              false,
+		"batch_recall":        false,
+		"get_context":         false,
+		"forget":              false,
+		"status":              false,
+		"recall_project":      false,
+		"recall_timeline":     false,
+		"session_summary":     false,
+		"get_patterns":        false,
+		"get_insights":        false,
+		"feedback":            false,
+		"audit_encodings":     false,
+		"coach_local_llm":     false,
+		"ingest_project":      false,
+		"list_sessions":       false,
+		"recall_session":      false,
+		"amend":               false,
+		"check_memory":        false,
+		"exclude_path":        false,
+		"list_exclusions":     false,
+		"dismiss_pattern":     false,
+		"dismiss_abstraction": false,
+		"create_handoff":      false,
 	}
 
 	for _, toolInterface := range toolsArray {

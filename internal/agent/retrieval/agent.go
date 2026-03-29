@@ -1170,8 +1170,22 @@ func (ra *RetrievalAgent) applyFilters(results []store.RetrievalResult, req Quer
 		if req.State != "" && r.Memory.State != req.State {
 			continue
 		}
-		if req.Type != "" && r.Memory.Type != req.Type {
-			continue
+		if req.Type != "" {
+			if strings.Contains(req.Type, ",") {
+				// Multi-type filter: match if memory type is in the comma-separated set
+				matched := false
+				for _, t := range strings.Split(req.Type, ",") {
+					if r.Memory.Type == t {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					continue
+				}
+			} else if r.Memory.Type != req.Type {
+				continue
+			}
 		}
 		if req.MinSalience > 0 && r.Memory.Salience < req.MinSalience {
 			continue

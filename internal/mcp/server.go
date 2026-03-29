@@ -331,6 +331,8 @@ func (srv *MCPServer) handleToolCall(ctx context.Context, req *jsonRPCRequest) *
 		result, toolErr = srv.handleCheckMemory(ctx, params.Arguments)
 	case "dismiss_pattern":
 		result, toolErr = srv.handleDismissPattern(ctx, params.Arguments)
+	case "dismiss_abstraction":
+		result, toolErr = srv.handleDismissAbstraction(ctx, params.Arguments)
 	case "create_handoff":
 		result, toolErr = srv.handleCreateHandoff(ctx, params.Arguments)
 	default:
@@ -633,6 +635,29 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 		synthesize = s
 	}
 
+	// Parse types (plural) — overrides type (singular) if set
+	if types, ok := args["types"].([]interface{}); ok && len(types) > 0 {
+		var typeStrs []string
+		for _, v := range types {
+			if s, ok := v.(string); ok {
+				typeStrs = append(typeStrs, s)
+			}
+		}
+		if len(typeStrs) > 0 {
+			memType = strings.Join(typeStrs, ",")
+		}
+	}
+
+	includePatterns := true
+	if ip, ok := args["include_patterns"].(bool); ok {
+		includePatterns = ip
+	}
+
+	includeAbstractions := true
+	if ia, ok := args["include_abstractions"].(bool); ok {
+		includeAbstractions = ia
+	}
+
 	outputFormat := "text"
 	if f, ok := args["format"].(string); ok && f == "json" {
 		outputFormat = f
@@ -669,8 +694,8 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 		MaxResults:          limit,
 		IncludeReasoning:    true,
 		Synthesize:          synthesize,
-		IncludePatterns:     true,
-		IncludeAbstractions: true,
+		IncludePatterns:     includePatterns,
+		IncludeAbstractions: includeAbstractions,
 		Project:             project,
 		Source:              source,
 		State:               state,
@@ -780,7 +805,7 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 	if len(result.Patterns) > 0 {
 		text += fmt.Sprintf("\nRelevant Patterns (%d):\n", len(result.Patterns))
 		for _, p := range result.Patterns {
-			text += fmt.Sprintf("  - [strength:%.2f] %s (%s): %s\n", p.Strength, p.Title, p.PatternType, p.Description)
+			text += fmt.Sprintf("  - [%s] [strength:%.2f] %s (%s): %s\n", p.ID, p.Strength, p.Title, p.PatternType, p.Description)
 		}
 	}
 
@@ -791,7 +816,7 @@ func (srv *MCPServer) handleRecall(ctx context.Context, args map[string]interfac
 			if a.Level == 3 {
 				levelLabel = "axiom"
 			}
-			text += fmt.Sprintf("  - [%s, confidence:%.2f] %s: %s\n", levelLabel, a.Confidence, a.Title, a.Description)
+			text += fmt.Sprintf("  - [%s] [%s, confidence:%.2f] %s: %s\n", a.ID, levelLabel, a.Confidence, a.Title, a.Description)
 		}
 	}
 
@@ -864,6 +889,7 @@ func formatRecallJSON(result retrieval.QueryResponse, assocMap map[string][]stor
 	patterns := make([]map[string]interface{}, len(result.Patterns))
 	for i, p := range result.Patterns {
 		patterns[i] = map[string]interface{}{
+			"id":          p.ID,
 			"title":       p.Title,
 			"type":        p.PatternType,
 			"strength":    p.Strength,
@@ -874,6 +900,7 @@ func formatRecallJSON(result retrieval.QueryResponse, assocMap map[string][]stor
 	abstractions := make([]map[string]interface{}, len(result.Abstractions))
 	for i, a := range result.Abstractions {
 		abstractions[i] = map[string]interface{}{
+			"id":          a.ID,
 			"title":       a.Title,
 			"level":       a.Level,
 			"confidence":  a.Confidence,
@@ -1852,8 +1879,8 @@ func (srv *MCPServer) handleGetPatterns(ctx context.Context, args map[string]int
 		if p.Project != "" {
 			projectInfo = fmt.Sprintf(" [%s]", p.Project)
 		}
-		text += fmt.Sprintf("%d. %s%s\n   Type: %s | Strength: %.2f | Evidence: %d memories\n   %s\n   Concepts: %v\n\n",
-			i+1, p.Title, projectInfo, p.PatternType, p.Strength, len(p.EvidenceIDs),
+		text += fmt.Sprintf("%d. [%s] %s%s\n   Type: %s | Strength: %.2f | Evidence: %d memories\n   %s\n   Concepts: %v\n\n",
+			i+1, p.ID, p.Title, projectInfo, p.PatternType, p.Strength, len(p.EvidenceIDs),
 			p.Description, p.Concepts)
 	}
 
@@ -1892,8 +1919,8 @@ func (srv *MCPServer) handleGetInsights(ctx context.Context, args map[string]int
 			case 3:
 				levelName = "axiom"
 			}
-			text += fmt.Sprintf("  - [L%d %s] %s (confidence: %.2f)\n    %s\n",
-				a.Level, levelName, a.Title, a.Confidence, a.Description)
+			text += fmt.Sprintf("  - [%s] [L%d %s] %s (confidence: %.2f)\n    %s\n",
+				a.ID, a.Level, levelName, a.Title, a.Confidence, a.Description)
 		}
 		text += "\n"
 	}
@@ -2701,6 +2728,21 @@ func (srv *MCPServer) handleDismissPattern(_ context.Context, args map[string]in
 
 	srv.log.Info("pattern dismissed", "pattern_id", patternID, "session_id", srv.sessionID)
 	return toolResult(fmt.Sprintf("Pattern %s archived", patternID)), nil
+}
+
+// handleDismissAbstraction archives an abstraction by ID.
+func (srv *MCPServer) handleDismissAbstraction(_ context.Context, args map[string]interface{}) (interface{}, error) {
+	abstractionID, _ := args["abstraction_id"].(string)
+	if abstractionID == "" {
+		return nil, fmt.Errorf("abstraction_id is required")
+	}
+
+	if err := srv.store.ArchiveAbstraction(context.Background(), abstractionID); err != nil {
+		return nil, fmt.Errorf("archiving abstraction %s: %w", abstractionID, err)
+	}
+
+	srv.log.Info("abstraction dismissed", "abstraction_id", abstractionID, "session_id", srv.sessionID)
+	return toolResult(fmt.Sprintf("Abstraction %s archived", abstractionID)), nil
 }
 
 // handleCreateHandoff stores a structured session handoff note as a high-salience memory.
