@@ -4,6 +4,53 @@ All notable changes to Mnemonic will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.34.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.33.0...v0.34.0) (2026-03-29)
+
+
+### Features
+
+* add CGo llama.cpp backend and wire into EmbeddedProvider ([ed71564](https://github.com/AppSprout-dev/mnemonic/commit/ed7156437b21130d3cdc7137a1417aca6e52a288))
+* add deploy pipeline, embedding fine-tune script, and pre-register EXP-9 ([bf534bc](https://github.com/AppSprout-dev/mnemonic/commit/bf534bc0d89b4e89063133346641449844af8594))
+* add embedding extraction via mean-pooled hidden states ([6da2d0d](https://github.com/AppSprout-dev/mnemonic/commit/6da2d0dd9a5bff85848b72ab3fc5d0c94e788b44))
+* add llama.cpp submodule and fix GGUF export for Felix architecture ([93f1766](https://github.com/AppSprout-dev/mnemonic/commit/93f1766a76175d5b65b953f25b79d184a2fec4f6))
+* add llama.cpp submodule, CGo bridge, and Qwen spoke training docs ([6c9e1d2](https://github.com/AppSprout-dev/mnemonic/commit/6c9e1d20b51a3835ef05acc983ed066f80d546ae))
+* add LoRA support, gradient checkpointing fix, and EXP runner scripts ([9ba9738](https://github.com/AppSprout-dev/mnemonic/commit/9ba973847297c8fa601c41966d244dd54528f12f))
+* add per-token logit validation for embedded LLM quality gating ([96775a2](https://github.com/AppSprout-dev/mnemonic/commit/96775a2aefe244b2db3150086fe2d0af3ef9d75c))
+* add Phase 3 data pipeline scripts and pre-register EXP-6/7/8 ([640123b](https://github.com/AppSprout-dev/mnemonic/commit/640123beb0fbe19cb5b85695ea7a716b25b17fcd))
+* add Phase 3 fine-tuning pipeline ([9c7df1c](https://github.com/AppSprout-dev/mnemonic/commit/9c7df1c579b044ee9243217984764ce822af0c7e))
+* add Phase 3 fine-tuning pipeline ([498dd28](https://github.com/AppSprout-dev/mnemonic/commit/498dd287769a7e2a17f72dd4ff291f1495275e88))
+* add Q8_0 quantization support and prefer quantized models ([b7a2488](https://github.com/AppSprout-dev/mnemonic/commit/b7a2488bd0713e157b8e5d91e2e60b9bda1ac81d))
+* add Qwen spoke adapter, re-tokenization pipeline, and pre-register EXP-11-14 ([371464a](https://github.com/AppSprout-dev/mnemonic/commit/371464a33a8703c062a8dee216bd7fb1ead2c740))
+* add ROCm HIP link flags and encoding comparison script ([8ae61c0](https://github.com/AppSprout-dev/mnemonic/commit/8ae61c0185afb4ea13ecce507320e362afa573f0))
+* add standalone command center dashboard for GitHub tracking ([e750f60](https://github.com/AppSprout-dev/mnemonic/commit/e750f60c24e2f4559cd678615a3ac550dff4916c))
+* add training script and evaluation hooks for Qwen spoke experiments ([36d8bdb](https://github.com/AppSprout-dev/mnemonic/commit/36d8bdb76fb71d1d40df9431001ab44904dc1539))
+* complete EXP-9 mixed fine-tune, fix embedding script, add v2 model ([5bb94dc](https://github.com/AppSprout-dev/mnemonic/commit/5bb94dc88f96150f0ddd604cbd42d6c50a69ef7c))
+* fix instrumented model label for embedded provider, add nomic BERT test ([f5e0c24](https://github.com/AppSprout-dev/mnemonic/commit/f5e0c24942775d7ce16b8b1e0db781aaa3223b7e))
+* improve recall quality for LLM agents, fix Windows self-update ([7a8bfa6](https://github.com/AppSprout-dev/mnemonic/commit/7a8bfa6758dc6ffbb7fcf591c22fe0b41d486816))
+* improve recall quality for LLM agents, fix Windows self-update ([aa07982](https://github.com/AppSprout-dev/mnemonic/commit/aa07982c11217f7950385d1c9e68796346efe0f2))
+* Phase 3-4 autoresearch — fine-tuning pipeline, CGo backend, experiments ([49ad590](https://github.com/AppSprout-dev/mnemonic/commit/49ad5907f3cefb0c8d4295666cba509a4ff990eb))
+* Qwen 3.5 2B + Felix spoke training infrastructure ([21facd3](https://github.com/AppSprout-dev/mnemonic/commit/21facd38369026add023e994dca20a2797c2b43e))
+* run spoke gate analysis (EXP-8) and fix synthesis data generation ([c43587c](https://github.com/AppSprout-dev/mnemonic/commit/c43587cd9e486cb3123ec2eae78583120521aa64))
+* standalone command center dashboard ([ea0536e](https://github.com/AppSprout-dev/mnemonic/commit/ea0536e992425a1e76deeb085d08a01bbaf80e33))
+* strip coaching prompts from training data, tune LR to 3e-4 ([68c2725](https://github.com/AppSprout-dev/mnemonic/commit/68c2725538925b888c288124e1cd5141163b895c))
+* update llama.cpp submodule with Qwen 3.5 spoke support ([75fa3f5](https://github.com/AppSprout-dev/mnemonic/commit/75fa3f5e55fa56a15022876b90be9a7c8534f9d1))
+* verify nomic-bert embedding GGUF works via llama.cpp backend ([f0b71dd](https://github.com/AppSprout-dev/mnemonic/commit/f0b71dd09d1c083bb4969827ce51127a9bdddce2))
+
+
+### Bug Fixes
+
+* add missing MCP tools to web UI agent allowed_tools list ([ddb419f](https://github.com/AppSprout-dev/mnemonic/commit/ddb419ffea8c6841ccf668295f25381996900f20))
+* ingest salience floor, JSON recall associations, graph edge priority, concept vocabulary ([088dca0](https://github.com/AppSprout-dev/mnemonic/commit/088dca07d08c3bb977b59b334b112dc8db7c146c))
+* prevent crashes from embedding failures and concurrent llama.cpp access ([0c7f69e](https://github.com/AppSprout-dev/mnemonic/commit/0c7f69e8be9700a39d28be524413fb0280ba4294))
+* resolve merge conflicts with main ([679b22d](https://github.com/AppSprout-dev/mnemonic/commit/679b22dcfed5fc6f321bacb9c939a84d6e96fc99))
+* resolve NaN loss, dtype deprecation, and VRAM issues in training ([0bc050d](https://github.com/AppSprout-dev/mnemonic/commit/0bc050d3157b5d6778e0e6af66c6c24848b776cb))
+* revert ingest salience floor exemption, keep heuristic boost ([ad0c3ab](https://github.com/AppSprout-dev/mnemonic/commit/ad0c3ab14bcdabafd7c9a07a04e09662510c388a))
+* skip pre-migration backup when schema is current, add retention ([bed03d4](https://github.com/AppSprout-dev/mnemonic/commit/bed03d442bfd3f41f646b9511c2764e937b2e402))
+* skip pre-migration backup when schema is current, add retention ([75a74c3](https://github.com/AppSprout-dev/mnemonic/commit/75a74c379be2bcc22b4d6e25c3ff0ec5436ebcf9))
+* split ROCm link flags, add context window safety, and wire GBNF grammar ([9294aa0](https://github.com/AppSprout-dev/mnemonic/commit/9294aa02fc0a9c06b9f313a2c02f9787b5e72890))
+* stress test issues — ingest salience, JSON associations, graph edges, concept vocabulary ([5ef4bfc](https://github.com/AppSprout-dev/mnemonic/commit/5ef4bfc198bdf9ff1c21ab88f78a36999e92793b))
+* update EmbeddedProvider prompt format to match Felix-LM fine-tuning ([be284b3](https://github.com/AppSprout-dev/mnemonic/commit/be284b34ca9c1d776e900747f86de55170edf064))
+
 ## [0.33.0](https://github.com/AppSprout-dev/mnemonic/compare/v0.32.0...v0.33.0) (2026-03-21)
 
 
