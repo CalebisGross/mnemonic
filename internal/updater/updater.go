@@ -163,9 +163,9 @@ func PerformUpdate(ctx context.Context, info *UpdateInfo) (*UpdateResult, error)
 		return nil, fmt.Errorf("setting permissions: %w", err)
 	}
 
-	// Atomic replace: rename over the current binary
-	if err := os.Rename(newBinaryPath, execPath); err != nil {
-		// On permission error, give the user a helpful hint
+	// Replace the current binary (platform-specific: Unix does a direct rename,
+	// Windows uses a rename-dance because running .exe files are locked).
+	if err := replaceBinary(newBinaryPath, execPath); err != nil {
 		if os.IsPermission(err) {
 			return nil, fmt.Errorf("permission denied replacing %s — try running with sudo, or if installed via Homebrew use: brew upgrade appsprout-dev/tap/mnemonic", execPath)
 		}
@@ -294,6 +294,25 @@ func verifyChecksum(ctx context.Context, archivePath, checksumsURL, expectedName
 		return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedHash, actualHash)
 	}
 
+	return nil
+}
+
+// CleanupOldBinary removes a leftover .old binary from a previous Windows
+// update. Safe to call on any platform — returns nil if no .old file exists.
+func CleanupOldBinary() error {
+	execPath, err := os.Executable()
+	if err != nil {
+		return nil // best-effort
+	}
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return nil
+	}
+
+	oldPath := execPath + ".old"
+	if err := os.Remove(oldPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("removing old binary %s: %w", oldPath, err)
+	}
 	return nil
 }
 

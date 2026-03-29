@@ -359,6 +359,10 @@ func getPatternsToolDef() ToolDefinition {
 					"type":        "integer",
 					"description": "Maximum number of patterns to return (default: 10)",
 				},
+				"min_strength": map[string]interface{}{
+					"type":        "number",
+					"description": "Minimum pattern strength to return (default: 0.3). Set to 0 for all patterns.",
+				},
 			},
 			"required": []string{},
 		},

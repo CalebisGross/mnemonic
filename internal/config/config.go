@@ -287,7 +287,13 @@ type RetrievalConfig struct {
 	FeedbackWeight float64 `yaml:"feedback_weight"` // weight of user feedback score in ranking (default 0.15)
 
 	// Source-weighted scoring
-	SourceWeights map[string]float64 `yaml:"source_weights"` // per-source multipliers (default: mcp=1.0, terminal=0.8, clipboard=0.6, filesystem=0.5)
+	SourceWeights map[string]float64 `yaml:"source_weights"` // per-source multipliers (default: mcp=1.5, terminal=0.8, clipboard=0.6, filesystem=0.5)
+
+	// Memory type scoring
+	TypeWeights map[string]float64 `yaml:"type_weights"` // per-type multipliers (default: decision=1.3, error=1.25, insight=1.2, learning=1.15)
+
+	// Context boost source eligibility
+	ContextBoostSources []string `yaml:"context_boost_sources"` // sources eligible for context boost (default: [mcp, terminal])
 }
 
 // MetacognitionConfig holds metacognition settings.
@@ -700,11 +706,18 @@ func Default() *Config {
 
 			FeedbackWeight: 0.15,
 			SourceWeights: map[string]float64{
-				"mcp":        1.0,
+				"mcp":        1.5,
 				"terminal":   0.8,
 				"clipboard":  0.6,
 				"filesystem": 0.5,
 			},
+			TypeWeights: map[string]float64{
+				"decision": 1.3,
+				"error":    1.25,
+				"insight":  1.2,
+				"learning": 1.15,
+			},
+			ContextBoostSources: []string{"mcp", "terminal"},
 		},
 		Metacognition: MetacognitionConfig{
 			Enabled:               true,
@@ -743,7 +756,7 @@ func Default() *Config {
 			Enabled:                    true,
 			IntervalRaw:                "6h",
 			Interval:                   6 * time.Hour,
-			MinStrength:                0.4,
+			MinStrength:                0.7,
 			MaxLLMCalls:                5,
 			StartupDelaySec:            300,
 			DefaultConfidence:          0.6,

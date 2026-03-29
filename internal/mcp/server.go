@@ -1583,6 +1583,16 @@ func (srv *MCPServer) handleRecallProject(ctx context.Context, args map[string]i
 		}
 	}
 
+	// Filter patterns to quality threshold
+	if len(patterns) > 0 {
+		filtered := patterns[:0]
+		for _, p := range patterns {
+			if p.Strength >= 0.3 {
+				filtered = append(filtered, p)
+			}
+		}
+		patterns = filtered
+	}
 	if len(patterns) > 0 {
 		text += fmt.Sprintf("\nPatterns (%d):\n", len(patterns))
 		for _, p := range patterns {
@@ -1810,10 +1820,26 @@ func (srv *MCPServer) handleGetPatterns(ctx context.Context, args map[string]int
 		limit = int(l)
 	}
 
+	minStrength := float32(0.3)
+	if ms, ok := args["min_strength"].(float64); ok {
+		minStrength = float32(ms)
+	}
+
 	patterns, err := srv.store.ListPatterns(ctx, project, limit)
 	if err != nil {
 		srv.log.Error("failed to list patterns", "error", err)
 		return nil, fmt.Errorf("failed to list patterns: %w", err)
+	}
+
+	// Filter by minimum strength
+	if minStrength > 0 {
+		filtered := patterns[:0]
+		for _, p := range patterns {
+			if p.Strength >= minStrength {
+				filtered = append(filtered, p)
+			}
+		}
+		patterns = filtered
 	}
 
 	if len(patterns) == 0 {

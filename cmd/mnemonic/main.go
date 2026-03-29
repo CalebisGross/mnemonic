@@ -1226,6 +1226,11 @@ func serveCommand(configPath string) {
 	}
 	slog.SetDefault(log)
 
+	// Clean up leftover .old binary from a previous Windows update
+	if err := updater.CleanupOldBinary(); err != nil {
+		log.Warn("failed to clean up old binary after update", "error", err)
+	}
+
 	// Create data directory if it doesn't exist
 	if err := cfg.EnsureDataDir(); err != nil {
 		die(exitPermission, fmt.Sprintf("creating data directory: %v", err), "check permissions on ~/.mnemonic/")
@@ -1874,10 +1879,24 @@ func buildRetrievalConfig(cfg *config.Config) retrieval.RetrievalConfig {
 
 		FeedbackWeight: float32(cfg.Retrieval.FeedbackWeight),
 		SourceWeights:  convertSourceWeights(cfg.Retrieval.SourceWeights),
+		TypeWeights:    convertSourceWeights(cfg.Retrieval.TypeWeights),
 
 		ContextBoostWindowMin: cfg.Perception.RecallBoostWindowMin,
 		ContextBoostMax:       float32(cfg.Perception.RecallBoostMax),
+		ContextBoostSources:   convertContextBoostSources(cfg.Retrieval.ContextBoostSources),
 	}
+}
+
+// convertContextBoostSources converts []string to map[string]bool.
+func convertContextBoostSources(src []string) map[string]bool {
+	if src == nil {
+		return nil
+	}
+	out := make(map[string]bool, len(src))
+	for _, s := range src {
+		out[s] = true
+	}
+	return out
 }
 
 // convertSourceWeights converts map[string]float64 to map[string]float32.
