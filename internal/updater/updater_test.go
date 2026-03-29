@@ -383,6 +383,71 @@ func TestVerifyChecksum(t *testing.T) {
 	})
 }
 
+func TestReplaceBinary(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a fake "current" binary
+	execPath := filepath.Join(tmpDir, "mnemonic")
+	if err := os.WriteFile(execPath, []byte("old-binary"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a fake "new" binary
+	newPath := filepath.Join(tmpDir, ".mnemonic.update.tmp")
+	if err := os.WriteFile(newPath, []byte("new-binary"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Replace
+	if err := replaceBinary(newPath, execPath); err != nil {
+		t.Fatalf("replaceBinary failed: %v", err)
+	}
+
+	// Verify the target has the new content
+	got, err := os.ReadFile(execPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "new-binary" {
+		t.Errorf("binary content = %q, want %q", got, "new-binary")
+	}
+
+	// Verify the temp file is gone (consumed by rename)
+	if _, err := os.Stat(newPath); !os.IsNotExist(err) {
+		t.Error("expected temp file to be removed after replace")
+	}
+}
+
+func TestCleanupOldBinary(t *testing.T) {
+	// CleanupOldBinary operates on the real executable path, so we test
+	// the no-op case (no .old file exists) — it should not error.
+	if err := CleanupOldBinary(); err != nil {
+		t.Errorf("CleanupOldBinary with no .old file: %v", err)
+	}
+}
+
+func TestCleanupOldBinaryRemovesFile(t *testing.T) {
+	// Get the test binary path and create a .old file next to it
+	execPath, err := os.Executable()
+	if err != nil {
+		t.Skip("cannot determine executable path")
+	}
+	oldPath := execPath + ".old"
+
+	if err := os.WriteFile(oldPath, []byte("stale"), 0644); err != nil {
+		t.Skipf("cannot write next to test binary: %v", err)
+	}
+	defer func() { _ = os.Remove(oldPath) }() // safety net
+
+	if err := CleanupOldBinary(); err != nil {
+		t.Errorf("CleanupOldBinary: %v", err)
+	}
+
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Error("expected .old file to be removed")
+	}
+}
+
 // checkForUpdateFromURL is a test helper that allows overriding the GitHub API URL.
 func checkForUpdateFromURL(ctx context.Context, currentVersion, apiURL string) (*UpdateInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)

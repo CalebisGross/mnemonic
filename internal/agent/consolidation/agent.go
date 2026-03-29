@@ -28,6 +28,7 @@ type ConsolidationConfig struct {
 	MaxMemoriesPerCycle int
 	MaxMergesPerCycle   int
 	MinClusterSize      int
+	MinEvidenceSalience float32 // minimum salience for memories to count as pattern evidence (default: 0.5)
 	AssocPruneThreshold float32 // prune associations below this strength
 
 	// Salience decay tunables
@@ -76,6 +77,7 @@ func DefaultConfig() ConsolidationConfig {
 		MaxMemoriesPerCycle:       100,
 		MaxMergesPerCycle:         5,
 		MinClusterSize:            3,
+		MinEvidenceSalience:       0.5,
 		AssocPruneThreshold:       0.05,
 		RecencyProtection24h:      0.8,
 		RecencyProtection168h:     0.9,
@@ -874,21 +876,30 @@ func (ca *ConsolidationAgent) extractPatterns(ctx context.Context) (int, error) 
 // processPatternClusters handles the common logic for evaluating a set of memory clusters
 // as potential patterns: strengthening existing matches or identifying new ones via LLM.
 func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, clusters [][]store.Memory, project string, budget int) int {
+	minSalience := cfgFloat32(ca.config.MinEvidenceSalience, 0.5)
 	extracted := 0
 	for _, cluster := range clusters {
 		if extracted >= budget {
 			break
 		}
-		if len(cluster) < 3 {
+
+		// Filter cluster to salience-qualified memories
+		var qualified []store.Memory
+		for _, mem := range cluster {
+			if mem.Salience >= minSalience {
+				qualified = append(qualified, mem)
+			}
+		}
+		if len(qualified) < 3 {
 			continue
 		}
 
 		// Check if this cluster matches an existing pattern (by embedding similarity)
-		existing, err := ca.findMatchingPattern(ctx, cluster)
+		existing, err := ca.findMatchingPattern(ctx, qualified)
 		if err == nil && existing != nil {
 			// Count genuinely new evidence
 			newEvidence := 0
-			for _, mem := range cluster {
+			for _, mem := range qualified {
 				if !containsString(existing.EvidenceIDs, mem.ID) {
 					existing.EvidenceIDs = append(existing.EvidenceIDs, mem.ID)
 					newEvidence++
@@ -922,13 +933,13 @@ func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, cluste
 		}
 
 		// Ask LLM if there's a recurring pattern
-		pattern, err := ca.identifyPattern(ctx, cluster, project)
+		pattern, err := ca.identifyPattern(ctx, qualified, project)
 		if err != nil {
-			ca.log.Warn("pattern identification failed", "project", project, "cluster_size", len(cluster), "error", err)
+			ca.log.Warn("pattern identification failed", "project", project, "cluster_size", len(qualified), "error", err)
 			continue
 		}
 		if pattern == nil {
-			ca.log.Info("pattern extraction: LLM rejected cluster (not a pattern)", "project", project, "cluster_size", len(cluster))
+			ca.log.Info("pattern extraction: LLM rejected cluster (not a pattern)", "project", project, "cluster_size", len(qualified))
 			continue
 		}
 
@@ -947,7 +958,7 @@ func (ca *ConsolidationAgent) processPatternClusters(ctx context.Context, cluste
 					embSim := agentutil.CosineSimilarity(pattern.Embedding, ep.Embedding)
 					titleSim := normalizedTitleSimilarity(pattern.Title, ep.Title)
 					if isDuplicate(pattern.Title, ep.Title, pattern.Embedding, ep.Embedding, 0.5, 0.75) {
-						for _, mem := range cluster {
+						for _, mem := range qualified {
 							if !containsString(ep.EvidenceIDs, mem.ID) {
 								ep.EvidenceIDs = append(ep.EvidenceIDs, mem.ID)
 							}

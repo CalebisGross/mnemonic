@@ -62,11 +62,15 @@ type RetrievalConfig struct {
 	FeedbackWeight float32 // weight of user feedback score in ranking (default: 0.15)
 
 	// Source-weighted scoring
-	SourceWeights map[string]float32 // per-source multipliers (default: mcp=1.0, terminal=0.8, clipboard=0.6, filesystem=0.5)
+	SourceWeights map[string]float32 // per-source multipliers (default: mcp=1.5, terminal=0.8, clipboard=0.6, filesystem=0.5)
+
+	// Memory type scoring — actionable types (decision, error) rank higher than observations
+	TypeWeights map[string]float32 // per-type multipliers (default: decision=1.3, error=1.25, insight=1.2, learning=1.15)
 
 	// Context boost from watcher activity
-	ContextBoostWindowMin int     // minutes context boost decays over (default: 30)
-	ContextBoostMax       float32 // max additive boost from watcher context (default: 0.2)
+	ContextBoostWindowMin int             // minutes context boost decays over (default: 30)
+	ContextBoostMax       float32         // max additive boost from watcher context (default: 0.2)
+	ContextBoostSources   map[string]bool // sources eligible for context boost (nil = all sources)
 }
 
 // DefaultConfig returns sensible defaults for retrieval configuration.
@@ -106,13 +110,23 @@ func DefaultConfig() RetrievalConfig {
 
 		FeedbackWeight: 0.15,
 		SourceWeights: map[string]float32{
-			"mcp":        1.0,
+			"mcp":        1.5,
 			"terminal":   0.8,
 			"clipboard":  0.6,
 			"filesystem": 0.5,
 		},
+		TypeWeights: map[string]float32{
+			"decision": 1.3,
+			"error":    1.25,
+			"insight":  1.2,
+			"learning": 1.15,
+		},
 		ContextBoostWindowMin: 30,
 		ContextBoostMax:       0.2,
+		ContextBoostSources: map[string]bool{
+			"mcp":      true,
+			"terminal": true,
+		},
 	}
 }
 
@@ -391,12 +405,12 @@ func (ra *RetrievalAgent) Query(ctx context.Context, req QueryRequest) (QueryRes
 		evidenceBoost := make(map[string]float32)
 		for _, p := range matchedPatterns {
 			for _, eid := range p.EvidenceIDs {
-				evidenceBoost[eid] += 0.1
+				evidenceBoost[eid] += 0.1 * p.Strength
 			}
 		}
 		for _, a := range matchedAbstractions {
 			for _, mid := range a.SourceMemoryIDs {
-				evidenceBoost[mid] += 0.05
+				evidenceBoost[mid] += 0.05 * a.Confidence
 			}
 		}
 		for i, r := range ranked {
@@ -623,6 +637,7 @@ func (ra *RetrievalAgent) rankResults(ctx context.Context, activated map[string]
 		recencyBonus   float32
 		activityBonus  float32
 		contextBoost   float32
+		typeWeight     float32
 		sourceWeight   float32
 		feedbackAdjust float32
 	}
@@ -666,10 +681,13 @@ func (ra *RetrievalAgent) rankResults(ctx context.Context, activated map[string]
 		actScale := float64(f32Or(ra.config.ActivityBonusScale, 0.02))
 		activityBonus := float32(math.Min(actMax, actScale*math.Log1p(float64(state.activationCount))))
 
-		// Context boost from recent watcher activity
+		// Context boost from recent watcher activity (only for eligible sources)
 		var contextBoost float32
 		if ra.activity != nil {
-			contextBoost = ra.activity.boostForMemory(mem.Concepts)
+			eligible := ra.config.ContextBoostSources == nil || ra.config.ContextBoostSources[mem.Source]
+			if eligible {
+				contextBoost = ra.activity.boostForMemory(mem.Concepts)
+			}
 		}
 
 		// Combined score
@@ -685,6 +703,15 @@ func (ra *RetrievalAgent) rankResults(ctx context.Context, activated map[string]
 				baseScore *= f32Or(ra.config.ImportantBoost, 1.1)
 			}
 		}
+
+		// Memory type weight — actionable types (decision, error) rank higher than observations
+		typeWeight := float32(1.0)
+		if ra.config.TypeWeights != nil {
+			if tw, ok := ra.config.TypeWeights[mem.Type]; ok && tw > 0 {
+				typeWeight = tw
+			}
+		}
+		baseScore *= typeWeight
 
 		// Apply source weight as a multiplier (before feedback adjustment)
 		sourceWeight := float32(1.0)
@@ -709,6 +736,7 @@ func (ra *RetrievalAgent) rankResults(ctx context.Context, activated map[string]
 			recencyBonus:   recencyBonus,
 			activityBonus:  activityBonus,
 			contextBoost:   contextBoost,
+			typeWeight:     typeWeight,
 			sourceWeight:   sourceWeight,
 			feedbackAdjust: feedbackAdjust,
 		})
@@ -725,8 +753,8 @@ func (ra *RetrievalAgent) rankResults(ctx context.Context, activated map[string]
 		explanation := ""
 		if includeReasoning {
 			explanation = fmt.Sprintf(
-				"activation: %.3f, recency_bonus: %.3f, activity_bonus: %.3f, context_boost: %.3f, source_weight: %.2f, feedback_adjust: %.3f, combined_score: %.3f",
-				sm.activation, sm.recencyBonus, sm.activityBonus, sm.contextBoost, sm.sourceWeight, sm.feedbackAdjust, sm.finalScore,
+				"activation: %.3f, recency_bonus: %.3f, activity_bonus: %.3f, context_boost: %.3f, type_weight: %.2f, source_weight: %.2f, feedback_adjust: %.3f, combined_score: %.3f",
+				sm.activation, sm.recencyBonus, sm.activityBonus, sm.contextBoost, sm.typeWeight, sm.sourceWeight, sm.feedbackAdjust, sm.finalScore,
 			)
 		}
 
